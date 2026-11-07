@@ -153,12 +153,12 @@ function PagePanel({ page: pg, actions }) {
     const btn = (l, fn) => html`<button type="button" onClick=${fn} class="flex-1 rounded border border-neutral-200 py-1 text-[10px] hover:bg-neutral-50">${l}</button>`;
     const set = (key) => (text) => actions.setPageField(key, text);
     return html`
+        <${WireframeRow} onOpen=${actions.wireframes} label=${pg.empty ? "Start with a layout" : "Add a wireframe"} hint="Sections and page layouts" />
         <div class="sec"><div class="secb nopad"><p class="sub first">Page</p>
             <${PageField} row label="Name" value=${pg.name} onCommit=${set("name")} />
             <${PageField} row label="Group" value=${pg.group} placeholder="none" onCommit=${set("group")} />
             <div class="row"><span class="lbl">Version</span><span class="text-[11px] text-neutral-700">${pg.isNew ? "not saved yet" : `v${pg.version}`}${pg.project ? ` · ${pg.project}` : ""}</span></div>
         </div></div>
-        <${WireframeRow} onOpen=${actions.wireframes} label=${pg.empty ? "Start with a layout" : "Add a wireframe"} hint="Sections and page layouts" />
         ${pg.empty && actions.canAI && html`<${AskBox} title="Generate with AI" placeholder="e.g. a pricing section with three tiers and a highlighted middle plan" rows=${3}
             button="Generate" help="Or draw with the tools, add blocks from +, or paste code in the code panel." empty="Describe what you want first."
             run=${actions.draftPage} />`}
@@ -203,8 +203,8 @@ function Panel({ view, tab, actions }) {
     if (view.design) {
         const { key, s } = view.design;
         body = html`<${DesignTop} key=${key} s=${s} actions=${actions} />
-            ${s.tag !== "body" && html`<${PositionSection} key=${`p${key}`} s=${s} actions=${actions} />`}<${LayoutSection} key=${`l${key}`} s=${s} actions=${actions} />
             ${WIREFRAME_TAGS.has(s.tag) && html`<${WireframeRow} key=${`w${key}`} onOpen=${actions.wireframes} label="Add a wireframe" hint=${`Inside this ${s.tag}`} />`}
+            ${s.tag !== "body" && html`<${PositionSection} key=${`p${key}`} s=${s} actions=${actions} />`}<${LayoutSection} key=${`l${key}`} s=${s} actions=${actions} />
             <${SpacingSection} key=${`s${key}`} s=${s} actions=${actions} /><${ItemSection} key=${`f${key}`} s=${s} actions=${actions} /><${Styles} k=${key} s=${s} actions=${actions} page=${s.tag === "body"} />`;
     }
     else if (view.code) body = html`<${CodeTab} key=${view.code.key} path=${view.code.path} source=${view.code.source} indent=${view.code.indent} s=${view.code.s} actions=${actions} />`;

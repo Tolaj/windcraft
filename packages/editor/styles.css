@@ -244,6 +244,10 @@ textarea.field { height: auto; padding: 6px 8px; font-family: ui-monospace, mono
 .wfbtn .wfs { display: block; font-size: 10.5px; color: #8c8c8c; margin-top: 1px; }
 .wfbtn .wfarr { margin-left: auto; width: 14px; height: 14px; flex: none; color: #b0b0b0; transition: color .12s, transform .12s; }
 .wfbtn:hover .wfarr { color: #111; transform: translateX(2px); }
+/* an empty page: the tip points here, and the button pulses until the page has something in it */
+body[data-wf-hint] .wfbtn { border-style: solid; border-color: #111; background: #fff; animation: wfpulse 1.6s ease-out infinite; }
+body[data-wf-hint] .wfbtn .wfico, body[data-wf-hint] .wfbtn .wfarr { color: #111; }
+@keyframes wfpulse { 0% { box-shadow: 0 0 0 0 rgba(17, 17, 17, .35); } 100% { box-shadow: 0 0 0 10px rgba(17, 17, 17, 0); } }
 .sech { display: flex; align-items: center; gap: 6px; width: 100%; padding: 9px 10px; font-weight: 600; font-size: 11px; text-align: left; }
 .sech:hover { background: #fafafa; }
 .sech .car { width: 10px; color: #8c8c8c; font-size: 9px; }
