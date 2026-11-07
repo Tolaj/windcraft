@@ -28,6 +28,22 @@ export function agentMain() {
     const gapLayer = mk("position:absolute;left:0;top:0;"); // gap and padding handles of the selected box
     overlay.append(hoverBox, gapLayer, guideLayer, draftBox, marqueeBox, ghostBox, dropBox, insertLine, dropHint);
     const isOverlay = (n) => overlay.contains(n) || kidLayer.contains(n);
+    /**
+     * The frame is scaled with the canvas, so a 1px line here is 8px thick at 800%: the boxes the frame draws itself keep one screen pixel.
+     * Not with borders: the browser never draws a border thinner than one device pixel, so a 0.125px border comes back as 1px and is
+     * magnified again. Solid lines are an inset shadow and dashes a gradient along each edge, which keep any fractional size.
+     */
+    const dashes = (color, one) => {
+        const d = `${4 * one}px`, g = (dir) => `repeating-linear-gradient(${dir}, ${color} 0 ${d}, transparent ${d} calc(${d} * 2))`;
+        return { backgroundImage: [g("90deg"), g("90deg"), g("180deg"), g("180deg")].join(","), backgroundSize: `100% ${one}px, 100% ${one}px, ${one}px 100%, ${one}px 100%`, backgroundPosition: "0 0, 0 100%, 0 0, 100% 0", backgroundRepeat: "no-repeat" };
+    };
+    function lineWidths() {
+        const one = 1 / (zoom || 1), rim = `0 0 0 ${one}px rgba(255,255,255,.75)`;
+        [hoverBox, draftBox, marqueeBox].forEach((b) => { b.style.border = "none"; b.style.boxShadow = `inset 0 0 0 ${one}px ${BLUE}, ${rim}`; });
+        dropBox.style.border = "none"; dropBox.style.boxShadow = `inset 0 0 0 ${1.5 * one}px ${BLUE}, ${rim}`;
+        ghostBox.style.border = "none"; Object.assign(ghostBox.style, dashes(BLUE, one), { boxShadow: rim, backgroundColor: "rgba(0,0,0,.05)" });
+        insertLine.style.boxShadow = `0 0 0 ${one}px rgba(255,255,255,.8)`;
+    }
     root.appendChild(kidLayer);
     root.appendChild(overlay);
 
@@ -80,6 +96,7 @@ export function agentMain() {
     const markMade = (el) => { made.add(el); el.querySelectorAll("*").forEach((n) => made.add(n)); };
     const primary = () => sels[sels.length - 1] || null;
     const px = (n) => n / zoom;
+    lineWidths(); // the frame's own lines, at the starting zoom
 
     const DRAW = new Set(["frame", "rect", "ellipse", "line", "arrow", "text", "image", "button"]);
     // the arrow tool's pointer: a bold dark arrow with a white edge (so it shows on any page), tip at the hot spot
@@ -206,11 +223,11 @@ export function agentMain() {
     function drawKids() {
         const el = sels.length === 1 ? sels[0] : null;
         const list = !el || el === document.body || tool !== "move" || editing || gesture ? [] : realKids(el).slice(0, 60).filter((k) => k !== hov).map(pageRect).filter((r) => r.w >= 2 && r.h >= 2);
-        const key = list.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join("|"); // redrawn on every pointer move: only rebuilt when something changed
+        const key = zoom + ":" + list.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join("|"); // redrawn on every pointer move: only rebuilt when something changed (or the zoom)
         if (key === kidsKey) return;
         kidsKey = key;
         kidLayer.textContent = "";
-        list.forEach((r) => kidLayer.appendChild(mk(`position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;border:1px dashed #fff;box-sizing:border-box;pointer-events:none;`)));
+        list.forEach((r) => { const d = mk(`position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`); Object.assign(d.style, dashes("#fff", px(1))); kidLayer.appendChild(d); });
     }
 
     const clearGuides = () => { guideLayer.innerHTML = ""; insertLine.style.display = "none"; ghostBox.style.display = "none"; dropBox.style.display = "none"; dropHint.style.display = "none"; dropHint.style.transform = ""; };
@@ -2256,7 +2273,7 @@ export function agentMain() {
             if (editing && m.name) { editing.focus(); document.execCommand(m.name, false, m.arg || null); postEditing(); }
             return;
         }
-        if (m.cmd === "view") { zoom = m.zoom || 1; redraw(); return; }
+        if (m.cmd === "view") { zoom = m.zoom || 1; lineWidths(); redraw(); return; }
         if (m.cmd === "scrollTo") { const el = elAt(m.path); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
         if (m.cmd === "align") { align(m.mode); return; }
         if (m.cmd === "order") { reorder(m.mode); return; }
