@@ -64,6 +64,7 @@ export const GROUPS = {
     items: E("items-(?:start|center|end|stretch|baseline)"),
     content: E("content-(?:start|center|end|between|around|evenly|stretch)"),
     self: E("self-(?:auto|start|center|end|stretch|baseline)"),
+    justifySelf: E("justify-self-(?:auto|start|center|end|stretch)"),
     grow: E("grow|grow-0"),
     shrink: E("shrink|shrink-0"),
     flexNum: E("flex-(?:1|auto|initial|none)"),

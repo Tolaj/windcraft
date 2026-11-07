@@ -349,7 +349,7 @@ export function convertGesture(items) {
         // both halves of a gap, or the padding of both sides of an axis, equal: one class (gap-6, px-6), not two
         let it = it0;
         const pairs = [];
-        for (const [a, b, one] of [["column-gap", "row-gap", "gap"], ["padding-left", "padding-right", "padding-inline"], ["padding-top", "padding-bottom", "padding-block"]]) {
+        for (const [a, b, one] of [["column-gap", "row-gap", "gap"], ["padding-left", "padding-right", "padding-inline"], ["padding-top", "padding-bottom", "padding-block"], ["margin-left", "margin-right", "margin-inline"]]) {
             // only when both halves came from one class (px-4, p-4, gap-4) or from none: separate pl-4 pr-4 would override a px-6 written over them
             const pa = it.pre[a] || {}, pb = it.pre[b] || {}, sameSource = (pa.token || pa.source || "") === (pb.token || pb.source || "");
             if (it.values[a] !== undefined && it.values[a] === it.values[b] && sameSource) {

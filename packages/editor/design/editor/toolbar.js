@@ -230,6 +230,8 @@ export function init() {
     $("detailsBtn").addEventListener("click", () => $("designsMenu").classList.add("hidden"));
     document.addEventListener("keydown", (e) => {
         if ((e.metaKey || e.ctrlKey) && !e.altKey && keyZoom(e.key)) return e.preventDefault();
+        // a drag in the page is under way (the keys reach this window, not the frame): Tab and Esc are the drag's
+        if (S.gestureOn && (e.key === "Tab" || e.key === "Escape")) { e.preventDefault(); send({ cmd: "dragKey", key: e.key }); return; }
         if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
         const meta = e.metaKey || e.ctrlKey;
         const key = e.key.toLowerCase();

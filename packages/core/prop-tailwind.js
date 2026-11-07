@@ -16,6 +16,7 @@ const WORDS = {
     "justify-content": ["justify", pick({ "flex-start": "justify-start", start: "justify-start", center: "justify-center", "flex-end": "justify-end", end: "justify-end", "space-between": "justify-between", "space-around": "justify-around", "space-evenly": "justify-evenly", stretch: "justify-stretch", normal: "justify-normal" })],
     "align-items": ["items", pick({ "flex-start": "items-start", start: "items-start", center: "items-center", "flex-end": "items-end", end: "items-end", baseline: "items-baseline", stretch: "items-stretch" })],
     "align-self": ["self", pick({ auto: "self-auto", "flex-start": "self-start", start: "self-start", center: "self-center", "flex-end": "self-end", end: "self-end", stretch: "self-stretch", baseline: "self-baseline" })],
+    "justify-self": ["justifySelf", pick({ auto: "justify-self-auto", start: "justify-self-start", center: "justify-self-center", end: "justify-self-end", stretch: "justify-self-stretch" })],
     "text-align": ["textAlign", same("text-")],
     "flex-grow": ["grow", pick({ 0: "grow-0", 1: "grow" })],
     "text-decoration-line": ["textDecoration", pick({ none: "no-underline", underline: "underline", "line-through": "line-through", overline: "overline" })],
@@ -41,7 +42,7 @@ const LENGTHS = {
     width: "w", height: "h", "min-width": "minW", "max-width": "maxW", "min-height": "minH", "max-height": "maxH",
     gap: "gap", "column-gap": "gapX", "row-gap": "gapY", top: "top", right: "right", bottom: "bottom", left: "left",
     "padding-top": "pt", "padding-right": "pr", "padding-bottom": "pb", "padding-left": "pl", "padding-inline": "px", "padding-block": "py",
-    "margin-top": "mt", "margin-right": "mr", "margin-bottom": "mb", "margin-left": "ml",
+    "margin-top": "mt", "margin-right": "mr", "margin-bottom": "mb", "margin-left": "ml", "margin-inline": "mx", "margin-block": "my",
     "font-size": "fontSize", "line-height": "leading", "letter-spacing": "tracking", "border-radius": "radius", "z-index": "z",
 };
 const COLORS = { color: "textColor", "background-color": "bgColor", "border-top-color": "borderColor" };
