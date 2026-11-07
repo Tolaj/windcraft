@@ -67,6 +67,18 @@ export function agentMain() {
     // stayed white on white. Now they are black on light pages and white on dark ones.
     stillStyle.textContent = "*, *::before, *::after { transition: none !important; animation: none !important; } html { scrollbar-width: none; } html::-webkit-scrollbar { display: none; } :where(html) { background-color: #fff; }";
     document.head.appendChild(stillStyle);
+    // Screen-sized content (min-h-screen, h-screen, 100vh) is the device's screen tall, not the frame's: the frame follows its content,
+    // so two screen-tall blocks would grow it, and themselves, without end (playground/component-source.js says more; same rules).
+    const screenStyle = document.createElement("style");
+    screenStyle.setAttribute("data-wc-agent-style", "");
+    const SCREEN_SIZED = ["h-screen", "min-h-screen", "max-h-screen", "h-dvh", "min-h-dvh", "max-h-dvh", "h-svh", "min-h-svh", "max-h-svh", "h-lvh", "min-h-lvh", "max-h-lvh", "h-[100vh]", "min-h-[100vh]", "h-[100dvh]", "min-h-[100dvh]"];
+    const fitScreen = () => {
+        const w = innerWidth, px = w >= 1024 ? 800 : w >= 768 ? 1024 : 844;
+        screenStyle.textContent = SCREEN_SIZED.map((c) => `.${c.replace(/[[\]]/g, "\\$&")}{${c.startsWith("min-") ? "min-height" : c.startsWith("max-") ? "max-height" : "height"}:${px}px !important}`).join("");
+    };
+    fitScreen();
+    window.addEventListener("resize", fitScreen);
+    document.head.appendChild(screenStyle);
     /** Values of `props` on `el`; a transition or animation is read as the design has it, not as the still frame shows it. */
     const readStyle = (el, props) => {
         const cs = getComputedStyle(el), o = {};

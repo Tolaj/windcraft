@@ -52,7 +52,8 @@ function hideBoot() {
 /**
  * A frame that follows its content's height can't follow content sized by the screen (min-h-screen, h-screen, 100vh) plus
  * anything more (a border, padding, a second section): each time the frame grows to fit, the screen grows with it and the content
- * outgrows it again, without end. Growth that repeats by the same amount, quickly, is that loop: the frame stops following it
+ * outgrows it again, without end (the frame's own stylesheet gives the usual Tailwind classes a fixed screen height; inline 100vh and
+ * the like can still do it). Growth that repeats by the same or a growing amount, quickly, is that loop: the frame stops following it
  * and keeps the height it has. A height that is smaller starts over.
  */
 const growth = [];
@@ -62,7 +63,8 @@ function viewportLoop(h) {
     growth.push({ t: now, d: h - prev });
     while (growth.length && now - growth[0].t > 2000) growth.shift();
     const last = growth.slice(-4);
-    return last.length >= 4 && last.every((g) => Math.abs(g.d - last[0].d) <= 1);
+    // the same amount each time (a screen-tall block plus a header), or more each time (two screen-tall blocks double it)
+    return last.length >= 4 && last.every((g, i) => i === 0 || g.d >= last[i - 1].d - 1);
 }
 
 export function init() {

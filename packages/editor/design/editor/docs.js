@@ -14,7 +14,8 @@ const scriptTag = (s) =>
     `<script${s.src ? ` src="${esc(s.src)}"` : ""}${s.type ? ` type="${esc(s.type)}"` : ""}${s.defer ? " defer" : ""}>${s.src ? "" : s.text.replace(/<\/script/gi, "<\\/script")}<\/script>`;
 const styleTag = (s) => `<style${s.type ? ` type="${esc(s.type)}"` : ""}>${s.text.replace(/<\/style/gi, "<\\/style")}</style>`;
 
-function editDocument() {
+/** The page's head and body attributes as the canvas has them: its Tailwind (or the editor's, with the project's theme) and its own CSS. */
+function canvasParts() {
     const head = ['<meta charset="utf-8">', '<meta name="viewport" content="width=device-width, initial-scale=1">'];
     if (!S.parsed.hasTailwindScript) head.push('<script src="https://cdn.tailwindcss.com"><\/script>', themeMarkup());
     else head.push(...S.parsed.scripts.filter(isTailwindScript).map(scriptTag));
@@ -22,7 +23,21 @@ function editDocument() {
     const mark = (tag) => tag.replace(/^<(style|link)\b/i, "<$1 data-wc-design");
     head.push(...S.parsed.links.map(mark), ...S.parsed.styles.map(styleTag).map(mark), "<style data-wc-editor>html,body{margin:0}</style>");
     const attrs = Object.entries(S.parsed.bodyAttrs).map(([k, v]) => ` ${k}="${esc(v)}"`).join("");
-    return `<!DOCTYPE html><html><head>${head.join("\n")}</head><body${attrs}>${model.markup}<script data-wc-agent>window.__wcLoad=${S.loadSeq};(${agentMain.toString()})()<\/script></body></html>`;
+    return { head: head.join("\n"), attrs };
+}
+
+function editDocument() {
+    const { head, attrs } = canvasParts();
+    return `<!DOCTYPE html><html><head>${head}</head><body${attrs}>${model.markup}<script data-wc-agent>window.__wcLoad=${S.loadSeq};(${agentMain.toString()})()<\/script></body></html>`;
+}
+
+/**
+ * The page as the canvas styles it, without the editor in it and without the page's own scripts (layout-picker.js measures where a
+ * wireframe would land in it). No scrollbar, as on the canvas: one would take width and change the layout.
+ */
+export function stillDocument() {
+    const { head, attrs } = canvasParts();
+    return `<!DOCTYPE html><html><head>${head}<style>html{scrollbar-width:none}html::-webkit-scrollbar{display:none}</style></head><body${attrs}>${model.markup}</body></html>`;
 }
 
 /** Rebuilds the component source: original head assets and scripts around the edited markup. */

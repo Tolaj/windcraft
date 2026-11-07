@@ -94,7 +94,7 @@ function mountGhost(key, force) {
         en.box.prepend(en.ghost);
     }
     en.ghost.title = d.meta.title || "Design";
-    en.ghost.srcdoc = buildPreviewDocument(p, { width: widthOf(d) });
+    en.ghost.srcdoc = buildPreviewDocument(p, { width: widthOf(d) , fixedScreen: true });
 }
 
 function setRole(key) {

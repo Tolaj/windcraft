@@ -2,6 +2,9 @@ import { config } from "../config.js";
 import { $, S, esc, model } from "./base.js";
 import { addToEmpty } from "./add-menu.js";
 import { cmd } from "./frame-messages.js";
+import { stillDocument } from "./docs.js";
+import { curWidth } from "./plane.js";
+import { screenHeightFor } from "../../playground/component-source.js";
 import { KIND_NAMES, LAYOUTS, SECTIONS, wireframe } from "../../../core/wireframes.js";
 export { LAYOUTS, SECTIONS };
 
@@ -16,25 +19,103 @@ const inBox = (html) => html.replace(/\bmin-h-screen\b/g, "min-h-[32rem]");
 const dismissed = new Set(); // pages where the tip was dismissed: it stays away from them
 let box = null, keyShown = null, sizer = null, onEsc = null;
 
-/** A tile: the wireframe at 1280 wide, shrunk to fit (drawn right here: it is only grey boxes, which keeps an endless list light), and its name. */
-function tile(id, name, html) {
+// ── Previews: what the pick will really be ────────────────────────────────────────────────────────────────────────────
+// A tile is not the wireframe drawn with the editor's own styles (those follow the editor window's width, not the page's, and have
+// neither the project's theme nor the page's CSS): it is measured in a hidden copy of the page, styled as the canvas styles it, at the
+// page's width and on its screen, put exactly where the pick would go (inside the selected box, or at the end of the page), and then
+// drawn from those measurements. What the tile shows is what lands on the canvas.
+let probe = null; // { frame, ready } while the browser is open
+
+function openProbe() {
+    closeProbe();
+    const w = curWidth(), f = document.createElement("iframe");
+    f.setAttribute("aria-hidden", "true");
+    f.tabIndex = -1;
+    // the page's screen: a min-h-screen is as tall here as on the canvas (plane.js deviceHeight, component-source.js screenHeightFor)
+    f.style.cssText = `position:fixed;left:-30000px;top:0;width:${w}px;height:${screenHeightFor(w)}px;border:0;visibility:hidden;pointer-events:none;`;
+    f.srcdoc = stillDocument();
+    const ready = new Promise((r) => { f.addEventListener("load", () => r(), { once: true }); setTimeout(r, 8000); });
+    document.body.appendChild(f);
+    probe = { frame: f, ready, w };
+}
+function closeProbe() { if (probe) { probe.frame.remove(); probe = null; } }
+
+/** Until the page's Tailwind has written the styles for what was just added (its stylesheet stops changing), at most ~1s. */
+async function stylesSettled(doc) {
+    const size = () => [...doc.querySelectorAll("style")].reduce((n, st) => n + st.textContent.length, 0);
+    let last = -1, same = 0;
+    for (let i = 0; i < 50 && same < 2; i++) {
+        await new Promise((r) => setTimeout(r, 20));
+        const now = size();
+        same = now === last ? same + 1 : 0;
+        last = now;
+    }
+}
+
+/** Each wireframe's boxes where it would land: [{ w, h, boxes: [[x, y, w, h, css]] }], in the order given. */
+async function measure(list, into) {
+    const p = probe;
+    if (!p) return [];
+    await p.ready;
+    const doc = p.frame.contentDocument;
+    if (!doc || !doc.body || probe !== p) return [];
+    const target = into ? into.path.reduce((el, i) => el && el.children[i], doc.body) : doc.body;
+    if (!target) return [];
+    // all of them first, out of the page, so its Tailwind writes their styles in one go
+    const stage = doc.createElement("div");
+    stage.hidden = true;
+    stage.innerHTML = list.join("");
+    doc.documentElement.appendChild(stage);
+    await stylesSettled(doc);
+    if (probe !== p || !doc.defaultView) return []; // the browser closed meanwhile (a pick): its copy of the page is gone
+    const out = [...stage.children].map((n) => {
+        target.appendChild(n); // one at a time, exactly where the pick goes: alone, as it will be
+        const o = n.getBoundingClientRect(), boxes = [];
+        [n, ...n.querySelectorAll("*")].forEach((el) => {
+            const r = el.getBoundingClientRect(), cs = doc.defaultView.getComputedStyle(el);
+            if (!r.width || !r.height || cs.visibility === "hidden") return;
+            const bg = cs.backgroundColor, bw = [cs.borderTopWidth, cs.borderRightWidth, cs.borderBottomWidth, cs.borderLeftWidth];
+            const painted = (bg && bg !== "transparent" && !/rgba\(.*,\s*0\)$/.test(bg)) || bw.some((b) => parseFloat(b) > 0);
+            if (!painted) return; // only what shows: a plain wrapper draws nothing
+            boxes.push([r.left - o.left, r.top - o.top, r.width, r.height,
+                `background:${bg};border-style:${cs.borderTopStyle} ${cs.borderRightStyle} ${cs.borderBottomStyle} ${cs.borderLeftStyle};border-width:${bw.join(" ")};border-color:${cs.borderTopColor} ${cs.borderRightColor} ${cs.borderBottomColor} ${cs.borderLeftColor};border-radius:${cs.borderTopLeftRadius} ${cs.borderTopRightRadius} ${cs.borderBottomRightRadius} ${cs.borderBottomLeftRadius};`]);
+        });
+        n.remove();
+        return { w: o.width, h: o.height, boxes };
+    });
+    stage.remove();
+    return out;
+}
+
+/** A tile: an empty preview the measurements fill in (paint), and its name. Its shape is the page's screen. */
+function tile(id, name) {
+    const w = probe ? probe.w : 1280;
     return `<button type="button" data-layout="${esc(id)}" class="group text-left">
-        <div class="relative aspect-[16/10] overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900"><div data-shrink class="pointer-events-none absolute left-0 top-0 origin-top-left bg-white" style="width:1280px">${html.replace(/\bmin-h-screen\b/g, "min-h-[800px]")}</div></div>
+        <div class="relative overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900" style="aspect-ratio:${w} / ${screenHeightFor(w)}"><div data-shrink class="pointer-events-none absolute left-0 top-0 origin-top-left"></div></div>
         <div class="mt-1.5 truncate text-xs text-neutral-600 group-hover:text-neutral-900" title="${esc(name)}">${esc(name)}</div>
     </button>`;
 }
-/** Shrinks each preview to its tile; a short one (a section) sits in the middle of its tile rather than at the top. */
+/** Draws a measured wireframe into its tile. */
+function paint(t, m) {
+    const f = t && t.querySelector("[data-shrink]");
+    if (!f || !m) return;
+    f.dataset.w = String(m.w);
+    f.style.width = `${m.w}px`;
+    f.style.height = `${m.h}px`;
+    f.innerHTML = m.boxes.map(([x, y, w, h, css]) => `<div style="position:absolute;box-sizing:border-box;left:${x}px;top:${y}px;width:${w}px;height:${h}px;${css}"></div>`).join("");
+}
+/** Shrinks each preview to its tile, whole width in view; a short one (a section) sits in the middle of its tile rather than at the top. */
 function fitTiles(node) {
-    node.querySelectorAll("[data-shrink]").forEach((f) => {
+    node.querySelectorAll("[data-shrink][data-w]").forEach((f) => {
         const w = f.parentElement.clientWidth, h = f.parentElement.clientHeight;
         if (!w) return;
-        const k = w / 1280, tall = f.scrollHeight;
+        const k = w / Math.max(1, parseFloat(f.dataset.w)), tall = f.offsetHeight;
         f.style.transform = `translateY(${Math.max(0, (h - tall * k) / 2)}px) scale(${k})`;
     });
 }
 
 let watcher = null; // the endless list's "more as you scroll" observer
-function hide() { if (watcher) { watcher.disconnect(); watcher = null; } if (sizer) { sizer.disconnect(); sizer = null; } if (box) { box.remove(); box = null; } keyShown = null; onEsc = null; }
+function hide() { if (watcher) { watcher.disconnect(); watcher = null; } if (sizer) { sizer.disconnect(); sizer = null; } if (box) { box.remove(); box = null; } closeProbe(); keyShown = null; onEsc = null; }
 function skip() { dismissed.add(S.curKey); hide(); }
 
 /**
@@ -65,7 +146,22 @@ function browse(o) {
     const card = box.querySelector("[data-card]"), grid = box.querySelector("[data-grid]"), more = box.querySelector("[data-more]"), scroller = box.querySelector("[data-scroll]");
     const items = new Map();
     let kind = "all", n = 0, seen = new Set(), done = false;
-    const add = (id, name, html) => { items.set(id, html); grid.insertAdjacentHTML("beforeend", tile(id, name, html)); };
+    openProbe();
+    let pending = [], painting = false, gen = 0;
+    /** Measures the tiles added since the last time, in the copy of the page, and draws them. */
+    async function paintPending() {
+        if (painting) return;
+        painting = true;
+        while (pending.length && box) {
+            const batch = pending.splice(0, 12), g = gen;
+            const ms = await measure(batch.map((id) => items.get(id)), into);
+            if (g !== gen || !box) continue; // the list was refiltered meanwhile
+            batch.forEach((id, i) => paint(grid.querySelector(`[data-layout="${CSS.escape(id)}"]`), ms[i]));
+            fitTiles(grid);
+        }
+        painting = false;
+    }
+    const add = (id, name, html) => { items.set(id, html); grid.insertAdjacentHTML("beforeend", tile(id, name)); pending.push(id); };
     /** The next dozen of this kind; repeats are skipped, and a kind with no new ones left says so. */
     function loadMore() {
         if (done || !box) return;
@@ -79,12 +175,12 @@ function browse(o) {
             added++;
         }
         if (added < 12) { done = true; more.textContent = kind === "all" ? "That's all for now." : `That's every ${KIND_NAMES[kind]} wireframe.`; }
-        fitTiles(grid);
+        paintPending();
         // still room below (a short list, a tall window): fill it, the end of the list must be out of view to wait for a scroll
         requestAnimationFrame(() => { if (!done && box && more.getBoundingClientRect().top < scroller.getBoundingClientRect().bottom + 400) loadMore(); });
     }
     function show(k) {
-        kind = k; n = 0; seen = new Set(); done = false; items.clear(); grid.innerHTML = ""; more.textContent = "Loading more…";
+        kind = k; n = 0; seen = new Set(); done = false; items.clear(); grid.innerHTML = ""; pending = []; gen++; more.textContent = "Loading more…";
         box.querySelectorAll("[data-kind]").forEach((c) => { c.className = `rounded-full border px-3 py-1 text-xs ${c.dataset.kind === k ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-600 hover:border-neutral-400"}`; });
         const picked = (list) => list.forEach(([id, name, html]) => { seen.add(html); add(`pick-${id}`, name, fitIn(html)); });
         // the hand-picked ones lead the list, the same for a box and for the page

@@ -60,6 +60,18 @@ export function parseComponentSource(code) {
     };
 }
 
+/**
+ * Content sized by the screen (min-h-screen, h-screen, 100vh...) in a frame that follows its content's height: the frame is the
+ * screen, so it is as tall as the content, which is as tall as the frame... Two of them (or one plus a header) grow without end.
+ * Where a frame follows its content (the editor's canvas), a screen is the device's for that width instead (as the wireframe tiles
+ * and the Interact tool show it): 800 tall on a desktop, 1024 on a tablet, 844 on a phone.
+ */
+export const screenHeightFor = (w) => (w >= 1024 ? 800 : w >= 768 ? 1024 : 844);
+const SCREEN_SIZED = ["h-screen", "min-h-screen", "max-h-screen", "h-dvh", "min-h-dvh", "max-h-dvh", "h-svh", "min-h-svh", "max-h-svh", "h-lvh", "min-h-lvh", "max-h-lvh", "h-[100vh]", "min-h-[100vh]", "h-[100dvh]", "min-h-[100dvh]"];
+export function screenHeightCss(px) {
+    return SCREEN_SIZED.map((c) => `.${c.replace(/[[\]]/g, "\\$&")}{${c.startsWith("min-") ? "min-height" : c.startsWith("max-") ? "max-height" : "height"}:${px}px !important}`).join("");
+}
+
 const escapeAttr = (v) => String(v).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 const escapeScript = (t) => t.replace(/<\/script/gi, "<\\/script");
 
@@ -84,7 +96,8 @@ export const setPreviewTheme = (theme) => { previewTheme = theme || null; };
 export const themeMarkup = () => (previewTheme ? themeHead(previewTheme) : "");
 
 /** Builds a complete, standalone document for an iframe's srcdoc. */
-export function buildPreviewDocument(parsed, { width } = {}) {
+/** `fixedScreen`: the frame follows its content's height, so screen-sized content gets the device's screen height (screenHeightCss). */
+export function buildPreviewDocument(parsed, { width, fixedScreen = false } = {}) {
     const head = [
         '<meta charset="utf-8">',
         `<meta name="viewport" content="width=${width || "device-width"}, initial-scale=1">`,
@@ -118,7 +131,7 @@ export function buildPreviewDocument(parsed, { width } = {}) {
 <html>
 <head>
 ${head.join("\n")}
-<style>html,body{margin:0}</style>
+<style>html,body{margin:0}${fixedScreen ? screenHeightCss(screenHeightFor(width || 1280)) : ""}</style>
 </head>
 <body${bodyAttrs}>
 ${parsed.markup}
