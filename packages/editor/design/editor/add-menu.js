@@ -20,7 +20,7 @@ const BLOCKS = [
     ["Input", '<input type="text" placeholder="Type here" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">'],
 ];
 const CONTAINERS = new Set(["body", "div", "section", "header", "footer", "main", "nav", "ul", "ol", "form", "article", "aside"]);
-function addToEmpty(html) {
+export function addToEmpty(html) {
     model.markup = html;
     commit(html);
     loadFrame();

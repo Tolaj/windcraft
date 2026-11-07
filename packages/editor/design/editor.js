@@ -18,6 +18,7 @@ import { init as init_designs } from "./editor/designs.js";
 import { init as init_frame_handles } from "./editor/frame-handles.js";
 import { init as init_color_ui } from "./editor/color-ui.js";
 import { init as init_panel_resize } from "./editor/panel-resize.js";
+import { init as init_layout_picker } from "./editor/layout-picker.js";
 
 // the project's theme, before the first frame is built
 setPreviewTheme(config.data.theme);
@@ -32,6 +33,7 @@ init_designs();
 init_frame_handles();
 init_color_ui();
 init_panel_resize();
+init_layout_picker();
 
 // ── Go ───────────────────────────────────────────────────────────────────────
 mountDatalists();

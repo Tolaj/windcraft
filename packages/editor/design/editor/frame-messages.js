@@ -11,6 +11,7 @@ import { commit, updateChrome } from "./docs.js";
 import { convertGesture, renderInspector, setRotation } from "./inspector.js";
 import { updateCodeHighlight } from "./code-panel.js";
 import { suggestLayout } from "./layout-chip.js";
+import { syncLayoutPicker } from "./layout-picker.js";
 
 let pendingKey = "";
 
@@ -120,6 +121,7 @@ export function init() {
             send({ cmd: "cssProps", props: CSS_PROP_LIST });
             send({ cmd: "previewState", state: panelStore.get().st }); // a reloaded frame shows the picked state again
             renderFloat();
+            syncLayoutPicker(); // an empty page offers ready layouts
         } else if (m.type === "height" || m.type === "preview-height") {
             if (viewportLoop(m.height)) return;
             S.frameHeight = m.height;
@@ -135,6 +137,7 @@ export function init() {
             renderLayers();
             renderInspector();
             renderFloat();
+            syncLayoutPicker();
         } else if (m.type === "rotate") {
             // the rotate handle was let go: the angle is written like the panel's rotation field does
             if (S.selected && pathKey(S.selected.path) === pathKey(m.path)) setRotation(m.value);
