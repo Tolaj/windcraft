@@ -180,7 +180,7 @@ export function openWireframes(target) {
     hideTip();
     const into = target && target.path && target.path.length ? target : null;
     browse({
-        title: into ? `Add a wireframe inside this ${into.tag}` : model.markup.trim() === "" ? "Start with a layout" : "Add a wireframe to the page", modal: true, into, onClose: hide,
+        title: into ? `Add a wireframe inside this ${into.tag}` : "Add a wireframe to the page", modal: true, into, onClose: hide,
         onPick: (html) => {
             if (!into && model.markup.trim() === "") return addToEmpty(html);
             cmd({ cmd: "insert", path: into ? into.path : [], html, position: "inside" });
