@@ -83,97 +83,35 @@ function fitTiles(node) {
     });
 }
 
-/**
- * The card with its tiles. `o`: { title, groups: [{ label, items: [[id, name, html]] }], ai, skip (a label, or null), modal, onPick(html), onSkip() }.
- * Not modal: it sits over the empty page and the canvas around it stays usable. Modal: a popup over a dimmed canvas, closed by a click outside.
- */
-function build(o) {
-    const canAI = o.ai && typeof host.generate === "function";
-    const items = new Map();
-    o.groups.forEach((g) => g.items.forEach(([id, , html]) => items.set(id, html)));
-    box = document.createElement("div");
-    box.id = "layoutPicker";
-    box.className = `${o.modal ? "bg-black/10" : "pointer-events-none"} absolute inset-0 z-40 flex items-center justify-center p-6`;
-    box.innerHTML = `<div data-card class="pointer-events-auto max-h-full w-full max-w-[780px] overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-5 shadow-[0_12px_48px_rgba(0,0,0,.18)]">
-        <div class="flex items-center justify-between gap-4"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(o.title)}</h2>
-            <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${esc(o.skip || "Close")}</button></div>
-        ${o.groups.filter((g) => g.items.length).map((g, i) => `<p class="${i ? "mt-5" : "mt-3"} text-[11px] font-medium uppercase tracking-wide text-neutral-400">${esc(g.label)}</p>
-        <div class="mt-2 grid grid-cols-4 gap-3">${g.items.map(([id, name, html]) => tile(id, name, html, g.live)).join("")}</div>`).join("")}
-        ${canAI ? `<p class="mt-5 text-[11px] font-medium uppercase tracking-wide text-neutral-400">Or describe it</p>
-        <form data-ai class="mt-2 flex gap-2"><input name="prompt" type="text" placeholder="A pricing page with three plans and an FAQ" class="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900">
-            <button type="submit" class="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white">Generate</button></form>
-        <p data-ai-msg class="mt-2 hidden text-xs"></p>` : ""}
-    </div>`;
-    $("canvas").appendChild(box);
-    box.dataset.modal = o.modal ? "1" : "";
-    onEsc = o.onSkip;
-    // the previews are pages 1280 wide, shrunk to their tile
-    const node = box;
-    sizer = new ResizeObserver(() => fitTiles(node));
-    sizer.observe(node);
-    fitTiles(node);
-    const card = box.querySelector("[data-card]");
-    // the canvas pans and zooms with the wheel and the pointer: not under the picker
-    ["wheel", "pointerdown"].forEach((t) => card.addEventListener(t, (e) => e.stopPropagation()));
-    if (o.modal) {
-        ["wheel", "pointerdown"].forEach((t) => box.addEventListener(t, (e) => e.stopPropagation()));
-        box.addEventListener("click", (e) => { if (!card.contains(e.target)) o.onSkip(); });
-    }
-    card.addEventListener("click", (e) => {
-        const t = e.target.closest("[data-layout]");
-        if (e.target.closest("[data-skip]") || (t && t.dataset.layout === "blank")) return o.onSkip();
-        if (!t) return;
-        const html = items.get(t.dataset.layout);
-        if (html) { hide(); o.onPick(html); }
-    });
-    const form = card.querySelector("[data-ai]");
-    if (form) form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const prompt = form.prompt.value.trim(), msg = card.querySelector("[data-ai-msg]");
-        msg.classList.remove("hidden");
-        if (!prompt) { msg.className = "mt-2 text-xs text-red-600"; msg.textContent = "Describe the page first."; return; }
-        msg.className = "mt-2 text-xs text-neutral-500"; msg.textContent = "Drafting the page…";
-        const res = await draftPage(prompt);
-        if (!res.ok) { msg.className = "mt-2 text-xs text-red-600"; msg.textContent = res.message || "Couldn't draft the page. Try again."; }
-    });
-}
-
-function hide() { if (sizer) { sizer.disconnect(); sizer = null; } if (box) { box.remove(); box = null; } keyShown = null; onEsc = null; }
+let watcher = null; // the endless list's "more as you scroll" observer
+function hide() { if (watcher) { watcher.disconnect(); watcher = null; } if (sizer) { sizer.disconnect(); sizer = null; } if (box) { box.remove(); box = null; } keyShown = null; onEsc = null; }
 function skip() { dismissed.add(S.curKey); hide(); }
 
-/** Shows the picker over an empty page (and only then); called whenever the page or its content changes. */
-export function syncLayoutPicker() {
-    if (box && box.dataset.modal) return; // a wireframe popup the person opened stays until they pick or close it
-    const want = S.mode === "edit" && config.ui.panels !== false && model.markup.trim() === "" && !dismissed.has(S.curKey);
-    if (!want) return hide();
-    if (box && keyShown === S.curKey) return;
-    hide();
-    keyShown = S.curKey;
-    const frames = framesHere();
-    build({
-        title: "Start with a layout", skip: "Start blank", ai: true, modal: false, onSkip: skip,
-        groups: [{ label: "Built in", items: [["blank", "Blank", ""], ...LAYOUTS] }, { label: "Same as a page in this project", live: true, items: frames.map((f, i) => [`frame-${i}`, `Like “${f.title}”`, f.html]) }],
-        onPick: (html) => { if (model.markup.trim() === "") addToEmpty(html); },
-    });
-}
-
 /**
- * The wireframes as a popup, from the Properties panel: `target` is the selected element ({ path, tag }) or null for the page. An
- * endless list: the hand-picked ones first, then the generator's (core/wireframes.js), more as it is scrolled, filtered by kind with
- * the chips. A pick goes inside that element (after what it holds) or at the end of the page (or fills it when it is empty). One undo step.
+ * The wireframe browser: every wireframe, endless. The hand-picked ones lead, then the generator's (core/wireframes.js), twelve more
+ * each time the end of the list comes into view, repeats skipped, filtered by kind with the chips.
+ *   o.into    the selected element ({ path, tag }) a pick goes inside, or null for the page
+ *   o.modal   a dialog over a dimmed canvas (from the Properties panel), or a card over an empty page that leaves the canvas usable
+ *   o.blank, o.frames, o.ai   the empty page's extras: Blank, "Like <page>" (live previews of the project's other pages), the AI box
+ *   o.onPick(html), o.onClose()
  */
-export function openWireframes(target) {
+function browse(o) {
     hide();
-    const into = target && target.path && target.path.length ? target : null;
+    const into = o.into && o.into.path && o.into.path.length ? o.into : null;
     const fitIn = (html) => (into ? inBox(html) : html);
+    const canAI = o.ai && typeof host.generate === "function";
+    const frames = o.frames || [];
     box = document.createElement("div");
     box.id = "layoutPicker";
-    box.dataset.modal = "1";
-    box.className = "absolute inset-0 z-[60] flex items-center justify-center bg-black/10 p-6"; // over the canvas toolbars too: it is a dialog
+    box.dataset.modal = o.modal ? "1" : "";
+    // a dialog sits over the canvas toolbars too; the empty page's card under them, so they stay usable
+    box.className = o.modal ? "absolute inset-0 z-[60] flex items-center justify-center bg-black/10 p-6" : "pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-6 pb-6 pt-20";
     const chips = [["all", "All"], ...Object.entries(KIND_NAMES)];
-    box.innerHTML = `<div data-card class="flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
-        <div class="flex items-center justify-between gap-4 px-5 pt-5"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(into ? `Add a wireframe inside this ${into.tag}` : "Add a wireframe to the page")}</h2>
-            <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">Close</button></div>
+    box.innerHTML = `<div data-card class="pointer-events-auto flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
+        <div class="flex items-center justify-between gap-4 px-5 pt-5"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(o.title)}</h2>
+            <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${esc(o.closeLabel || "Close")}</button></div>
+        ${canAI ? `<form data-ai class="flex gap-2 px-5 pt-3"><input name="prompt" type="text" placeholder="Describe it: a pricing page with three plans and an FAQ" class="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900">
+            <button type="submit" class="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white">Generate</button></form><p data-ai-msg class="hidden px-5 pt-2 text-xs"></p>` : ""}
         <div data-chips class="flex flex-wrap gap-1.5 px-5 pb-3 pt-3">${chips.map(([k, l]) => `<button type="button" data-kind="${k}" class="rounded-full border px-3 py-1 text-xs">${esc(l)}</button>`).join("")}</div>
         <div data-scroll class="min-h-0 flex-1 overflow-y-auto border-t border-neutral-100 px-5 pb-5 pt-4"><div data-grid class="grid grid-cols-4 gap-3"></div>
             <p data-more class="py-6 text-center text-xs text-neutral-400">Loading more…</p></div>
@@ -182,10 +120,10 @@ export function openWireframes(target) {
     const card = box.querySelector("[data-card]"), grid = box.querySelector("[data-grid]"), more = box.querySelector("[data-more]"), scroller = box.querySelector("[data-scroll]");
     const items = new Map();
     let kind = "all", n = 0, seen = new Set(), done = false;
-    const add = (id, name, html) => { items.set(id, html); grid.insertAdjacentHTML("beforeend", tile(id, name, html)); };
+    const add = (id, name, html, live) => { items.set(id, html); grid.insertAdjacentHTML("beforeend", tile(id, name, html, live)); };
     /** The next dozen of this kind; repeats are skipped, and a kind with no new ones left says so. */
     function loadMore() {
-        if (done) return;
+        if (done || !box) return;
         let added = 0, tries = 0;
         while (added < 12 && tries < 240) {
             const w = wireframe(kind, n++);
@@ -203,33 +141,76 @@ export function openWireframes(target) {
     function show(k) {
         kind = k; n = 0; seen = new Set(); done = false; items.clear(); grid.innerHTML = ""; more.textContent = "Loading more…";
         box.querySelectorAll("[data-kind]").forEach((c) => { c.className = `rounded-full border px-3 py-1 text-xs ${c.dataset.kind === k ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-600 hover:border-neutral-400"}`; });
+        const picked = (list) => list.forEach(([id, name, html]) => { seen.add(html); add(`pick-${id}`, name, fitIn(html)); });
+        if (k === "all" || k === "pages") {
+            if (o.blank && k === "all") add("blank", "Blank", "");
+            frames.forEach((f, i) => add(`frame-${i}`, `Like “${f.title}”`, f.html, true)); // the project's own pages, before anything generic
+        }
         // the hand-picked ones lead the list: sections first inside a box, pages first for the page
-        if (k === "all") (into ? [...SECTIONS, ...LAYOUTS] : [...LAYOUTS, ...SECTIONS]).forEach(([id, name, html]) => { seen.add(html); add(`pick-${id}`, name, fitIn(html)); });
-        if (k === "pages") LAYOUTS.forEach(([id, name, html]) => { seen.add(html); add(`pick-${id}`, name, fitIn(html)); });
+        if (k === "all") picked(into ? [...SECTIONS, ...LAYOUTS] : [...LAYOUTS, ...SECTIONS]);
+        if (k === "pages") picked(LAYOUTS);
         scroller.scrollTop = 0;
         loadMore();
     }
-    // more as the end of the list comes into view
-    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMore(); }, { root: scroller, rootMargin: "400px" });
-    io.observe(more);
+    watcher = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMore(); }, { root: scroller, rootMargin: "400px" });
+    watcher.observe(more);
     sizer = new ResizeObserver(() => fitTiles(grid));
     sizer.observe(grid);
-    const close = () => { io.disconnect(); hide(); };
-    onEsc = close;
-    ["wheel", "pointerdown"].forEach((t) => box.addEventListener(t, (e) => e.stopPropagation()));
-    box.addEventListener("click", (e) => { if (!card.contains(e.target)) close(); });
+    onEsc = o.onClose;
+    // the canvas pans and zooms with the wheel and the pointer: not under the browser
+    ["wheel", "pointerdown"].forEach((t) => (o.modal ? box : card).addEventListener(t, (e) => e.stopPropagation()));
+    if (o.modal) box.addEventListener("click", (e) => { if (!card.contains(e.target)) o.onClose(); });
     card.addEventListener("click", (e) => {
-        if (e.target.closest("[data-skip]")) return close();
+        if (e.target.closest("[data-skip]")) return o.onClose();
         const chip = e.target.closest("[data-kind]");
         if (chip) return show(chip.dataset.kind);
         const t = e.target.closest("[data-layout]");
-        const html = t && items.get(t.dataset.layout);
+        if (!t) return;
+        if (t.dataset.layout === "blank") return o.onClose();
+        const html = items.get(t.dataset.layout);
         if (!html) return;
-        close();
-        if (!into && model.markup.trim() === "") return addToEmpty(html);
-        cmd({ cmd: "insert", path: into ? into.path : [], html, position: "inside" });
+        hide();
+        o.onPick(html);
+    });
+    const form = card.querySelector("[data-ai]");
+    if (form) form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const prompt = form.prompt.value.trim(), msg = card.querySelector("[data-ai-msg]");
+        msg.classList.remove("hidden");
+        if (!prompt) { msg.className = "px-5 pt-2 text-xs text-red-600"; msg.textContent = "Describe the page first."; return; }
+        msg.className = "px-5 pt-2 text-xs text-neutral-500"; msg.textContent = "Drafting the page…";
+        const res = await draftPage(prompt);
+        if (!res.ok) { msg.className = "px-5 pt-2 text-xs text-red-600"; msg.textContent = res.message || "Couldn't draft the page. Try again."; }
     });
     show("all");
+}
+
+/** Shows the browser over an empty page (and only then); called whenever the page or its content changes. */
+export function syncLayoutPicker() {
+    if (box && box.dataset.modal) return; // a wireframe popup the person opened stays until they pick or close it
+    const want = S.mode === "edit" && config.ui.panels !== false && model.markup.trim() === "" && !dismissed.has(S.curKey);
+    if (!want) return hide();
+    if (box && keyShown === S.curKey) return;
+    browse({
+        title: "Start with a layout", closeLabel: "Start blank", modal: false, blank: true, frames: framesHere(), ai: true, onClose: skip,
+        onPick: (html) => { if (model.markup.trim() === "") addToEmpty(html); },
+    });
+    keyShown = S.curKey;
+}
+
+/**
+ * The wireframe browser as a popup, from the Properties panel: `target` is the selected element ({ path, tag }) or null for the page.
+ * A pick goes inside that element (after what it holds) or at the end of the page (or fills it when it is empty). One undo step.
+ */
+export function openWireframes(target) {
+    const into = target && target.path && target.path.length ? target : null;
+    browse({
+        title: into ? `Add a wireframe inside this ${into.tag}` : "Add a wireframe to the page", modal: true, into, onClose: hide,
+        onPick: (html) => {
+            if (!into && model.markup.trim() === "") return addToEmpty(html);
+            cmd({ cmd: "insert", path: into ? into.path : [], html, position: "inside" });
+        },
+    });
 }
 
 /** Registers this part's listeners (called once by editor.js). */
