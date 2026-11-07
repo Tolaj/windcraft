@@ -23,7 +23,8 @@ export function agentMain() {
     // the dashed boxes of what the selection holds are drawn in the inverse of whatever is under them (white, difference), so they show on dark
     // pictures and light pages alike. A blend only reaches the page from outside the overlay, which is a layer of its own: this one sits beside it.
     const kidLayer = mk("position:absolute;left:0;top:0;width:0;height:0;z-index:2147483646;pointer-events:none;");
-    overlay.append(hoverBox, guideLayer, draftBox, marqueeBox, ghostBox, dropBox, insertLine, dropHint);
+    const gapLayer = mk("position:absolute;left:0;top:0;"); // gap and padding handles of the selected box
+    overlay.append(hoverBox, gapLayer, guideLayer, draftBox, marqueeBox, ghostBox, dropBox, insertLine, dropHint);
     const isOverlay = (n) => overlay.contains(n) || kidLayer.contains(n);
     root.appendChild(kidLayer);
     root.appendChild(overlay);
@@ -185,13 +186,14 @@ export function agentMain() {
             const g = geomOf(el);
             if (gesture.type === "radius") { label = `Radius ${gesture.r}`; at = gesture.at; }
             else if (gesture.type === "rotate") { label = `${gesture.deg === undefined ? "" : gesture.deg + "°"}`; at = gesture.at; }
-            else label = sels.length > 1 ? `${sels.length} selected` : `${g.w} × ${g.h}`;
+            else if (gesture.type !== "gap") label = sels.length > 1 ? `${sels.length} selected` : `${g.w} × ${g.h}`; // a gap or padding drag has its own label
         }
         const bbox = el && el !== document.body && alive(el) ? pageRect(el) : null;
         const data = JSON.stringify({ items, handles, label, bbox, at });
         if (data !== lastOverlay) { lastOverlay = data; post({ type: "overlay", items, handles, label, bbox, at }); }
         place(hoverBox, tool === "move" && hov && hov !== document.body && !sels.includes(hov) ? hov : null); // not the page itself
         drawKids();
+        drawGapHandles();
     }
 
     // the box selected shows what it holds: its children, dashed (the one under the pointer is outlined solid by the hover box)
@@ -206,7 +208,7 @@ export function agentMain() {
         list.forEach((r) => kidLayer.appendChild(mk(`position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;border:1px dashed #fff;mix-blend-mode:difference;box-sizing:border-box;pointer-events:none;`)));
     }
 
-    const clearGuides = () => { guideLayer.innerHTML = ""; insertLine.style.display = "none"; ghostBox.style.display = "none"; dropBox.style.display = "none"; dropHint.style.display = "none"; };
+    const clearGuides = () => { guideLayer.innerHTML = ""; insertLine.style.display = "none"; ghostBox.style.display = "none"; dropBox.style.display = "none"; dropHint.style.display = "none"; dropHint.style.transform = ""; };
 
     // ── Describing and serializing ──────────────────────────────────────────────────────────
     const computedOf = (el) => readStyle(el, cssProps);
@@ -379,6 +381,152 @@ export function agentMain() {
         converting = false;
         redraw();
         changed();
+    }
+
+    // Tailwind's spacing scale in pixels: a handle dragged near a step lands on it (Cmd: to the pixel)
+    const SCALE_PX = [0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256, 288, 320, 384];
+    const onScale = (v) => { const a = Math.abs(v), t = SCALE_PX.reduce((b, x) => (Math.abs(x - a) < Math.abs(b - a) ? x : b), 0); return (Math.abs(t - a) <= 2 ? t : Math.round(a)) * (v < 0 ? -1 : 1); };
+    // ── Gap handles: the spacing between a box's children, dragged as one value ─────────────────────────────────────
+    // With a flex row or column, or a grid, selected, each gap between its children is a handle (as in Figma). Dragging one changes the
+    // box's gap (gap-4 -> gap-6, column-gap / row-gap in a grid), live, on the Tailwind scale (Cmd: to the pixel). Only where the spacing
+    // really is the gap: a row spaced by margins or justify-between has no handles, since a gap would be added on top.
+    let gapList = [], gapHot = -1;
+    function gapHandlesOf(el) {
+        const cs = getComputedStyle(el), out = [];
+        if (!/flex|grid/.test(cs.display)) return out;
+        const kids = kidsOf(el, null).filter(inFlow);
+        if (kids.length < 2 || kids.length > 24) return out;
+        const rects = kids.map(pageRect), f = (v) => parseFloat(v) || 0, near = (a, b) => Math.abs(a - b) <= 1;
+        if (cs.display.includes("flex")) {
+            if (cs.flexWrap !== "nowrap" || cs.flexDirection.includes("reverse")) return out;
+            const row = cs.flexDirection.startsWith("row"), A = row ? "x" : "y", Z = row ? "w" : "h", C = row ? "y" : "x", CZ = row ? "h" : "w", gap = f(row ? cs.columnGap : cs.rowGap);
+            if (gap < 1) return out;
+            for (let i = 0; i + 1 < rects.length; i++) if (!near(rects[i + 1][A] - (rects[i][A] + rects[i][Z]), gap)) return [];
+            const c0 = Math.min(...rects.map((r) => r[C])), c1 = Math.max(...rects.map((r) => r[C] + r[CZ]));
+            rects.slice(0, -1).forEach((a, i) => out.push({ i, axis: A, prop: "gap", gap, r: row ? { x: a.x + a.w, y: c0, w: gap, h: c1 - c0 } : { x: c0, y: a.y + a.h, w: c1 - c0, h: gap } }));
+            return out;
+        }
+        // a grid: the columns are the distinct left edges, the rows the distinct top edges
+        const uniq = (v) => { const o = []; v.slice().sort((p, q) => p - q).forEach((x) => { if (!o.length || x - o[o.length - 1] > 1) o.push(x); }); return o; };
+        const xs = uniq(rects.map((r) => r.x)), ys = uniq(rects.map((r) => r.y));
+        const x0 = Math.min(...rects.map((r) => r.x)), x1 = Math.max(...rects.map((r) => r.x + r.w)), y0 = Math.min(...rects.map((r) => r.y)), y1 = Math.max(...rects.map((r) => r.y + r.h));
+        const cg = f(cs.columnGap), rg = f(cs.rowGap);
+        xs.slice(0, -1).forEach((x, i) => { const end = Math.max(...rects.filter((r) => near(r.x, x)).map((r) => r.x + r.w)), gp = xs[i + 1] - end; if (cg >= 1 && near(gp, cg)) out.push({ i: out.length, axis: "x", prop: "column-gap", gap: cg, r: { x: end, y: y0, w: gp, h: y1 - y0 } }); });
+        ys.slice(0, -1).forEach((y, i) => { const end = Math.max(...rects.filter((r) => near(r.y, y)).map((r) => r.y + r.h)), gp = ys[i + 1] - end; if (rg >= 1 && near(gp, rg)) out.push({ i: out.length, axis: "y", prop: "row-gap", gap: rg, r: { x: x0, y: end, w: x1 - x0, h: gp } }); });
+        return out;
+    }
+    /** The padding of a box as four handles: dragging one changes that side (Alt: the opposite side too). Only sides that have padding. */
+    function padHandlesOf(el) {
+        const cs = getComputedStyle(el), r = pageRect(el), f = (v) => parseFloat(v) || 0, out = [];
+        const b = { t: f(cs.borderTopWidth), r: f(cs.borderRightWidth), b: f(cs.borderBottomWidth), l: f(cs.borderLeftWidth) };
+        const p = { t: f(cs.paddingTop), r: f(cs.paddingRight), b: f(cs.paddingBottom), l: f(cs.paddingLeft) };
+        const ix0 = r.x + b.l + p.l, ix1 = r.x + r.w - b.r - p.r, iy0 = r.y + b.t + p.t, iy1 = r.y + r.h - b.b - p.b;
+        if (ix1 - ix0 < 4 || iy1 - iy0 < 4) return out;
+        // each side is a grip in the middle of its padding (40% of the side, at least 24px), not the whole strip: the rest of the padding
+        // is still where the box is grabbed to move it
+        const grip = (rect, axis) => {
+            if (axis === "x") { const len = Math.min(rect.h, Math.max(px(24), rect.h * 0.4)); return { ...rect, y: rect.y + (rect.h - len) / 2, h: len }; }
+            const len = Math.min(rect.w, Math.max(px(24), rect.w * 0.4)); return { ...rect, x: rect.x + (rect.w - len) / 2, w: len };
+        };
+        const add = (k, prop, side, sign, val, rect, axis) => { if (val >= 1) out.push({ i: 100 + out.length, kind: "pad", axis, prop, opp: { l: "padding-right", r: "padding-left", t: "padding-bottom", b: "padding-top" }[side], sign, gap: val, r: grip(rect, axis) }); };
+        add("l", "padding-left", "l", 1, p.l, { x: r.x + b.l, y: iy0, w: p.l, h: iy1 - iy0 }, "x");
+        add("r", "padding-right", "r", -1, p.r, { x: r.x + r.w - b.r - p.r, y: iy0, w: p.r, h: iy1 - iy0 }, "x");
+        add("t", "padding-top", "t", 1, p.t, { x: ix0, y: r.y + b.t, w: ix1 - ix0, h: p.t }, "y");
+        add("b", "padding-bottom", "b", -1, p.b, { x: ix0, y: r.y + r.h - b.b - p.b, w: ix1 - ix0, h: p.b }, "y");
+        return out;
+    }
+    /** The zone of a handle: its gap, and at least 8px across so a narrow gap can be grabbed. */
+    function gapZone(h) {
+        const r = h.r, min = px(8);
+        return h.axis === "x" ? { x: r.x + r.w / 2 - Math.max(r.w, min) / 2, y: r.y, w: Math.max(r.w, min), h: r.h } : { x: r.x, y: r.y + r.h / 2 - Math.max(r.h, min) / 2, w: r.w, h: Math.max(r.h, min) };
+    }
+    function gapAt(e) {
+        const x = e.clientX + window.scrollX, y = e.clientY + window.scrollY;
+        return gapList.find((h) => { const z = gapZone(h); return x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h; }) || null;
+    }
+    function drawGapHandles() {
+        gapLayer.innerHTML = "";
+        gapList = [];
+        const el = primary();
+        if (!el || sels.length !== 1 || el === document.body || tool !== "move" || editing || isLocked(el)) return;
+        if (gesture && gesture.type !== "gap") return;
+        gapList = [...gapHandlesOf(el), ...(el.parentElement ? padHandlesOf(el) : [])];
+        gapList.forEach((h) => {
+            const z = gapZone(h), hot = gapHot === h.i || (gesture && gesture.type === "gap" && gesture.h.i === h.i);
+            gapLayer.appendChild(mk(`position:absolute;left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px;background:${hot ? "rgba(242,72,34,.32)" : h.kind === "pad" ? "rgba(242,72,34,.07)" : "rgba(242,72,34,.13)"};border-radius:${px(2)}px;box-sizing:border-box;`));
+            if (h.kind === "pad" && !hot) return;
+            // a grip line down the middle of the gap
+            gapLayer.appendChild(mk(h.axis === "x"
+                ? `position:absolute;left:${z.x + z.w / 2 - px(0.5)}px;top:${z.y + z.h / 2 - px(10)}px;width:${px(1)}px;height:${px(20)}px;background:${RED};`
+                : `position:absolute;left:${z.x + z.w / 2 - px(10)}px;top:${z.y + z.h / 2 - px(0.5)}px;width:${px(20)}px;height:${px(1)}px;background:${RED};`));
+        });
+    }
+    function gapGesture(g, e) {
+        const d = (g.h.axis === "x" ? e.clientX - g.sx : e.clientY - g.sy) * (g.h.sign || 1);
+        const raw = Math.max(0, g.start + d), v = e.metaKey ? Math.round(raw) : onScale(raw);
+        const pad = g.h.kind === "pad";
+        g.el.style.setProperty(g.h.prop, `${v}px`);
+        // Alt: the opposite side too; otherwise it keeps what it had
+        if (pad) { if (e.altKey) g.el.style.setProperty(g.h.opp, `${v}px`); else if (g.inl0[g.h.opp]) g.el.style.setProperty(g.h.opp, g.inl0[g.h.opp]); else g.el.style.removeProperty(g.h.opp); }
+        g.v = v;
+        g.pair = pad && e.altKey;
+        guideLayer.innerHTML = "";
+        const now = pad ? padHandlesOf(g.el) : gapHandlesOf(g.el);
+        const z = gapZone(now.find((h) => h.prop === g.h.prop && h.axis === g.h.axis) || g.h);
+        const word = pad ? (g.pair ? `${g.h.axis === "x" ? "Horizontal" : "Vertical"} padding` : { "padding-left": "Padding left", "padding-right": "Padding right", "padding-top": "Padding top", "padding-bottom": "Padding bottom" }[g.h.prop]) : g.h.prop === "gap" ? "Gap" : g.h.prop === "column-gap" ? "Column gap" : "Row gap";
+        dropHint.textContent = `${word} ${v}`;
+        // on the handle itself, centred: above it the label would sit on the selection's edge, which draws over it
+        Object.assign(dropHint.style, { display: "block", left: `${z.x + z.w / 2}px`, top: `${z.y + z.h / 2}px`, transform: "translate(-50%, -50%)", fontSize: `${px(11)}px`, padding: `${px(4)}px ${px(7)}px` });
+        redraw();
+    }
+
+    // ── Absolute children that line up: offer a clean layout (the host fits one: packages/core/layout-infer.js) ──────
+    // After an absolutely placed box is moved among others, the frame sends where they all are. If a row, column or grid explains them,
+    // the editor offers it ("These line up: Row · gap 16 · Make it a layout"); nothing changes unless that is clicked.
+    function contentBox(c) {
+        const cs = getComputedStyle(c), pr = pageRect(c), f = (v) => parseFloat(v) || 0;
+        const bx = f(cs.borderLeftWidth) + f(cs.paddingLeft), bt = f(cs.borderTopWidth) + f(cs.paddingTop);
+        return { x: pr.x + bx, y: pr.y + bt, w: pr.w - bx - f(cs.borderRightWidth) - f(cs.paddingRight), h: pr.h - bt - f(cs.borderBottomWidth) - f(cs.paddingBottom) };
+    }
+    function layoutHint(c) {
+        if (!c || c === document.body) return;
+        const all = kidsOf(c, null).filter((k) => getComputedStyle(k).display !== "none");
+        const kids = all.filter(isAbs);
+        if (kids.length < 3 || kids.length > 14 || kids.length !== all.length) return; // three or more, and nothing in the flow beside them
+        post({ type: "layoutHint", container: pathOf(c), box: contentBox(c), kids: kids.map((k) => ({ path: pathOf(k), ...pageRect(k) })) });
+    }
+    /** Turn a box of absolutely placed children into the row, column or grid the host fitted: pixels in, classes out, for every size. */
+    function applyLayout(m) {
+        const box = elAt(m.container), kids = (m.kids || []).map(elAt), L = m.layout;
+        if (!box || !L || kids.some((k) => !k)) return;
+        const JUSTIFY = { end: "flex-end", center: "center", between: "space-between", around: "space-around", evenly: "space-evenly" }, ITEMS = { start: "flex-start", center: "center", end: "flex-end" };
+        const set = (el, p, v) => el.style.setProperty(p, v);
+        const boxProps = L.kind === "grid" ? ["display", "grid-template-columns", "column-gap", "row-gap"] : ["display", "flex-direction", "gap", "justify-content", "align-items"];
+        const pre = sourcesOf(box, boxProps);
+        if (L.kind === "grid") { set(box, "display", "grid"); set(box, "grid-template-columns", `repeat(${L.cols}, minmax(0, 1fr))`); if (L.gapX) set(box, "column-gap", `${L.gapX}px`); if (L.gapY) set(box, "row-gap", `${L.gapY}px`); }
+        else {
+            set(box, "display", "flex");
+            if (L.kind === "col") set(box, "flex-direction", "column");
+            else if (getComputedStyle(box).flexDirection.startsWith("column")) set(box, "flex-direction", "row");
+            if (L.gap) set(box, "gap", `${L.gap}px`);
+            if (JUSTIFY[L.justify]) set(box, "justify-content", JUSTIFY[L.justify]);
+            if (ITEMS[L.items]) set(box, "align-items", ITEMS[L.items]);
+        }
+        const boxItem = gestureItem(box, pre, boxProps.filter((p) => box.style.getPropertyValue(p)), L.kind === "grid" ? ["flexDir", "flexWrap", "justify", "items"] : ["gridCols"]);
+        boxItem.structural = true;
+        const items = [boxItem];
+        kids.forEach((k, i) => {
+            const push = L.push === i ? [L.kind === "col" ? "margin-top" : "margin-left"] : [];
+            const kpre = sourcesOf(k, push);
+            push.forEach((p) => set(k, p, "auto"));
+            ["position", "left", "top", "right", "bottom"].forEach((p) => k.style.removeProperty(p)); // into the flow: the classes for these come off too (below)
+            tidyStyle(k);
+            const it = gestureItem(k, kpre, push, ["position", "left", "top", "right", "bottom"]);
+            it.structural = true;
+            items.push(it);
+        });
+        setSelection([box]);
+        askConvert(items);
     }
 
     let propSeq = 0;
@@ -1318,6 +1466,16 @@ export function agentMain() {
             if (edgeY !== null) { const r = hold(edgeY, sy, g.hold.y); sy = r.s; g.hold.y = r.h; }
             if (sx !== null) w = Math.max(1, hd.includes("e") ? w + sx : w - sx);
             if (sy !== null) h = Math.max(1, hd.includes("s") ? h + sy : h - sy);
+            // the same size as a neighbour: a width or height within 6px of a sibling's takes it (an edge that lined up is left as it is)
+            const same = [];
+            if (!g.sibs) g.sibs = kidsOf(g.el.parentElement || document.body, g.el).map(pageRect).filter((r) => r.w >= 1 && r.h >= 1);
+            const match = (v, key) => { let best = null; g.sibs.forEach((r) => { const d = Math.abs(r[key] - v); if (d <= px(6) && (!best || d < best.d)) best = { d, v: r[key] }; }); return best; };
+            if (sx === null && fx !== "row" && /[ew]/.test(hd)) { const m = match(w, "w"); if (m) { w = m.v; same.push("width"); } }
+            if (sy === null && fx !== "column" && /[ns]/.test(hd)) { const m = match(h, "h"); if (m) { h = m.v; same.push("height"); } }
+            if (same.length) {
+                dropHint.textContent = `Same ${same.join(" and ")} as a neighbour`;
+                Object.assign(dropHint.style, { display: "block", left: `${pr.x}px`, top: `${Math.max(0, pr.y - px(24))}px`, fontSize: `${px(11)}px`, padding: `${px(4)}px ${px(7)}px` });
+            } else dropHint.style.display = "none";
             keysX = edgeX === null ? [] : [hd.includes("e") ? 2 : 0];
             keysY = edgeY === null ? [] : [hd.includes("s") ? 2 : 0];
             g.guide = { want: [hd.includes("e") ? "right" : hd.includes("w") ? "left" : null, hd.includes("s") ? "down" : hd.includes("n") ? "up" : null].filter(Boolean), box: { x: hd.includes("w") ? pr.x + pr.w - w : pr.x, y: hd.includes("n") ? pr.y + pr.h - h : pr.y, w, h }, keysX, keysY };
@@ -1412,6 +1570,13 @@ export function agentMain() {
             gesture = { type: "draw", kind: tool, sx: e.clientX, sy: e.clientY, container: containerAt(e.clientX, e.clientY), moved: false };
             return;
         }
+        const gh = tool === "move" && sels.length === 1 ? gapAt(e) : null;
+        if (gh) { // a gap between the children of the selected box, or one side of its padding
+            const el = sels[0];
+            const props = gh.kind === "pad" ? [gh.prop, gh.opp] : gh.prop === "gap" ? ["column-gap", "row-gap"] : [gh.prop]; // the shorthand has no source of its own: its two halves do (a side's padding: its opposite too, for Alt)
+            gesture = { type: "gap", el, h: gh, props, start: gh.gap, pre: sourcesOf(el, props), inl0: inlineOf(el, props), sx: e.clientX, sy: e.clientY, moved: false };
+            return;
+        }
         const t = targetOf(e);
         if (t === document.body) {
             gesture = { type: "marquee", sx: e.clientX, sy: e.clientY, shift: e.shiftKey, hits: [], moved: false };
@@ -1430,6 +1595,11 @@ export function agentMain() {
         const g = gesture;
         if (!g) {
             if (!editing && tool === "move") {
+                const gh = sels.length === 1 ? gapAt(e) : null; // over a gap or padding handle of the selected box: it lights up, the pointer says which way
+                const hotNow = gh ? gh.i : -1;
+                if (hotNow !== gapHot || gh) root.style.cursor = gh ? (gh.axis === "x" ? "col-resize" : "row-resize") : CURSOR[tool] || "default";
+                gapHot = hotNow;
+                if (gh) { hov = null; redraw(); hoverFrame(false); return; }
                 hov = targetOf(e);
                 // over the box that is selected: the child under the pointer is outlined (a double-click goes into it)
                 const cur = sels.length === 1 ? sels[0] : null, raw = e.target && e.target.nodeType === 1 && !isOverlay(e.target) ? e.target : null;
@@ -1447,6 +1617,7 @@ export function agentMain() {
             Object.assign(draftBox.style, { display: "block", left: `${x0}px`, top: `${y0}px`, width: `${Math.abs(e.clientX - g.sx)}px`, height: `${Math.abs(e.clientY - g.sy)}px` });
         } else if (g.type === "move") { moveGesture(g, e); redraw(); }
         else if (g.type === "reorder") reorderGesture(g, e);
+        else if (g.type === "gap") gapGesture(g, e);
         else if (g.type === "resize") { resizeGesture(g, e); if (g.guide) showGuides(g.guide.box, g.targets, g.guide.keysX, g.guide.keysY, false, g.guide.want); else guideLayer.innerHTML = ""; redraw(); }
         else if (g.type === "rotate") { rotateGesture(g, e); redraw(); }
         else if (g.type === "radius") { g.at = { x: e.clientX, y: e.clientY }; radiusGesture(g, e); redraw(); }
@@ -1463,6 +1634,15 @@ export function agentMain() {
         root.style.cursor = CURSOR[tool] || "default";
         if (!g) return;
         if (g.notified) post({ type: "gesture", on: false });
+        if (g.type === "gap") {
+            dropHint.style.display = "none";
+            if (!g.moved) return redraw();
+            if (g.v === g.start && !g.pair) { g.props.forEach((p) => { if (g.inl0[p]) g.el.style.setProperty(p, g.inl0[p]); else g.el.style.removeProperty(p); }); g.el.style.removeProperty(g.h.prop); tidyStyle(g.el); return redraw(); } // back where it was
+            // what changed: the one side (both with Alt), or for a gap its halves
+            const props = g.h.kind === "pad" ? g.props.filter((p) => g.el.style.getPropertyValue(p) !== g.inl0[p]) : g.props;
+            if (!props.length) return redraw();
+            return askConvert([gestureItem(g.el, g.pre, props)]);
+        }
         if (g.type === "radius") {
             if (!g.moved) return;
             if (g.prev) g.el.style.borderRadius = g.prev; else g.el.style.removeProperty("border-radius");
@@ -1511,7 +1691,7 @@ export function agentMain() {
         }
         if (g.type === "pan") return;
         if (g.type === "move" && g.freeOnMove) return post({ type: "selected", info: describe(primary()) }); // Alt-click: nothing freed
-        if (g.moved && g.type === "move") return askConvert(g.items.map((i) => gestureItem(i.el, i.pre, g.freed ? FREE_PROPS : ["left", "top"])));
+        if (g.moved && g.type === "move") { askConvert(g.items.map((i) => gestureItem(i.el, i.pre, g.freed ? FREE_PROPS : ["left", "top"]))); if (!g.freed && g.items.length === 1) layoutHint(g.container); return; }
         if (g.moved && g.type === "resize") {
             // a size or position the resize rewrote without changing it (a corner dragged sideways, the top-left of a box resized from
             // its bottom-right) is dropped, not saved as a class
@@ -2086,6 +2266,7 @@ export function agentMain() {
         if (m.cmd === "pasteSel") { pasteSelection(); return; }
         if (m.cmd === "nudgeSel") { nudge(m.dx || 0, m.dy || 0); return; }
         if (m.cmd === "applyGesture") { applyGesture(m); return; }
+        if (m.cmd === "applyLayout") { applyLayout(m); return; }
         if (m.cmd === "freePosition") {
             const el = elAt(m.path);
             if (!el) return;

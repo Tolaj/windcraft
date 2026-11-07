@@ -10,6 +10,7 @@ import { applyView, fitTo, handleWheel, layout, positions, view } from "./plane.
 import { commit, updateChrome } from "./docs.js";
 import { convertGesture, renderInspector, setRotation } from "./inspector.js";
 import { updateCodeHighlight } from "./code-panel.js";
+import { suggestLayout } from "./layout-chip.js";
 
 let pendingKey = "";
 
@@ -189,6 +190,8 @@ export function init() {
         } else if (m.type === "hoverFrame") {
             const en = wraps.get(S.curKey);
             if (en) en.wrap.classList.toggle("bodyhover", Boolean(m.on));
+        } else if (m.type === "layoutHint") {
+            suggestLayout(m); // absolute boxes that line up: offer the row, column or grid that explains them
         } else if (m.type === "convert") {
             convertGesture(m.items || []);
         } else if (m.type === "key") {

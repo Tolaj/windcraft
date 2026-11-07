@@ -345,7 +345,19 @@ export function setProps(props, raw, group, clear = [], cssOverride, key) {
 export function convertGesture(items) {
     const blocked = items.find((it) => it.blocked);
     if (blocked) flashHint(`This element's ${blocked.blocked} is set by its flex layout. Use "Size it myself" in the panel to size it by hand.`);
-    send({ cmd: "applyGesture", items: items.map((it) => {
+    send({ cmd: "applyGesture", items: items.map((it0) => {
+        // both halves of a gap, or the padding of both sides of an axis, equal: one class (gap-6, px-6), not two
+        let it = it0;
+        const pairs = [];
+        for (const [a, b, one] of [["column-gap", "row-gap", "gap"], ["padding-left", "padding-right", "padding-inline"], ["padding-top", "padding-bottom", "padding-block"]]) {
+            // only when both halves came from one class (px-4, p-4, gap-4) or from none: separate pl-4 pr-4 would override a px-6 written over them
+            const pa = it.pre[a] || {}, pb = it.pre[b] || {}, sameSource = (pa.token || pa.source || "") === (pb.token || pb.source || "");
+            if (it.values[a] !== undefined && it.values[a] === it.values[b] && sameSource) {
+                const { [a]: va, [b]: vb, ...rest } = it.values;
+                it = { ...it, values: { ...rest, [one]: va }, pre: { ...it.pre, [one]: it.pre[a] || it.pre[b] } };
+                pairs.push([a, b, one]);
+            }
+        }
         const tw = it.made || modeFor({ classes: it.classes }) === "tailwind";
         let classes = it.classes;
         const tokens = {};
@@ -353,14 +365,16 @@ export function convertGesture(items) {
             const pre = it.pre[prop] || { source: "default" };
             if (!it.made && (pre.source === "inline" || pre.source === "design")) return; // it was CSS: it stays CSS
             if (!tw && pre.source !== "tailwind") return;
-            const group = groupOf(prop);
+            const cols = prop === "grid-template-columns" && /^repeat\((\d+),\s*minmax\(0px?,\s*1fr\)\)$/.exec(value); // grid-cols-3
+            const group = cols ? "gridCols" : groupOf(prop);
             if (!group) return;
-            const tv = /^-?[\d.]+px$/.test(value) ? fromPx(group, Math.round(parseFloat(value))) : twValue(prop, value, false); // a size, or a word (flex, column, absolute)
+            const tv = cols ? cols[1] : /^-?[\d.]+px$/.test(value) ? fromPx(group, Math.round(parseFloat(value))) : twValue(prop, value, false); // a size, or a word (flex, column, absolute)
             if (tv === null) return;
             const built = GROUPS[group].build(tv);
             if (!GROUPS[group].re.test(built)) return;
-            // judged on the classes from before this gesture: a left-[..] written a moment ago must not make top an xl: class
-            const vp = (pre.source === "tailwind" && variantOf(pre.token)) || newVariant();
+            // judged on the classes from before this gesture: a left-[..] written a moment ago must not make top an xl: class.
+            // A structural change (a box made a row or grid, its children taken into the flow) is for every size.
+            const vp = it.structural ? "" : (pre.source === "tailwind" && variantOf(pre.token)) || newVariant();
             const next = setGroup(classes, group, tv, vp);
             if (next === null) return;
             classes = next;
@@ -368,7 +382,11 @@ export function convertGesture(items) {
         });
         // class groups the element's old place gave it (margins, alignment) come off
         let cleared = false;
-        if (tw || it.made) (it.clear || []).forEach((group) => { const next = setGroup(classes, group, "", ""); if (next !== null && next !== classes) { classes = next; cleared = true; } });
+        // (a structural change takes the group off at every size and state: md:left-4 as well as left-4)
+        const dropAll = (cls, group) => cls.split(/\s+/).filter(Boolean).filter((t) => !GROUPS[group].re.test(parseToken(t).base)).join(" ");
+        if (tw || it.made) (it.clear || []).forEach((group) => { const next = it.structural ? dropAll(classes, group) : setGroup(classes, group, "", ""); if (next !== null && next !== classes) { classes = next; cleared = true; } });
+        // the frame checks each property it changed against the class meant for it: both halves of a pair answer to the one class
+        pairs.forEach(([a, b, one]) => { if (tokens[one]) { tokens[a] = tokens[b] = tokens[one]; delete tokens[one]; } });
         return { path: it.path, classes, tokens, cleared };
     }) });
 }
