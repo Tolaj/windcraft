@@ -68,10 +68,13 @@ function paint() {
 }
 function emit() { const hex = paint(); if (hex !== state.last) { state.last = hex; state.onInput(hex); } }
 
-/** Beside `near` (the selection), on whichever side has room inside `bounds`; failing that, where it covers the least of it. */
-export function placeBeside(near, bounds, from, W = DEFAULT_W, H = DEFAULT_H) {
+/**
+ * Beside `near` (the selection), on whichever side has room inside `bounds`; failing that, where it covers the least of it.
+ * Level with its top, or with its bottom when `low` (the floating bar is under the element: the panel stays down by the bar).
+ */
+export function placeBeside(near, bounds, from, W = DEFAULT_W, H = DEFAULT_H, low = false) {
     const fits = (x, y) => x >= bounds.left && y >= bounds.top && x + W <= bounds.right && y + H <= bounds.bottom;
-    const midY = clamp(near.top, bounds.top, bounds.bottom - H), midX = clamp(near.left, bounds.left, bounds.right - W);
+    const midY = clamp(low ? Math.min(near.bottom, bounds.bottom) - H : near.top, bounds.top, bounds.bottom - H), midX = clamp(near.left, bounds.left, bounds.right - W);
     const spots = [[near.right + GAP, midY], [near.left - GAP - W, midY], [midX, near.bottom + GAP], [midX, near.top - GAP - H]];
     const ok = spots.find(([x, y]) => fits(x, y));
     if (ok) return ok;
@@ -84,14 +87,22 @@ export function placeBeside(near, bounds, from, W = DEFAULT_W, H = DEFAULT_H) {
  * Opens the picker. value: "#rrggbb"; near: the selected element's rect on screen; bounds: the area to stay in; opener: the
  * swatch pressed (pressing it again doesn't close it underneath); onInput(hex) while picking; onClose(hex) once it closes.
  */
-export function openColorPicker({ value, near, bounds, opener, onInput, onClose }) {
+export function openColorPicker({ value, near, bounds, opener, where, onInput, onClose }) {
     if (!box) build();
     if (state) close();
-    state = { ...(hexToHsv(value) || { h: 0, s: 0, v: 0 }), last: null, opener, onInput, onClose };
+    state = { ...(hexToHsv(value) || { h: 0, s: 0, v: 0 }), last: null, opener, where, onInput, onClose };
     state.last = hsvToHex(state.h, state.s, state.v);
     paint();
-    const [x, y] = placeBeside(near || opener.getBoundingClientRect(), bounds || { left: 0, top: 0, right: innerWidth, bottom: innerHeight }, opener && opener.getBoundingClientRect());
-    Object.assign(box.style, { left: `${x}px`, top: `${y}px`, display: "block" });
+    Object.assign(box.style, { visibility: "hidden", display: "block" }); // its real size, to place it
+    const [x, y] = where ? where(box.offsetWidth, box.offsetHeight) : placeBeside(near || opener.getBoundingClientRect(), bounds || { left: 0, top: 0, right: innerWidth, bottom: innerHeight }, opener && opener.getBoundingClientRect());
+    Object.assign(box.style, { left: `${x}px`, top: `${y}px`, visibility: "" });
+}
+
+/** The canvas panned or zoomed: a picker opened with `where` (from the floating bar) moves with the element, as the bar's panels do. */
+export function placeColorPicker() {
+    if (!state || !state.where) return;
+    const at = state.where(box.offsetWidth, box.offsetHeight);
+    if (at) Object.assign(box.style, { left: `${at[0]}px`, top: `${at[1]}px` });
 }
 
 export function closeColorPicker() { if (state) close(); }

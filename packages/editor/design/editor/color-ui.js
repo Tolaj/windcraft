@@ -1,4 +1,4 @@
-import { colorPickerOpener, closeColorPicker, openColorPicker } from "../color-picker.js";
+import { colorPickerOpener, closeColorPicker, openColorPicker, placeBeside } from "../color-picker.js";
 import { FAMILY_STACKS } from "../float-toolbar.js";
 import { FLOAT_ACTIONS, SIDES4, applyPanel, ftb, renderFloat } from "./frame-handles.js";
 import { $, S } from "./base.js";
@@ -76,19 +76,28 @@ export function init() {
         let opener = t.closest("label") || t;
         if (colorPickerOpener() === opener) return closeColorPicker(); // the same swatch again: done
         // one panel at a time: the bar's padding / radius panel (or its menu) closes when a colour is picked
-        if (ftb.contains(t) && (S.ftPop || S.ftMenu)) {
+        const inPop = Boolean(t.closest(".ftpop")); // the border panel's own swatch: the panel stays open, the picker opens beside it
+        if (ftb.contains(t) && !inPop && (S.ftPop || S.ftMenu)) {
             S.ftPop = null; S.ftMenu = false; renderFloat(true);
             const again = document.querySelector(sel);
             if (!again) return;
             t = again; opener = t.closest("label") || t;
         }
         const feed = (type, hex) => { const f = document.querySelector(sel); if (f) { f.value = hex; f.dispatchEvent(new Event(type, { bubbles: true })); } };
-        // from the Properties panel: just left of the panel, level with the swatch; from the floating bar: beside the selection
+        // from the Properties panel: just left of the panel, level with the swatch. From the floating bar: beside the selection (beside
+        // the border panel for its swatch), level with its top, or its bottom when the bar is under it; worked out again as the canvas
+        // moves (placeFloat), so it stays with the element like the bar's panels.
         const fromPanel = insp.contains(t);
         const p = insp.getBoundingClientRect(), o = opener.getBoundingClientRect();
-        const near = fromPanel ? { left: p.left, right: p.right, top: o.top, bottom: o.bottom } : selectionRect();
-        const bounds = fromPanel ? { left: 0, top: 0, right: innerWidth, bottom: innerHeight } : canvas.getBoundingClientRect();
-        openColorPicker({ value: t.value, near, bounds, opener, onInput: (hex) => feed("input", hex), onClose: (hex) => feed("change", hex) });
+        const near = { left: p.left, right: p.right, top: o.top, bottom: o.bottom };
+        const where = fromPanel ? null : (W, H) => {
+            const pop = inPop && ftb.querySelector(".ftpop"), sel = selectionRect();
+            const r = pop ? pop.getBoundingClientRect() : sel;
+            if (!r) return null;
+            const bar = ftb.getBoundingClientRect(), low = sel ? bar.top + bar.height / 2 > (sel.top + sel.bottom) / 2 : false;
+            return placeBeside(r, canvas.getBoundingClientRect(), o, W, H, low);
+        };
+        openColorPicker({ value: t.value, near, bounds: { left: 0, top: 0, right: innerWidth, bottom: innerHeight }, opener, where, onInput: (hex) => feed("input", hex), onClose: (hex) => feed("change", hex) });
     }, true);
 ftb.addEventListener("input", (e) => {
     const t = e.target;
@@ -122,7 +131,7 @@ ftb.addEventListener("change", (e) => {
 
     document.addEventListener("click", (e) => {
         $("designsMenu").classList.add("hidden");
-        if ((S.ftMenu || S.ftPop) && !e.target.closest("#ftb")) { S.ftMenu = false; S.ftPop = null; renderFloat(true); }
+        if ((S.ftMenu || S.ftPop) && !e.target.closest("#ftb, .cpick")) { S.ftMenu = false; S.ftPop = null; renderFloat(true); }
     });
     $("designsBtn").addEventListener("click", toggleDesignsMenu);
     $("navMoreBtn").addEventListener("click", toggleDesignsMenu);

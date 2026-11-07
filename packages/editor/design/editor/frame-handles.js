@@ -6,7 +6,7 @@ import { canvas, heightOfDoc, positions, view, widthOf } from "./plane.js";
 import { setDevice, setProp, setProps } from "./inspector.js";
 import { cmd } from "./frame-messages.js";
 import { setPanel, setPanelTab } from "./color-ui.js";
-import { closeColorPicker, placeBeside } from "../color-picker.js";
+import { closeColorPicker, placeBeside, placeColorPicker } from "../color-picker.js";
 
 // ── The floating toolbar, frame handles and the side panel ───────────────────
  // which of the bar's panels is open: border, radius or spacing
@@ -54,11 +54,12 @@ export function placeFloat() {
     if (pop && st.kind !== "frame") {
         const cr = canvas.getBoundingClientRect(), fr = ftb.getBoundingClientRect();
         const near = { left: cr.left + a.x, top: cr.top + a.y, right: cr.left + a.x + a.w, bottom: cr.top + a.y + a.h };
-        const [x, y] = placeBeside(near, cr, null, pop.offsetWidth, pop.offsetHeight);
+        const [x, y] = placeBeside(near, cr, null, pop.offsetWidth, pop.offsetHeight, top + h / 2 > a.y + a.h / 2); // the bar under the element: level with its bottom
         pop.style.left = `${Math.round(x - fr.left)}px`;
         pop.style.top = `${Math.round(y - fr.top)}px`;
         pop.style.bottom = "auto";
     }
+    placeColorPicker(); // a colour picker opened from the bar moves with it too
 }
 
 // the frame's handles, in screen pixels like the element selection (a handle must be 9px at any zoom)
