@@ -42,15 +42,16 @@ export function agentMain() {
     // appears for a moment takes width, which can cross a breakpoint (xl at exactly 1280) and change the layout under it.
     const stillStyle = document.createElement("style");
     stillStyle.setAttribute("data-wc-agent-style", "");
-    stillStyle.textContent = "*, *::before, *::after { transition: none !important; } html { scrollbar-width: none; } html::-webkit-scrollbar { display: none; }";
+    // Animations (animate-spin, animate-pulse...) are off too: editing shows the design at rest, the Interact tool shows it moving.
+    stillStyle.textContent = "*, *::before, *::after { transition: none !important; animation: none !important; } html { scrollbar-width: none; } html::-webkit-scrollbar { display: none; }";
     document.head.appendChild(stillStyle);
-    /** Values of `props` on `el`; a transition is read as the design has it, not as the still frame shows it. */
+    /** Values of `props` on `el`; a transition or animation is read as the design has it, not as the still frame shows it. */
     const readStyle = (el, props) => {
         const cs = getComputedStyle(el), o = {};
         props.forEach((p) => { o[p] = cs.getPropertyValue(p); });
-        const motion = props.filter((p) => p.startsWith("transition"));
+        const motion = props.filter((p) => p.startsWith("transition") || p.startsWith("animation"));
         if (motion.length) {
-            stillStyle.disabled = true; // only transition-* change while it is off, and a change of those starts nothing
+            stillStyle.disabled = true; // only the motion properties change while it is off, and nothing paints before it is back on
             const live = getComputedStyle(el);
             motion.forEach((p) => { o[p] = live.getPropertyValue(p); });
             stillStyle.disabled = false;
