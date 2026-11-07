@@ -1,75 +1,25 @@
-import { host } from "../host.js";
 import { config } from "../config.js";
-import { buildPreviewDocument, parseComponentSource } from "../../playground/component-source.js";
 import { $, S, esc, model } from "./base.js";
-import { addToEmpty, draftPage } from "./add-menu.js";
-import { docs } from "./designs.js";
+import { addToEmpty } from "./add-menu.js";
 import { cmd } from "./frame-messages.js";
-import { KIND_NAMES, LAYOUTS, SECTIONS, SPACE, wireframe } from "../../../core/wireframes.js";
+import { KIND_NAMES, LAYOUTS, SECTIONS, wireframe } from "../../../core/wireframes.js";
 export { LAYOUTS, SECTIONS };
 
-// ── A new, empty page: start with a layout ───────────────────────────────────────────────────────────────────────
-// Over an empty page the canvas offers ready layouts: a few built-in page skeletons, the frame of another page of the project
-// ("Same as Home": its header, sidebar and footer, with an empty middle), and the AI box. A pick is plain Tailwind HTML put in the
-// page like anything pasted, so it is edited, dragged and undone like the rest. Blank (or Esc) leaves the page empty.
-
-// The wireframes (blank regions in two greys, no placeholder words) and their endless generator live in core/wireframes.js.
-const HOLE = `<div class="h-96 ${SPACE}"></div>`;
+// ── Wireframes: blank page and section skeletons to start from ───────────────────────────────────────────────────
+// The Properties panel's "Add a wireframe" opens one browser of them, the same for the page and for a selected box (blank regions in
+// two greys, no placeholder words; they and their endless generator live in core/wireframes.js). A pick is plain Tailwind HTML put in
+// like anything pasted, so it is edited, dragged and undone like the rest. An empty page gets a tip pointing at the button.
 
 /** A page wireframe put inside a box: as tall as a good part of a screen, not the whole screen (min-h-screen in a section would be). */
 const inBox = (html) => html.replace(/\bmin-h-screen\b/g, "min-h-[32rem]");
 
-/**
- * The frame of a page, for a new page that should look like it: its header, nav, sidebar and footer stay, what they frame becomes one
- * blank box. Null when the page has no such frame (nothing to share).
- */
-export function shellOf(markup) {
-    const doc = new DOMParser().parseFromString(`<body>${markup || ""}`, "text/html");
-    const body = doc.body;
-    const hole = () => { const t = doc.createElement("template"); t.innerHTML = HOLE; return t.content.firstChild; };
-    const main = body.querySelector("main");
-    if (main) { main.replaceChildren(hole()); return body.innerHTML.trim(); }
-    const frame = [...body.querySelectorAll("header, nav, aside, footer")].filter((n) => !n.parentElement.closest("header, nav, aside, footer"));
-    if (!frame.length) return null;
-    const keep = new Set();
-    frame.forEach((n) => { for (let a = n; a && a !== body; a = a.parentElement) keep.add(a); });
-    const prune = (box) => {
-        let placed = false;
-        [...box.children].forEach((k) => {
-            if (frame.includes(k)) return; // a header or sidebar: kept as it is
-            if (keep.has(k)) return prune(k); // holds part of the frame: go in
-            if (!placed) { k.replaceWith(hole()); placed = true; } else k.remove(); // the page's own content: one placeholder for all of it
-        });
-    };
-    prune(body);
-    return body.innerHTML.trim();
-}
-
-/** Pages of this project that have a frame to share: [{ title, html }]. */
-function framesHere() {
-    const out = [];
-    docs.forEach((d, key) => {
-        if (key === S.curKey) return;
-        const markup = d.loaded ? d.markup : parseComponentSource(d.source || "").markup;
-        const html = markup && markup.trim() && shellOf(markup);
-        if (html) out.push({ title: (d.meta && d.meta.title) || "Untitled page", html });
-    });
-    return out.slice(0, 4);
-}
-
 const dismissed = new Set(); // pages where the tip was dismissed: it stays away from them
 let box = null, keyShown = null, sizer = null, onEsc = null;
 
-/**
- * A tile: a preview of the layout at 1280 wide, shrunk to fit, and its name. A wireframe (grey boxes only) is drawn right here, which
- * keeps an endless list light; the frame of a real page (`live`) needs its own styles and fonts, so it gets a frame of its own.
- */
-function tile(id, name, html, live) {
-    const body = !html ? `<div class="flex h-full items-center justify-center text-2xl text-neutral-300">+</div>`
-        : live ? `<iframe tabindex="-1" sandbox="allow-scripts" data-shrink class="pointer-events-none absolute left-0 top-0 origin-top-left" style="width:1280px;height:800px;border:0" srcdoc="${esc(buildPreviewDocument(parseComponentSource(html), { width: 1280 }))}"></iframe>`
-        : `<div data-shrink class="pointer-events-none absolute left-0 top-0 origin-top-left bg-white" style="width:1280px">${html.replace(/\bmin-h-screen\b/g, "min-h-[800px]")}</div>`;
+/** A tile: the wireframe at 1280 wide, shrunk to fit (drawn right here: it is only grey boxes, which keeps an endless list light), and its name. */
+function tile(id, name, html) {
     return `<button type="button" data-layout="${esc(id)}" class="group text-left">
-        <div class="relative aspect-[16/10] overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900">${body}</div>
+        <div class="relative aspect-[16/10] overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900"><div data-shrink class="pointer-events-none absolute left-0 top-0 origin-top-left bg-white" style="width:1280px">${html.replace(/\bmin-h-screen\b/g, "min-h-[800px]")}</div></div>
         <div class="mt-1.5 truncate text-xs text-neutral-600 group-hover:text-neutral-900" title="${esc(name)}">${esc(name)}</div>
     </button>`;
 }
@@ -78,7 +28,7 @@ function fitTiles(node) {
     node.querySelectorAll("[data-shrink]").forEach((f) => {
         const w = f.parentElement.clientWidth, h = f.parentElement.clientHeight;
         if (!w) return;
-        const k = w / 1280, tall = f.tagName === "IFRAME" ? 800 : f.scrollHeight;
+        const k = w / 1280, tall = f.scrollHeight;
         f.style.transform = `translateY(${Math.max(0, (h - tall * k) / 2)}px) scale(${k})`;
     });
 }
@@ -92,15 +42,12 @@ function skip() { dismissed.add(S.curKey); hide(); }
  * each time the end of the list comes into view, repeats skipped, filtered by kind with the chips.
  *   o.into    the selected element ({ path, tag }) a pick goes inside, or null for the page
  *   o.modal   a dialog over a dimmed canvas (the Properties panel's), or a card that leaves the canvas usable
- *   o.frames, o.ai   for the page: "Like <page>" (live previews of the project's other pages) and the AI box
  *   o.onPick(html), o.onClose()
  */
 function browse(o) {
     hide();
     const into = o.into && o.into.path && o.into.path.length ? o.into : null;
     const fitIn = (html) => (into ? inBox(html) : html);
-    const canAI = o.ai && typeof host.generate === "function";
-    const frames = o.frames || [];
     box = document.createElement("div");
     box.id = "layoutPicker";
     box.dataset.modal = o.modal ? "1" : "";
@@ -110,8 +57,6 @@ function browse(o) {
     box.innerHTML = `<div data-card class="pointer-events-auto flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
         <div class="flex items-center justify-between gap-4 px-5 pt-5"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(o.title)}</h2>
             <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${esc(o.closeLabel || "Close")}</button></div>
-        ${canAI ? `<form data-ai class="flex gap-2 px-5 pt-3"><input name="prompt" type="text" placeholder="Describe it: a pricing page with three plans and an FAQ" class="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900">
-            <button type="submit" class="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white">Generate</button></form><p data-ai-msg class="hidden px-5 pt-2 text-xs"></p>` : ""}
         <div data-chips class="flex flex-wrap gap-1.5 px-5 pb-3 pt-3">${chips.map(([k, l]) => `<button type="button" data-kind="${k}" class="rounded-full border px-3 py-1 text-xs">${esc(l)}</button>`).join("")}</div>
         <div data-scroll class="min-h-0 flex-1 overflow-y-auto border-t border-neutral-100 px-5 pb-5 pt-4"><div data-grid class="grid grid-cols-4 gap-3"></div>
             <p data-more class="py-6 text-center text-xs text-neutral-400">Loading more…</p></div>
@@ -120,7 +65,7 @@ function browse(o) {
     const card = box.querySelector("[data-card]"), grid = box.querySelector("[data-grid]"), more = box.querySelector("[data-more]"), scroller = box.querySelector("[data-scroll]");
     const items = new Map();
     let kind = "all", n = 0, seen = new Set(), done = false;
-    const add = (id, name, html, live) => { items.set(id, html); grid.insertAdjacentHTML("beforeend", tile(id, name, html, live)); };
+    const add = (id, name, html) => { items.set(id, html); grid.insertAdjacentHTML("beforeend", tile(id, name, html)); };
     /** The next dozen of this kind; repeats are skipped, and a kind with no new ones left says so. */
     function loadMore() {
         if (done || !box) return;
@@ -142,11 +87,8 @@ function browse(o) {
         kind = k; n = 0; seen = new Set(); done = false; items.clear(); grid.innerHTML = ""; more.textContent = "Loading more…";
         box.querySelectorAll("[data-kind]").forEach((c) => { c.className = `rounded-full border px-3 py-1 text-xs ${c.dataset.kind === k ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-600 hover:border-neutral-400"}`; });
         const picked = (list) => list.forEach(([id, name, html]) => { seen.add(html); add(`pick-${id}`, name, fitIn(html)); });
-        if (k === "all" || k === "pages") {
-            frames.forEach((f, i) => add(`frame-${i}`, `Like “${f.title}”`, f.html, true)); // the project's own pages, before anything generic
-        }
-        // the hand-picked ones lead the list: sections first inside a box, pages first for the page
-        if (k === "all") picked(into ? [...SECTIONS, ...LAYOUTS] : [...LAYOUTS, ...SECTIONS]);
+        // the hand-picked ones lead the list, the same for a box and for the page
+        if (k === "all") picked([...SECTIONS, ...LAYOUTS]);
         if (k === "pages") picked(LAYOUTS);
         scroller.scrollTop = 0;
         loadMore();
@@ -169,16 +111,6 @@ function browse(o) {
         if (!html) return;
         hide();
         o.onPick(html);
-    });
-    const form = card.querySelector("[data-ai]");
-    if (form) form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const prompt = form.prompt.value.trim(), msg = card.querySelector("[data-ai-msg]");
-        msg.classList.remove("hidden");
-        if (!prompt) { msg.className = "px-5 pt-2 text-xs text-red-600"; msg.textContent = "Describe the page first."; return; }
-        msg.className = "px-5 pt-2 text-xs text-neutral-500"; msg.textContent = "Drafting the page…";
-        const res = await draftPage(prompt);
-        if (!res.ok) { msg.className = "px-5 pt-2 text-xs text-red-600"; msg.textContent = res.message || "Couldn't draft the page. Try again."; }
     });
     show("all");
 }
@@ -249,7 +181,6 @@ export function openWireframes(target) {
     const into = target && target.path && target.path.length ? target : null;
     browse({
         title: into ? `Add a wireframe inside this ${into.tag}` : model.markup.trim() === "" ? "Start with a layout" : "Add a wireframe to the page", modal: true, into, onClose: hide,
-        frames: into ? [] : framesHere(), ai: !into && model.markup.trim() === "", // for the page: "Like <page>" and, while it is empty, the AI box
         onPick: (html) => {
             if (!into && model.markup.trim() === "") return addToEmpty(html);
             cmd({ cmd: "insert", path: into ? into.path : [], html, position: "inside" });
