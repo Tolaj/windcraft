@@ -22,7 +22,9 @@ export function agentMain() {
     const dropHint = mk(`position:absolute;display:none;pointer-events:none;background:${BLUE};color:#fff;font:500 11px/1 system-ui,sans-serif;white-space:nowrap;border-radius:4px;`);
     // the dashed boxes of what the selection holds are drawn in the inverse of whatever is under them (white, difference), so they show on dark
     // pictures and light pages alike. A blend only reaches the page from outside the overlay, which is a layer of its own: this one sits beside it.
-    const kidLayer = mk("position:absolute;left:0;top:0;width:0;height:0;z-index:2147483646;pointer-events:none;");
+    // The blend is on the layer itself: it is a stacking context of its own (its z-index), so a dash inside it blending on its own would only
+    // see the empty layer and stay white everywhere. The layer as a whole is inverted against the page: black dashes on light, white on dark.
+    const kidLayer = mk("position:absolute;left:0;top:0;width:0;height:0;z-index:2147483646;pointer-events:none;mix-blend-mode:difference;");
     const gapLayer = mk("position:absolute;left:0;top:0;"); // gap and padding handles of the selected box
     overlay.append(hoverBox, gapLayer, guideLayer, draftBox, marqueeBox, ghostBox, dropBox, insertLine, dropHint);
     const isOverlay = (n) => overlay.contains(n) || kidLayer.contains(n);
@@ -44,7 +46,10 @@ export function agentMain() {
     const stillStyle = document.createElement("style");
     stillStyle.setAttribute("data-wc-agent-style", "");
     // Animations (animate-spin, animate-pulse...) are off too: editing shows the design at rest, the Interact tool shows it moving.
-    stillStyle.textContent = "*, *::before, *::after { transition: none !important; animation: none !important; } html { scrollbar-width: none; } html::-webkit-scrollbar { display: none; }";
+    // The page gets a white backdrop (what the editor shows behind it anyway; any background the design sets wins): the dashed outlines of
+    // what the selection holds are drawn by inverting what is under them, and over a transparent page there is nothing to invert, so they
+    // stayed white on white. Now they are black on light pages and white on dark ones.
+    stillStyle.textContent = "*, *::before, *::after { transition: none !important; animation: none !important; } html { scrollbar-width: none; } html::-webkit-scrollbar { display: none; } :where(html) { background-color: #fff; }";
     document.head.appendChild(stillStyle);
     /** Values of `props` on `el`; a transition or animation is read as the design has it, not as the still frame shows it. */
     const readStyle = (el, props) => {
@@ -205,7 +210,7 @@ export function agentMain() {
         if (key === kidsKey) return;
         kidsKey = key;
         kidLayer.textContent = "";
-        list.forEach((r) => kidLayer.appendChild(mk(`position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;border:1px dashed #fff;mix-blend-mode:difference;box-sizing:border-box;pointer-events:none;`)));
+        list.forEach((r) => kidLayer.appendChild(mk(`position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;border:1px dashed #fff;box-sizing:border-box;pointer-events:none;`)));
     }
 
     const clearGuides = () => { guideLayer.innerHTML = ""; insertLine.style.display = "none"; ghostBox.style.display = "none"; dropBox.style.display = "none"; dropHint.style.display = "none"; dropHint.style.transform = ""; };
