@@ -8,7 +8,7 @@ import { normalizeValue } from "../css-props.js";
 import { host } from "../host.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
-import { curWidth, fitTo, heightOfDoc, layout, positions, widthOf } from "./plane.js";
+import { curWidth, fitTo, heightOfDoc, layout, positions, remeasureHeight, widthOf } from "./plane.js";
 import { draftPage } from "./add-menu.js";
 import { cmd } from "./frame-messages.js";
 import { setPanel } from "./color-ui.js";
@@ -47,6 +47,7 @@ function setPageField(key, text) {
 }
 function setPageBox(patch) {
     const d = docs.get(S.curKey), p = positions()[S.curKey];
+    if (patch.w !== undefined && patch.w !== widthOf(d)) remeasureHeight(d);
     d.board = { x: p.x, y: p.y, ...(d.board || {}), ...patch };
     rememberCustom(d);
     queueBoardSave(S.curKey);

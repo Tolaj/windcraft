@@ -20,6 +20,14 @@ export const heightOfDoc = (d) => (d.board && d.board.h) || (d.key === S.curKey
     ? (S.mode === "preview" ? deviceHeight(widthOf(d)) : Math.max(MIN_H, S.frameHeight))
     : Math.max(MIN_H, d.height || 0));
 export const canvasSize = () => [canvas.clientWidth, canvas.clientHeight];
+/**
+ * The frame gets a new width: a height that follows the content starts again from the smallest frame. Content sized by the screen
+ * (min-h-screen, h-screen) is as tall as the frame, so it would otherwise keep the height the last width gave it (a phone width makes a
+ * page tall; back at Desktop it stayed that tall, with empty space at the bottom).
+ */
+export function remeasureHeight(d) {
+    if (d && d.key === S.curKey && !(d.board && d.board.h)) S.frameHeight = MIN_H;
+}
 
 /** The group a design belongs to in its project ("Public site"), or "". */
 export const pageGroupOf = (key) => ((key === S.curKey ? data.group : (docs.get(key) || {}).meta?.group) || "");

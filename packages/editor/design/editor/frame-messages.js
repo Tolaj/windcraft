@@ -165,6 +165,9 @@ export function init() {
         } else if (m.type === "space") {
             setSpace(m.down);
         } else if (m.type === "selected") {
+            // once something is picked the person is working on the design: the view stays where it is from now on. Fitting it again
+            // whenever the height changes (an edit, a font arriving) would zoom and move the page under the pointer between two clicks.
+            if (m.info) S.viewTouched = true;
             // the same element reporting again (after an edit) keeps its open menu; a different one starts fresh
             const newSelection = !(S.selected && m.info && pathKey(S.selected.path) === pathKey(m.info.path));
             if (newSelection) {

@@ -4,7 +4,7 @@ import { normalizeGroup } from "../../../core/pages.js";
 import { GAP_X } from "../../../core/board-layout.js";
 import { DEVICES } from "../float-toolbar.js";
 import { $, S, collapsed, data, esc, frame, model, send } from "./base.js";
-import { MIN_H, applyView, canvas, fitTo, heightOfDoc, layout, pageGroupOf, placePills, positions, view, widthOf } from "./plane.js";
+import { MIN_H, applyView, canvas, fitTo, heightOfDoc, layout, pageGroupOf, placePills, positions, remeasureHeight, view, widthOf } from "./plane.js";
 import { PAGE_EDIT, groupHeading, headingState, renderPagesList } from "./pages-panel.js";
 import { loadFrame, updateChrome } from "./docs.js";
 import { renderLayers } from "./layers.js";
@@ -403,6 +403,7 @@ function resizeFrame(g, dx, dy) {
     if (g.h.includes("n")) y = g.oy + g.oh - h;
     const d = docs.get(g.key);
     const vertical = g.h.includes("n") || g.h.includes("s");
+    if (!vertical && w !== widthOf(d)) remeasureHeight(d);
     d.board = { x: Math.round(x), y: Math.round(y), w, ...(vertical || (d.board && d.board.h) ? { h } : {}) };
     rememberCustom(d);
     layout();
@@ -422,9 +423,11 @@ export function setFrameSize(sz) {
     const d = docs.get(S.curKey);
     const p = positions()[S.curKey];
     const b = { x: p.x, y: p.y, ...(d.board || {}) };
+    const oldW = widthOf(d);
     if ("w" in sz) b.w = clampSize(sz.w, 8000);
     if ("h" in sz) { if (sz.h === null) delete b.h; else b.h = clampSize(sz.h, 20000); }
     d.board = b;
+    if (b.w !== undefined && b.w !== oldW) remeasureHeight(d);
     rememberCustom(d);
     queueBoardSave(S.curKey);
     layout();

@@ -8,8 +8,13 @@ const isTailwindScript = (s) => s.src && TAILWIND_RE.test(s.src);
  * <link>, <script>, body attributes) into separately usable parts.
  */
 export function parseComponentSource(code) {
-    const dom = new DOMParser().parseFromString(code || "", "text/html");
     const hasBodyTag = /<body[\s>]/i.test(code || "");
+    // A fragment (no <html>, <head> or <body>) is parsed as what the body holds: parsed as a whole document, a comment before the
+    // first element (<!-- component --> on a copied snippet) would go before <html> and be lost from the code.
+    const fragment = !/<(?:html|head|body)[\s>]/i.test(code || "") && !/^\s*<!doctype/i.test(code || "");
+    const dom = new DOMParser().parseFromString(fragment ? `<body>${code || ""}` : code || "", "text/html");
+    // what a document parse would have moved into <head> (and so out of the markup) stays out of it, as before
+    if (fragment) dom.body.querySelectorAll(":scope > meta, :scope > title, :scope > base").forEach((el) => el.remove());
 
     const styles = [];
     const links = [];

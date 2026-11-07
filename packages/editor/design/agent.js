@@ -35,6 +35,28 @@ export function agentMain() {
     cursorStyle.textContent = "html, body { overscroll-behavior: none; } html * { cursor: inherit !important; } [contenteditable=true], [contenteditable=true] * { cursor: text !important; }";
     document.head.appendChild(cursorStyle);
     root.style.cursor = "default"; // the Move tool is active from the start
+    // While editing, nothing animates. Reading where a value comes from switches stylesheets off and on for an instant, and every
+    // element with a transition (transition-all is common) would animate from its unstyled look back to its own: the page grows and
+    // shrinks, the frame follows, the selection box drifts, and on a slow machine it never settles. The Interact tool is a separate,
+    // live frame with its transitions. The frame never shows a scrollbar either: it follows its content's height, and a scrollbar that
+    // appears for a moment takes width, which can cross a breakpoint (xl at exactly 1280) and change the layout under it.
+    const stillStyle = document.createElement("style");
+    stillStyle.setAttribute("data-wc-agent-style", "");
+    stillStyle.textContent = "*, *::before, *::after { transition: none !important; } html { scrollbar-width: none; } html::-webkit-scrollbar { display: none; }";
+    document.head.appendChild(stillStyle);
+    /** Values of `props` on `el`; a transition is read as the design has it, not as the still frame shows it. */
+    const readStyle = (el, props) => {
+        const cs = getComputedStyle(el), o = {};
+        props.forEach((p) => { o[p] = cs.getPropertyValue(p); });
+        const motion = props.filter((p) => p.startsWith("transition"));
+        if (motion.length) {
+            stillStyle.disabled = true; // only transition-* change while it is off, and a change of those starts nothing
+            const live = getComputedStyle(el);
+            motion.forEach((p) => { o[p] = live.getPropertyValue(p); });
+            stillStyle.disabled = false;
+        }
+        return o;
+    };
 
     // ── State ───────────────────────────────────────────────────────────────────────────────
     let tool = "move";
@@ -186,12 +208,7 @@ export function agentMain() {
     const clearGuides = () => { guideLayer.innerHTML = ""; insertLine.style.display = "none"; ghostBox.style.display = "none"; dropBox.style.display = "none"; dropHint.style.display = "none"; };
 
     // ── Describing and serializing ──────────────────────────────────────────────────────────
-    const computedOf = (el) => {
-        const cs = getComputedStyle(el);
-        const o = {};
-        cssProps.forEach((p) => { o[p] = cs.getPropertyValue(p); });
-        return o;
-    };
+    const computedOf = (el) => readStyle(el, cssProps);
     // ── Where each property's value comes from ──────────────────────────────────────────────
     // A Tailwind class on this element, its inline style, the design's own CSS (<style>/<link> marked data-wc-design by the editor),
     // inherited, or nothing. The winner is found by switching each kind of stylesheet off for an instant and seeing whether the
@@ -253,7 +270,7 @@ export function agentMain() {
         // of the rules that set a property, the likely winner: one naming a class of this element beats a reset like `*` or `h1`; then the later one
         const best = (rules) => { const own = rules.filter((r) => classNamesIn(r.selectorText).some((n) => el.classList.contains(n))); const l = own.length ? own : rules; return l[l.length - 1]; };
 
-        const read = () => { const cs = getComputedStyle(el); const o = {}; props.forEach((p) => { o[p] = cs.getPropertyValue(p); }); return o; };
+        const read = () => readStyle(el, props);
         const base = read();
         const without = (sheets) => { sheets.forEach((s) => { s.disabled = true; }); const v = read(); sheets.forEach((s) => { s.disabled = false; }); return v; };
         const noTw = tw.length ? without(tw) : base, noDesign = design.length ? without(design) : base;
@@ -561,7 +578,7 @@ export function agentMain() {
         if (t && t.nodeType !== 1) t = t.parentElement;
         if (!t || isOverlay(t) || t === root) return document.body;
         while (t && t !== document.body && isLocked(t)) t = t.parentElement;
-        if (e.metaKey || e.ctrlKey) return t || document.body; // Cmd/Ctrl: the deepest, whatever the level
+        if (e.metaKey || e.ctrlKey) return (t && t.closest && t.closest("svg")) || t || document.body; // Cmd/Ctrl: the deepest, whatever the level (an icon is still one thing: never one of its paths)
         return pickable(t || document.body);
     };
     // ── Groups ── A group (Ctrl+G) is a box made around a few elements, marked data-wc-group so it is saved with the design. On the page
