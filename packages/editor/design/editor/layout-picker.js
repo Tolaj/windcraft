@@ -119,6 +119,9 @@ function browse(o) {
 // Instead of covering the page, an empty page gets a small tip beside the Properties panel's "Add a wireframe" button (which pulses), or
 // under the panel's toolbar button while the panel is closed. It opens the wireframes itself too, and can be dismissed for the page.
 let tip = null, tipTimer = 0;
+/** "Don't show this again": the tip stays off on every page, in this browser (the panel's "Add a wireframe" button still works). */
+const NEVER = "wc:wireframeTip:never";
+const neverTip = () => { try { return localStorage.getItem(NEVER) === "1"; } catch { return false; } };
 function hideTip() {
     clearInterval(tipTimer); tipTimer = 0;
     if (tip) { tip.remove(); tip = null; }
@@ -157,18 +160,20 @@ function showTip() {
         <div class="flex items-start justify-between gap-2"><p class="text-[12px] font-semibold">Start from a wireframe</p>
             <button type="button" data-x title="Dismiss" class="-mr-1 -mt-1 rounded px-1 text-neutral-400 hover:text-white">×</button></div>
         <p data-say class="mt-1 text-[11px] leading-snug text-neutral-300"></p>
-        <button type="button" data-go class="mt-3 w-full rounded-md bg-white px-3 py-1.5 text-[11px] font-medium text-neutral-900 hover:bg-neutral-100">Select from wireframes</button>`;
+        <button type="button" data-go class="mt-3 w-full rounded-md bg-white px-3 py-1.5 text-[11px] font-medium text-neutral-900 hover:bg-neutral-100">Select from wireframes</button>
+        <button type="button" data-never class="wftip-never">Don't show this again</button>`;
     document.body.appendChild(tip);
     document.body.dataset.wfHint = "1"; // the panel's button pulses (styles.css)
     tip.querySelector("[data-x]").addEventListener("click", () => { dismissed.add(S.curKey); hideTip(); });
     tip.querySelector("[data-go]").addEventListener("click", () => openWireframes(null));
+    tip.querySelector("[data-never]").addEventListener("click", () => { try { localStorage.setItem(NEVER, "1"); } catch {} hideTip(); });
     placeTip();
     tipTimer = setInterval(placeTip, 250); // the panel opens, closes and scrolls: the tip follows its button
 }
 
 /** On an empty page, the tip; anywhere else, none. Called whenever the page or its content changes. */
 export function syncLayoutPicker() {
-    const want = S.mode === "edit" && config.ui.panels !== false && !S.canvasOnly && model.markup.trim() === "" && !dismissed.has(S.curKey);
+    const want = S.mode === "edit" && config.ui.panels !== false && !S.canvasOnly && model.markup.trim() === "" && !dismissed.has(S.curKey) && !neverTip();
     if (want) showTip(); else hideTip();
 }
 

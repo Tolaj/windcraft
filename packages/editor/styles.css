@@ -247,6 +247,9 @@ textarea.field { height: auto; padding: 6px 8px; font-family: ui-monospace, mono
 .wfbtn .wfarr { margin-left: auto; width: 14px; height: 14px; flex: none; color: #b0b0b0; transition: color .12s, transform .12s; }
 .wfbtn:hover .wfarr { color: #111; transform: translateX(2px); }
 /* an empty page: the tip points here, and the button pulses until the page has something in it */
+/* the wireframe tip's "Don't show this again" (a plain link under its button; global button styles would reset Tailwind's) */
+.wftip-never { display: block; margin: 8px auto 0; background: none; font-size: 11px; color: #a3a3a3; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.wftip-never:hover { color: #fff; }
 body[data-wf-hint] .wfbtn { border-style: solid; border-color: #111; background: #fff; animation: wfpulse 1.6s ease-out infinite; }
 body[data-wf-hint] .wfbtn .wfico, body[data-wf-hint] .wfbtn .wfarr { color: #111; }
 @keyframes wfpulse { 0% { box-shadow: 0 0 0 0 rgba(17, 17, 17, .35); } 100% { box-shadow: 0 0 0 10px rgba(17, 17, 17, 0); } }
