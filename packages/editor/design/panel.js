@@ -138,6 +138,12 @@ function AiTab({ path, outer, actions }) {
         done="Applied. Undo with Ctrl/Cmd+Z." run=${(prompt) => actions.askAI(path, outer, prompt)} />`;
 }
 
+/** Boxes a wireframe can go into (they hold other elements). */
+const WIREFRAME_TAGS = new Set(["div", "section", "main", "header", "footer", "aside", "nav", "article", "form", "li", "figure"]);
+/** One row that opens the wireframe popup: blank sections and page layouts to put in the page, or inside the selected box. */
+const WireframeRow = ({ onOpen, label }) => html`<div class="sec"><div class="secb nopad"><div class="row"><span class="lbl">Wireframe</span>
+    <button type="button" onClick=${onOpen} class="flex-1 rounded border border-neutral-200 py-1 text-[10px] hover:bg-neutral-50">${label}</button></div></div></div>`;
+
 /** The page's own panel (no element selected): name, version, size, position, and a draft box while the page is empty. */
 function PagePanel({ page: pg, actions }) {
     const dev = (w, l) => html`<button type="button" onClick=${() => actions.setDevice(w)}
@@ -150,6 +156,7 @@ function PagePanel({ page: pg, actions }) {
             <${PageField} row label="Group" value=${pg.group} placeholder="none" onCommit=${set("group")} />
             <div class="row"><span class="lbl">Version</span><span class="text-[11px] text-neutral-700">${pg.isNew ? "not saved yet" : `v${pg.version}`}${pg.project ? ` · ${pg.project}` : ""}</span></div>
         </div></div>
+        <${WireframeRow} onOpen=${actions.wireframes} label=${pg.empty ? "Start with a layout…" : "Add a wireframe…"} />
         ${pg.empty && actions.canAI && html`<${AskBox} title="Generate with AI" placeholder="e.g. a pricing section with three tiers and a highlighted middle plan" rows=${3}
             button="Generate" help="Or draw with the tools, add blocks from +, or paste code in the code panel." empty="Describe what you want first."
             run=${actions.draftPage} />`}
@@ -195,6 +202,7 @@ function Panel({ view, tab, actions }) {
         const { key, s } = view.design;
         body = html`<${DesignTop} key=${key} s=${s} actions=${actions} />
             ${s.tag !== "body" && html`<${PositionSection} key=${`p${key}`} s=${s} actions=${actions} />`}<${LayoutSection} key=${`l${key}`} s=${s} actions=${actions} />
+            ${WIREFRAME_TAGS.has(s.tag) && html`<${WireframeRow} key=${`w${key}`} onOpen=${actions.wireframes} label="Add a wireframe inside…" />`}
             <${SpacingSection} key=${`s${key}`} s=${s} actions=${actions} /><${ItemSection} key=${`f${key}`} s=${s} actions=${actions} /><${Styles} k=${key} s=${s} actions=${actions} page=${s.tag === "body"} />`;
     }
     else if (view.code) body = html`<${CodeTab} key=${view.code.key} path=${view.code.path} source=${view.code.source} indent=${view.code.indent} s=${view.code.s} actions=${actions} />`;

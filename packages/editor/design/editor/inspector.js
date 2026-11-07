@@ -10,6 +10,7 @@ import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
 import { curWidth, fitTo, heightOfDoc, layout, positions, remeasureHeight, widthOf } from "./plane.js";
 import { draftPage } from "./add-menu.js";
+import { openWireframes } from "./layout-picker.js";
 import { cmd } from "./frame-messages.js";
 import { setPanel } from "./color-ui.js";
 import { elementRange } from "./code-panel.js";
@@ -59,6 +60,7 @@ const panelActions = {
     get canAI() { return typeof host.generate === "function"; }, // an app with no AI behind it gets no AI box and no AI tab
     askAI: (path, outer, prompt) => askAI(path, outer, prompt),
     draftPage: (prompt) => draftPage(prompt),
+    wireframes: () => openWireframes(S.selected ? { path: S.selected.path, tag: S.selected.tag } : null), // the wireframe popup: into the selected box, or the page
     setPageField,
     setDevice: (w) => setDevice(w),
     fit: () => { S.viewTouched = true; fitTo([S.curKey]); },
