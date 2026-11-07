@@ -5,36 +5,17 @@ import { $, S, esc, model } from "./base.js";
 import { addToEmpty, draftPage } from "./add-menu.js";
 import { docs } from "./designs.js";
 import { cmd } from "./frame-messages.js";
+import { KIND_NAMES, LAYOUTS, SECTIONS, SPACE, wireframe } from "../../../core/wireframes.js";
+export { LAYOUTS, SECTIONS };
 
 // ── A new, empty page: start with a layout ───────────────────────────────────────────────────────────────────────
 // Over an empty page the canvas offers ready layouts: a few built-in page skeletons, the frame of another page of the project
 // ("Same as Home": its header, sidebar and footer, with an empty middle), and the AI box. A pick is plain Tailwind HTML put in the
 // page like anything pasted, so it is edited, dragged and undone like the rest. Blank (or Esc) leaves the page empty.
 
-// Every layout is a wireframe: the regions of the page as real elements (header, aside, main, section), empty, in two greys (the
-// frame darker, the content lighter), sized so the shape reads. No placeholder words to delete: content is dropped or drawn in.
-const FRAME = "rounded-lg bg-gray-300", SPACE = "rounded-lg bg-gray-200";
+// The wireframes (blank regions in two greys, no placeholder words) and their endless generator live in core/wireframes.js.
 const HOLE = `<div class="h-96 ${SPACE}"></div>`;
 
-export const LAYOUTS = [
-    ["landing", "Landing", `<div class="flex min-h-screen flex-col gap-4 p-4"><header class="h-14 ${FRAME}"></header><main class="flex flex-1 flex-col gap-4"><section class="h-80 ${SPACE}"></section><section class="grid gap-4 md:grid-cols-3"><div class="h-40 ${FRAME}"></div><div class="h-40 ${FRAME}"></div><div class="h-40 ${FRAME}"></div></section></main><footer class="h-20 ${FRAME}"></footer></div>`],
-    ["app", "App shell", `<div class="flex min-h-screen gap-4 p-4"><aside class="hidden w-60 shrink-0 md:block ${FRAME}"></aside><div class="flex min-w-0 flex-1 flex-col gap-4"><header class="h-14 ${FRAME}"></header><main class="flex-1 ${SPACE}"></main></div></div>`],
-    ["dashboard", "Dashboard", `<div class="flex min-h-screen gap-4 p-4"><aside class="hidden w-60 shrink-0 md:block ${FRAME}"></aside><main class="flex min-w-0 flex-1 flex-col gap-4"><section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><div class="h-24 ${FRAME}"></div><div class="h-24 ${FRAME}"></div><div class="h-24 ${FRAME}"></div><div class="h-24 ${FRAME}"></div></section><section class="flex-1 ${SPACE}"></section></main></div>`],
-    ["docs", "Docs", `<div class="flex min-h-screen gap-4 p-4"><nav class="hidden w-52 shrink-0 md:block ${FRAME}"></nav><main class="min-w-0 flex-1 ${SPACE}"></main><aside class="hidden w-44 shrink-0 xl:block ${FRAME}"></aside></div>`],
-    ["auth", "Sign in", `<main class="flex min-h-screen items-center justify-center p-4"><section class="h-96 w-full max-w-sm ${FRAME}"></section></main>`],
-    ["pricing", "Pricing", `<main class="flex min-h-screen flex-col justify-center gap-4 p-4"><section class="mx-auto grid w-full max-w-5xl items-end gap-4 md:grid-cols-3"><div class="h-80 ${FRAME}"></div><div class="h-96 ${FRAME}"></div><div class="h-80 ${FRAME}"></div></section></main>`],
-    ["blog", "Blog post", `<main class="flex min-h-screen justify-center p-4"><article class="flex w-full max-w-2xl flex-col gap-4"><header class="h-12 ${FRAME}"></header><section class="h-[32rem] ${SPACE}"></section></article></main>`],
-];
-
-/** Wireframes for a part of a page: they go inside a selected box (a section, a div), or at the end of the page. */
-export const SECTIONS = [
-    ["cols2", "Two columns", `<div class="grid gap-4 p-4 md:grid-cols-2"><div class="h-64 ${FRAME}"></div><div class="h-64 ${FRAME}"></div></div>`],
-    ["cols3", "Three columns", `<div class="grid gap-4 p-4 md:grid-cols-3"><div class="h-56 ${FRAME}"></div><div class="h-56 ${FRAME}"></div><div class="h-56 ${FRAME}"></div></div>`],
-    ["side", "Sidebar + content", `<div class="flex gap-4 p-4"><aside class="hidden h-80 w-56 shrink-0 md:block ${FRAME}"></aside><div class="h-80 min-w-0 flex-1 ${SPACE}"></div></div>`],
-    ["hero", "Hero", `<section class="flex flex-col items-center gap-4 px-4 py-16"><div class="h-12 w-2/3 ${FRAME}"></div><div class="h-6 w-1/2 ${SPACE}"></div><div class="mt-4 flex gap-3"><div class="h-10 w-32 ${FRAME}"></div><div class="h-10 w-32 ${SPACE}"></div></div></section>`],
-    ["cards", "Card grid", `<div class="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4"><div class="h-48 ${FRAME}"></div><div class="h-48 ${FRAME}"></div><div class="h-48 ${FRAME}"></div><div class="h-48 ${FRAME}"></div></div>`],
-    ["split", "Text + image", `<section class="grid items-center gap-8 p-4 md:grid-cols-2"><div class="flex flex-col gap-3"><div class="h-10 w-3/4 ${FRAME}"></div><div class="h-5 ${SPACE}"></div><div class="h-5 w-5/6 ${SPACE}"></div><div class="mt-3 h-10 w-32 ${FRAME}"></div></div><div class="h-72 ${SPACE}"></div></section>`],
-];
 /** A page wireframe put inside a box: as tall as a good part of a screen, not the whole screen (min-h-screen in a section would be). */
 const inBox = (html) => html.replace(/\bmin-h-screen\b/g, "min-h-[32rem]");
 
@@ -79,15 +60,27 @@ function framesHere() {
 const dismissed = new Set(); // pages where Blank was chosen: the picker stays away from them
 let box = null, keyShown = null, sizer = null, onEsc = null;
 
-/** A tile: a live, themed preview of the layout (a real page, shrunk), and its name. */
-function tile(id, name, html) {
-    const doc = html ? buildPreviewDocument(parseComponentSource(html), { width: 1280 }) : "";
-    return `<button type="button" data-layout="${id}" class="group text-left">
-        <div class="relative aspect-[16/10] overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900">
-            ${html ? `<iframe tabindex="-1" sandbox="allow-scripts" class="pointer-events-none absolute left-0 top-0 origin-top-left" style="width:1280px;height:800px;border:0" srcdoc="${esc(doc)}"></iframe>` : `<div class="flex h-full items-center justify-center text-2xl text-neutral-300">+</div>`}
-        </div>
-        <div class="mt-1.5 truncate text-xs text-neutral-600 group-hover:text-neutral-900">${esc(name)}</div>
+/**
+ * A tile: a preview of the layout at 1280 wide, shrunk to fit, and its name. A wireframe (grey boxes only) is drawn right here, which
+ * keeps an endless list light; the frame of a real page (`live`) needs its own styles and fonts, so it gets a frame of its own.
+ */
+function tile(id, name, html, live) {
+    const body = !html ? `<div class="flex h-full items-center justify-center text-2xl text-neutral-300">+</div>`
+        : live ? `<iframe tabindex="-1" sandbox="allow-scripts" data-shrink class="pointer-events-none absolute left-0 top-0 origin-top-left" style="width:1280px;height:800px;border:0" srcdoc="${esc(buildPreviewDocument(parseComponentSource(html), { width: 1280 }))}"></iframe>`
+        : `<div data-shrink class="pointer-events-none absolute left-0 top-0 origin-top-left bg-white" style="width:1280px">${html.replace(/\bmin-h-screen\b/g, "min-h-[800px]")}</div>`;
+    return `<button type="button" data-layout="${esc(id)}" class="group text-left">
+        <div class="relative aspect-[16/10] overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900">${body}</div>
+        <div class="mt-1.5 truncate text-xs text-neutral-600 group-hover:text-neutral-900" title="${esc(name)}">${esc(name)}</div>
     </button>`;
+}
+/** Shrinks each preview to its tile; a short one (a section) sits in the middle of its tile rather than at the top. */
+function fitTiles(node) {
+    node.querySelectorAll("[data-shrink]").forEach((f) => {
+        const w = f.parentElement.clientWidth, h = f.parentElement.clientHeight;
+        if (!w) return;
+        const k = w / 1280, tall = f.tagName === "IFRAME" ? 800 : f.scrollHeight;
+        f.style.transform = `translateY(${Math.max(0, (h - tall * k) / 2)}px) scale(${k})`;
+    });
 }
 
 /**
@@ -105,7 +98,7 @@ function build(o) {
         <div class="flex items-center justify-between gap-4"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(o.title)}</h2>
             <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${esc(o.skip || "Close")}</button></div>
         ${o.groups.filter((g) => g.items.length).map((g, i) => `<p class="${i ? "mt-5" : "mt-3"} text-[11px] font-medium uppercase tracking-wide text-neutral-400">${esc(g.label)}</p>
-        <div class="mt-2 grid grid-cols-4 gap-3">${g.items.map(([id, name, html]) => tile(id, name, html)).join("")}</div>`).join("")}
+        <div class="mt-2 grid grid-cols-4 gap-3">${g.items.map(([id, name, html]) => tile(id, name, html, g.live)).join("")}</div>`).join("")}
         ${canAI ? `<p class="mt-5 text-[11px] font-medium uppercase tracking-wide text-neutral-400">Or describe it</p>
         <form data-ai class="mt-2 flex gap-2"><input name="prompt" type="text" placeholder="A pricing page with three plans and an FAQ" class="min-w-0 flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-900">
             <button type="submit" class="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white">Generate</button></form>
@@ -116,10 +109,9 @@ function build(o) {
     onEsc = o.onSkip;
     // the previews are pages 1280 wide, shrunk to their tile
     const node = box;
-    const fit = () => node.querySelectorAll("[data-layout] iframe").forEach((f) => { const w = f.parentElement.clientWidth; if (w) f.style.transform = `scale(${w / 1280})`; });
-    sizer = new ResizeObserver(fit);
+    sizer = new ResizeObserver(() => fitTiles(node));
     sizer.observe(node);
-    fit();
+    fitTiles(node);
     const card = box.querySelector("[data-card]");
     // the canvas pans and zooms with the wheel and the pointer: not under the picker
     ["wheel", "pointerdown"].forEach((t) => card.addEventListener(t, (e) => e.stopPropagation()));
@@ -160,26 +152,84 @@ export function syncLayoutPicker() {
     const frames = framesHere();
     build({
         title: "Start with a layout", skip: "Start blank", ai: true, modal: false, onSkip: skip,
-        groups: [{ label: "Built in", items: [["blank", "Blank", ""], ...LAYOUTS] }, { label: "Same as a page in this project", items: frames.map((f, i) => [`frame-${i}`, `Like “${f.title}”`, f.html]) }],
+        groups: [{ label: "Built in", items: [["blank", "Blank", ""], ...LAYOUTS] }, { label: "Same as a page in this project", live: true, items: frames.map((f, i) => [`frame-${i}`, `Like “${f.title}”`, f.html]) }],
         onPick: (html) => { if (model.markup.trim() === "") addToEmpty(html); },
     });
 }
 
 /**
- * The wireframes as a popup, from the Properties panel: `target` is the selected element ({ path, tag }) or null for the page. A pick
- * goes inside that element (after what it holds), or at the end of the page (or fills it when it is empty). One undo step.
+ * The wireframes as a popup, from the Properties panel: `target` is the selected element ({ path, tag }) or null for the page. An
+ * endless list: the hand-picked ones first, then the generator's (core/wireframes.js), more as it is scrolled, filtered by kind with
+ * the chips. A pick goes inside that element (after what it holds) or at the end of the page (or fills it when it is empty). One undo step.
  */
 export function openWireframes(target) {
     hide();
     const into = target && target.path && target.path.length ? target : null;
-    build({
-        title: into ? `Add a wireframe inside this ${into.tag}` : "Add a wireframe to the page", skip: null, ai: false, modal: true, onSkip: hide,
-        groups: [{ label: "Sections", items: SECTIONS }, { label: "Pages", items: LAYOUTS.map(([id, name, html]) => [id, name, into ? inBox(html) : html]) }],
-        onPick: (html) => {
-            if (!into && model.markup.trim() === "") return addToEmpty(html);
-            cmd({ cmd: "insert", path: into ? into.path : [], html, position: "inside" });
-        },
+    const fitIn = (html) => (into ? inBox(html) : html);
+    box = document.createElement("div");
+    box.id = "layoutPicker";
+    box.dataset.modal = "1";
+    box.className = "absolute inset-0 z-[60] flex items-center justify-center bg-black/10 p-6"; // over the canvas toolbars too: it is a dialog
+    const chips = [["all", "All"], ...Object.entries(KIND_NAMES)];
+    box.innerHTML = `<div data-card class="flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
+        <div class="flex items-center justify-between gap-4 px-5 pt-5"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(into ? `Add a wireframe inside this ${into.tag}` : "Add a wireframe to the page")}</h2>
+            <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">Close</button></div>
+        <div data-chips class="flex flex-wrap gap-1.5 px-5 pb-3 pt-3">${chips.map(([k, l]) => `<button type="button" data-kind="${k}" class="rounded-full border px-3 py-1 text-xs">${esc(l)}</button>`).join("")}</div>
+        <div data-scroll class="min-h-0 flex-1 overflow-y-auto border-t border-neutral-100 px-5 pb-5 pt-4"><div data-grid class="grid grid-cols-4 gap-3"></div>
+            <p data-more class="py-6 text-center text-xs text-neutral-400">Loading more…</p></div>
+    </div>`;
+    $("canvas").appendChild(box);
+    const card = box.querySelector("[data-card]"), grid = box.querySelector("[data-grid]"), more = box.querySelector("[data-more]"), scroller = box.querySelector("[data-scroll]");
+    const items = new Map();
+    let kind = "all", n = 0, seen = new Set(), done = false;
+    const add = (id, name, html) => { items.set(id, html); grid.insertAdjacentHTML("beforeend", tile(id, name, html)); };
+    /** The next dozen of this kind; repeats are skipped, and a kind with no new ones left says so. */
+    function loadMore() {
+        if (done) return;
+        let added = 0, tries = 0;
+        while (added < 12 && tries < 240) {
+            const w = wireframe(kind, n++);
+            tries++;
+            if (seen.has(w.html)) continue;
+            seen.add(w.html);
+            add(w.id, w.name, fitIn(w.html));
+            added++;
+        }
+        if (added < 12) { done = true; more.textContent = kind === "all" ? "That's all for now." : `That's every ${KIND_NAMES[kind]} wireframe.`; }
+        fitTiles(grid);
+        // still room below (a short list, a tall window): fill it, the end of the list must be out of view to wait for a scroll
+        requestAnimationFrame(() => { if (!done && box && more.getBoundingClientRect().top < scroller.getBoundingClientRect().bottom + 400) loadMore(); });
+    }
+    function show(k) {
+        kind = k; n = 0; seen = new Set(); done = false; items.clear(); grid.innerHTML = ""; more.textContent = "Loading more…";
+        box.querySelectorAll("[data-kind]").forEach((c) => { c.className = `rounded-full border px-3 py-1 text-xs ${c.dataset.kind === k ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-600 hover:border-neutral-400"}`; });
+        // the hand-picked ones lead the list: sections first inside a box, pages first for the page
+        if (k === "all") (into ? [...SECTIONS, ...LAYOUTS] : [...LAYOUTS, ...SECTIONS]).forEach(([id, name, html]) => { seen.add(html); add(`pick-${id}`, name, fitIn(html)); });
+        if (k === "pages") LAYOUTS.forEach(([id, name, html]) => { seen.add(html); add(`pick-${id}`, name, fitIn(html)); });
+        scroller.scrollTop = 0;
+        loadMore();
+    }
+    // more as the end of the list comes into view
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMore(); }, { root: scroller, rootMargin: "400px" });
+    io.observe(more);
+    sizer = new ResizeObserver(() => fitTiles(grid));
+    sizer.observe(grid);
+    const close = () => { io.disconnect(); hide(); };
+    onEsc = close;
+    ["wheel", "pointerdown"].forEach((t) => box.addEventListener(t, (e) => e.stopPropagation()));
+    box.addEventListener("click", (e) => { if (!card.contains(e.target)) close(); });
+    card.addEventListener("click", (e) => {
+        if (e.target.closest("[data-skip]")) return close();
+        const chip = e.target.closest("[data-kind]");
+        if (chip) return show(chip.dataset.kind);
+        const t = e.target.closest("[data-layout]");
+        const html = t && items.get(t.dataset.layout);
+        if (!html) return;
+        close();
+        if (!into && model.markup.trim() === "") return addToEmpty(html);
+        cmd({ cmd: "insert", path: into ? into.path : [], html, position: "inside" });
     });
+    show("all");
 }
 
 /** Registers this part's listeners (called once by editor.js). */
