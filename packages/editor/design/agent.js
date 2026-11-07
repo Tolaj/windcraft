@@ -718,6 +718,7 @@ export function agentMain() {
         c.querySelectorAll("[contenteditable]").forEach((e) => e.removeAttribute("contenteditable"));
         c.querySelectorAll("[data-wc-state]").forEach((e) => e.removeAttribute("data-wc-state")); // a state shown while editing, not part of the design
         c.querySelectorAll("script[data-wc-agent]").forEach((e) => e.remove());
+        c.querySelectorAll('[style=""]').forEach((e) => e.removeAttribute("style")); // an attribute emptied by an edit is not part of the design
         return c.innerHTML.trim();
     };
 
@@ -837,22 +838,46 @@ export function agentMain() {
     }
 
     // ── Inline editing ──────────────────────────────────────────────────────────────────────
+    // what can hold typed words: never a picture, an icon or a control, which would take the words somewhere they don't show
+    const NO_TEXT = /^(IMG|SVG|VIDEO|AUDIO|IFRAME|CANVAS|HR|BR|SELECT|PICTURE|OBJECT|EMBED)$/i;
+    // a form field's words are its placeholder (or its value attribute when it has one and no placeholder): typed in the field itself
+    const isField = (el) => /^(INPUT|TEXTAREA)$/.test(el.tagName) && !/^(checkbox|radio|range|color|file|submit|button|image|reset|hidden)$/i.test(el.type || "");
     function startEdit(el, selectAll) {
-        if (!el || el === document.body) return;
+        if (!el || el === document.body || NO_TEXT.test(el.tagName)) return;
         editing = el;
-        el.setAttribute("contenteditable", "true");
-        el.focus();
-        if (selectAll) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+        if (isField(el)) {
+            el.dataset.wcField = el.hasAttribute("placeholder") || !el.hasAttribute("value") ? "placeholder" : "value";
+            el.value = el.getAttribute(el.dataset.wcField) || "";
+            el.focus();
+            el.select();
+        } else {
+            el.setAttribute("contenteditable", "true");
+            el.focus();
+            if (selectAll) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+        }
         redraw();
         postEditing();
     }
+    /** No text left selected: a selection that outlives the edit shows as a grey band behind the words, as if they had a background. */
+    const dropTextSelection = () => { const sel = getSelection(); if (sel && sel.rangeCount) sel.removeAllRanges(); };
     const fmtState = () => ({ bold: document.queryCommandState("bold"), italic: document.queryCommandState("italic"), underline: document.queryCommandState("underline") });
     function postEditing() { post({ type: "editing", on: Boolean(editing), rect: editing ? pageRect(editing) : null, fmt: editing ? fmtState() : null }); }
     function finishEdit() {
         if (!editing) return;
         const el = editing;
         editing = null;
-        el.removeAttribute("contenteditable");
+        if (el.dataset.wcField) { // the field's words go back into its attribute; what was typed in the live field is not part of the page
+            const attr = el.dataset.wcField, v = el.value;
+            delete el.dataset.wcField;
+            if (v) el.setAttribute(attr, v); else el.removeAttribute(attr);
+            if (attr === "placeholder") el.value = "";
+        } else {
+            el.removeAttribute("contenteditable");
+            if (el.innerHTML === "<br>") el.innerHTML = ""; // all the words deleted: the browser leaves a line break behind
+        }
+        tidyStyle(el);
+        dropTextSelection();
+        if (el.blur) el.blur();
         postEditing();
         changed();
     }
@@ -1508,6 +1533,7 @@ export function agentMain() {
 
     /** A handle drawn by the editor was pressed. The editor then forwards the pointer (hmove / hend) in this frame's coordinates. */
     function beginHandle(hd, e) {
+        if (editing) finishEdit(); // resizing (or turning) what is being typed in: the typing is done
         const el = primary();
         if (!el || el === document.body) return;
         const g = geomOf(el);
@@ -1528,7 +1554,7 @@ export function agentMain() {
         if (e.button !== 0) return;
         if (converting) { e.preventDefault(); return; } // the last drag is still becoming classes (askConvert)
         if (editing && editing.contains(e.target)) return;
-        if (editing) finishEdit();
+        if (editing) finishEdit(); else dropTextSelection();
         try { root.setPointerCapture(e.pointerId); } catch (err) { /* capture is optional */ }
         e.preventDefault();
 
@@ -1674,11 +1700,26 @@ export function agentMain() {
             setSelection([c]);
             return;
         }
+        if (isField(el)) { setSelection([el]); startEdit(el, true); return; } // a field inside a label: the field's own words, typed in the field
         const target = cur && cur.contains(el) && isTextual(cur) ? cur : cur === el ? el : pickable(el);
         setSelection([target]);
-        if (isTextual(target) || !realKids(target).length) startEdit(target, false);
+        if ((isTextual(target) || !realKids(target).length) && !NO_TEXT.test(target.tagName)) {
+            startEdit(target, false);
+            // the caret goes where the double-click was (not to the start of the text), so typing lands where it was aimed
+            const at = document.caretRangeFromPoint ? document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+            const sel = getSelection();
+            if (at && target.contains(at.startContainer)) { sel.removeAllRanges(); sel.addRange(at); }
+            else if (target.childNodes.length) { const r = document.createRange(); r.selectNodeContents(target); r.collapse(false); sel.removeAllRanges(); sel.addRange(r); }
+        }
     }, true);
     document.addEventListener("selectionchange", () => { if (editing) postEditing(); });
+    // pasting while typing brings the words only: another app's fonts, colours and markup would land inline in the design
+    document.addEventListener("paste", (e) => {
+        if (!editing || editing.dataset.wcField) return;
+        e.preventDefault();
+        const text = (e.clipboardData && e.clipboardData.getData("text/plain")) || "";
+        document.execCommand("insertText", false, text);
+    }, true);
     // while typing, keep the editor's copy of the markup (and so the Code panel) current instead of waiting for the edit to finish
     let typingTimer = null;
     document.addEventListener("input", () => {
