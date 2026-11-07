@@ -234,6 +234,16 @@ textarea.field { height: auto; padding: 6px 8px; font-family: ui-monospace, mono
 .crumbs .cur { color: #000; font-weight: 600; }
 .sl { color: #ccc; }
 .sec { border-bottom: 1px solid #e5e5e5; }
+/* the Wireframe row: a card that opens the wireframe popup (a dashed outline, solid on hover, like a drop zone) */
+.wfsec { padding: 10px; }
+.wfbtn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 1px dashed #d4d4d4; border-radius: 8px; background: #fafafa; text-align: left; transition: border-color .12s, background .12s; }
+.wfbtn:hover { border-style: solid; border-color: #111; background: #fff; }
+.wfbtn .wfico { width: 36px; height: 26px; flex: none; color: #c4c4c4; transition: color .12s; }
+.wfbtn:hover .wfico { color: #111; }
+.wfbtn .wft { display: block; font-size: 11.5px; font-weight: 500; color: #111; }
+.wfbtn .wfs { display: block; font-size: 10.5px; color: #8c8c8c; margin-top: 1px; }
+.wfbtn .wfarr { margin-left: auto; width: 14px; height: 14px; flex: none; color: #b0b0b0; transition: color .12s, transform .12s; }
+.wfbtn:hover .wfarr { color: #111; transform: translateX(2px); }
 .sech { display: flex; align-items: center; gap: 6px; width: 100%; padding: 9px 10px; font-weight: 600; font-size: 11px; text-align: left; }
 .sech:hover { background: #fafafa; }
 .sech .car { width: 10px; color: #8c8c8c; font-size: 9px; }

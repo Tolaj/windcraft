@@ -140,9 +140,11 @@ function AiTab({ path, outer, actions }) {
 
 /** Boxes a wireframe can go into (they hold other elements). */
 const WIREFRAME_TAGS = new Set(["div", "section", "main", "header", "footer", "aside", "nav", "article", "form", "li", "figure"]);
-/** One row that opens the wireframe popup: blank sections and page layouts to put in the page, or inside the selected box. */
-const WireframeRow = ({ onOpen, label }) => html`<div class="sec"><div class="secb nopad"><div class="row"><span class="lbl">Wireframe</span>
-    <button type="button" onClick=${onOpen} class="flex-1 rounded border border-neutral-200 py-1 text-[10px] hover:bg-neutral-50">${label}</button></div></div></div>`;
+/** The card that opens the wireframe popup: blank sections and page layouts to put in the page, or inside the selected box. */
+const WF_ICON = html`<svg class="wfico" viewBox="0 0 36 26" fill="currentColor"><rect x="0.5" y="0.5" width="35" height="25" rx="3" fill="none" stroke="currentColor" /><rect x="3" y="3" width="30" height="4" rx="1" /><rect x="3" y="9" width="9" height="14" rx="1" /><rect x="14" y="9" width="19" height="14" rx="1" opacity=".55" /></svg>`;
+const WF_ARROW = html`<svg class="wfarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6" /></svg>`;
+const WireframeRow = ({ onOpen, label, hint }) => html`<div class="sec wfsec"><button type="button" class="wfbtn" onClick=${onOpen}>${WF_ICON}
+    <span class="min-w-0"><span class="wft">${label}</span><span class="wfs">${hint}</span></span>${WF_ARROW}</button></div>`;
 
 /** The page's own panel (no element selected): name, version, size, position, and a draft box while the page is empty. */
 function PagePanel({ page: pg, actions }) {
@@ -156,7 +158,7 @@ function PagePanel({ page: pg, actions }) {
             <${PageField} row label="Group" value=${pg.group} placeholder="none" onCommit=${set("group")} />
             <div class="row"><span class="lbl">Version</span><span class="text-[11px] text-neutral-700">${pg.isNew ? "not saved yet" : `v${pg.version}`}${pg.project ? ` · ${pg.project}` : ""}</span></div>
         </div></div>
-        <${WireframeRow} onOpen=${actions.wireframes} label=${pg.empty ? "Start with a layout…" : "Add a wireframe…"} />
+        <${WireframeRow} onOpen=${actions.wireframes} label=${pg.empty ? "Start with a layout" : "Add a wireframe"} hint="Sections and page layouts" />
         ${pg.empty && actions.canAI && html`<${AskBox} title="Generate with AI" placeholder="e.g. a pricing section with three tiers and a highlighted middle plan" rows=${3}
             button="Generate" help="Or draw with the tools, add blocks from +, or paste code in the code panel." empty="Describe what you want first."
             run=${actions.draftPage} />`}
@@ -202,7 +204,7 @@ function Panel({ view, tab, actions }) {
         const { key, s } = view.design;
         body = html`<${DesignTop} key=${key} s=${s} actions=${actions} />
             ${s.tag !== "body" && html`<${PositionSection} key=${`p${key}`} s=${s} actions=${actions} />`}<${LayoutSection} key=${`l${key}`} s=${s} actions=${actions} />
-            ${WIREFRAME_TAGS.has(s.tag) && html`<${WireframeRow} key=${`w${key}`} onOpen=${actions.wireframes} label="Add a wireframe inside…" />`}
+            ${WIREFRAME_TAGS.has(s.tag) && html`<${WireframeRow} key=${`w${key}`} onOpen=${actions.wireframes} label="Add a wireframe" hint=${`Inside this ${s.tag}`} />`}
             <${SpacingSection} key=${`s${key}`} s=${s} actions=${actions} /><${ItemSection} key=${`f${key}`} s=${s} actions=${actions} /><${Styles} k=${key} s=${s} actions=${actions} page=${s.tag === "body"} />`;
     }
     else if (view.code) body = html`<${CodeTab} key=${view.code.key} path=${view.code.path} source=${view.code.source} indent=${view.code.indent} s=${view.code.s} actions=${actions} />`;
