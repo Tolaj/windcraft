@@ -146,6 +146,30 @@ const WF_ARROW = html`<svg class="wfarr" viewBox="0 0 24 24" fill="none" stroke=
 const WireframeRow = ({ onOpen, label, hint }) => html`<div class="sec wfsec"><button type="button" class="wfbtn" onClick=${onOpen}>${WF_ICON}
     <span class="min-w-0"><span class="wft">${label}</span><span class="wfs">${hint}</span></span>${WF_ARROW}</button></div>`;
 
+/** The canvas's own panel (nothing selected, as in Figma): the project, its frames, the canvas background and dot grid. */
+const CANVAS_COLORS = ["#e5e5e5", "#f5f5f5", "#ffffff", "#d4d4d4", "#2c2c2c", "#0f172a"];
+function CanvasPanel({ c, actions }) {
+    const swatch = (col) => html`<button type="button" title=${col} onClick=${() => actions.setCanvasBg(col)}
+        style=${`width:22px;height:22px;border-radius:6px;background:${col};border:1px solid ${c.bg.toLowerCase() === col ? "#111" : "#d4d4d4"};box-shadow:${c.bg.toLowerCase() === col ? "0 0 0 2px #fff inset" : "none"}`}></button>`;
+    return html`
+        <div class="sec"><div class="secb nopad"><p class="sub first">Canvas</p>
+            <div class="row"><span class="lbl">Project</span><span class="truncate text-[11px] text-neutral-700">${c.project || "No project"}</span></div>
+            <div class="row"><span class="lbl">Frames</span><span class="text-[11px] text-neutral-700">${c.frames}</span></div>
+        </div></div>
+        <div class="sec"><div class="secb nopad"><p class="sub first">Background</p>
+            <div class="flex flex-wrap items-center gap-1.5">${CANVAS_COLORS.map(swatch)}
+                <label title="Another colour" class="relative ml-1 flex h-[22px] w-[22px] cursor-pointer items-center justify-center rounded-md border border-neutral-300 text-[13px] text-neutral-500">+
+                    <input type="color" value=${c.bg} onInput=${(e) => actions.setCanvasBg(e.target.value)} class="absolute inset-0 h-full w-full cursor-pointer opacity-0" /></label></div>
+            <div class="row"><span class="lbl">Colour</span><span class="font-mono text-[11px] text-neutral-700">${c.bg.toUpperCase()}</span></div>
+        </div></div>
+        <div class="sec"><div class="secb nopad"><p class="sub first">Dot grid</p>
+            <label class="row cursor-pointer"><input type="checkbox" checked=${c.dots} onChange=${actions.toggleDots} /><span class="text-[11px] text-neutral-700">Show dots on the canvas</span></label>
+        </div></div>
+        <div class="sec"><div class="secb nopad"><div class="flex gap-1"><button type="button" onClick=${actions.fitAll} class="flex-1 rounded border border-neutral-200 py-1 text-[10px] hover:bg-neutral-50">Zoom to fit all</button></div>
+            <p class="text-[10px] text-neutral-500">Click a frame to edit it.</p>
+        </div></div>`;
+}
+
 /** The page's own panel (no element selected): name, version, size, position, and a draft box while the page is empty. */
 function PagePanel({ page: pg, actions }) {
     const dev = (w, l) => html`<button type="button" onClick=${() => actions.setDevice(w)}
@@ -189,9 +213,9 @@ const CLOSE = html`<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="
 const TABS = [["design", "Design"], ["classes", "Code"], ["ai", "AI"]];
 
 /** The row at the top: the tabs (or just "Page" when no element is selected) and the close button. */
-function Head({ page, tab, actions }) {
+function Head({ page, canvas, tab, actions }) {
     return html`<div class="itabs">
-        ${page ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">Page</span>`
+        ${page || canvas ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">${canvas ? "Canvas" : "Page"}</span>`
         : TABS.filter(([k]) => k !== "ai" || actions.canAI).map(([k, label]) => html`<button type="button" class=${tab === k ? "on" : ""} onClick=${() => actions.setTab(k)}>${label}</button>`)}
         <button type="button" title="Close" style="padding:0" class="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-500 hover:bg-neutral-100" onClick=${actions.closePanel}>${CLOSE}</button>
     </div>`;
@@ -210,10 +234,11 @@ function Panel({ view, tab, actions }) {
     else if (view.code) body = html`<${CodeTab} key=${view.code.key} path=${view.code.path} source=${view.code.source} indent=${view.code.indent} s=${view.code.s} actions=${actions} />`;
     else if (view.classes) body = html`<${ClassesSection} key=${view.classes.key} s=${view.classes.s} actions=${actions} />`;
     else if (view.ai) body = html`<${AiTab} key=${view.ai.key} path=${view.ai.path} outer=${view.ai.outer} actions=${actions} />`;
+    else if (view.canvas) body = html`<${CanvasPanel} c=${view.canvas} actions=${actions} />`;
     else if (view.page) body = html`<${PagePanel} page=${view.page} actions=${actions} />${view.pageBody && html`
         <div class="pagehead"><b>Page styling</b><span>Applies to the whole page (its body), not an element. Click an element to style it.</span></div>
         <${LayoutSection} key="page-l" s=${view.pageBody.s} actions=${view.pageBody.actions} /><${SpacingSection} key="page-s" s=${view.pageBody.s} actions=${view.pageBody.actions} /><${Styles} k="page" page s=${view.pageBody.s} actions=${view.pageBody.actions} />`}`;
-    return html`<${Head} page=${view.page} tab=${tab} actions=${actions} />${body}`;
+    return html`<${Head} page=${view.page} canvas=${view.canvas} tab=${tab} actions=${actions} />${body}`;
 }
 
 /** Draws the panel into its element. `view` comes from inspectorView (panel-model.js), `ui` is the panel's state (panel-state.js) plus what is worked out at the time of drawing. */

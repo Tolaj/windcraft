@@ -12,6 +12,7 @@ import { convertGesture, renderInspector, setRotation } from "./inspector.js";
 import { updateCodeHighlight } from "./code-panel.js";
 import { suggestLayout } from "./layout-chip.js";
 import { syncLayoutPicker } from "./layout-picker.js";
+import { setCanvasOnly } from "./canvas-mode.js";
 
 let pendingKey = "";
 
@@ -169,6 +170,7 @@ export function init() {
         } else if (m.type === "space") {
             setSpace(m.down);
         } else if (m.type === "selected") {
+            if (m.info) setCanvasOnly(false); // an element of a frame is picked: that frame is the one being worked on
             // once something is picked the person is working on the design: the view stays where it is from now on. Fitting it again
             // whenever the height changes (an edit, a font arriving) would zoom and move the page under the pointer between two clicks.
             if (m.info) S.viewTouched = true;

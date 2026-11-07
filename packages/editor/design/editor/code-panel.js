@@ -72,6 +72,8 @@ export function syncCode() {
     if (prev) ed.reveal(i);
     updateCodeHighlight(false);
 }
+/** Closes the code panel if it is open (nothing selected on the canvas: there is no code to show). */
+export function closeCodePanel() { if (codeOpen()) setCodePanel(false); }
 async function setCodePanel(open) {
     $("codePanel").classList.toggle("hidden", !open);
     $("codePanel").classList.toggle("flex", open);

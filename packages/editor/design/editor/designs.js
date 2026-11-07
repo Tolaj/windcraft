@@ -12,6 +12,7 @@ import { renderFloat } from "./frame-handles.js";
 import { renderInspector } from "./inspector.js";
 import { updateCodeHighlight } from "./code-panel.js";
 import { DEFAULT_CATEGORY, setTool } from "./toolbar.js";
+import { setCanvasOnly } from "./canvas-mode.js";
 
 // ── Many designs on one plane ────────────────────────────────────────────────
 // One design is live (the iframe you edit). The others are previews in the same project; click one to switch to it.
@@ -154,13 +155,14 @@ export function renderDesigns() {
     };
     renderPagesList();
     $("designsCount").textContent = String(list.length);
-    $("designsName").textContent = (data.project && data.project.name) || data.title || "Untitled page";
+    $("designsName").textContent = S.canvasOnly ? (data.project && data.project.name) || "Untitled project" : data.title || "Untitled page"; // the project while nothing is selected (canvas-mode.js)
     placePills();
     $("designs").innerHTML = pages.map((p) => groupHeading(p) + row(p, 0) + list.filter((s) => s.kind === "section" && s.parent === p.key).map((s) => row(s, 1)).join("")).join("");
 }
 
 /** Makes another design the live one. The current one stays on the plane as a preview with its edits. */
 export function activate(key) {
+    setCanvasOnly(false); // another frame is picked: it is the one being worked on
     if (key === S.curKey || !docs.has(key)) return;
     stashActive();
     const prev = docs.get(S.curKey);
@@ -369,16 +371,19 @@ export async function deletePage(key) {
     fitTo([S.curKey], Math.max(view.z, 0.5));
 }
 
+/** A click on the empty canvas: nothing is selected, not even a frame (the canvas itself shows in the panel, as in Figma). */
 function clearSelection() {
     S.frameSel = null;
     S.selected = null;
     updateCodeHighlight(false);
     send({ cmd: "deselect" });
+    setCanvasOnly(true);
     renderInspector();
     renderLayers();
     renderFloat();
 }
 export function selectFrame() {
+    setCanvasOnly(false);
     S.selected = null;
     updateCodeHighlight(false);
     send({ cmd: "deselect" });

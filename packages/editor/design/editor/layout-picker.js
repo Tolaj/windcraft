@@ -168,7 +168,7 @@ function showTip() {
 
 /** On an empty page, the tip; anywhere else, none. Called whenever the page or its content changes. */
 export function syncLayoutPicker() {
-    const want = S.mode === "edit" && config.ui.panels !== false && model.markup.trim() === "" && !dismissed.has(S.curKey);
+    const want = S.mode === "edit" && config.ui.panels !== false && !S.canvasOnly && model.markup.trim() === "" && !dismissed.has(S.curKey);
     if (want) showTip(); else hideTip();
 }
 

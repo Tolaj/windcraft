@@ -15,6 +15,7 @@ import { cmd } from "./frame-messages.js";
 import { setPanel } from "./color-ui.js";
 import { elementRange } from "./code-panel.js";
 import { loadFrame } from "./docs.js";
+import { canvasLook, setCanvasLook } from "./canvas-mode.js";
 
 // ── Inspector (the panel is components: see panel.js; what it shows, panel-model.js; its state, panel-state.js) ──
 export const insp = $("inspector");
@@ -64,6 +65,10 @@ const panelActions = {
     setPageField,
     setDevice: (w) => setDevice(w),
     fit: () => { S.viewTouched = true; fitTo([S.curKey]); },
+    // the canvas itself (nothing selected): its background, its dot grid, and every frame in view
+    setCanvasBg: (bg) => setCanvasLook({ bg }),
+    toggleDots: () => setCanvasLook({ dots: !canvasLook().dots }),
+    fitAll: () => { S.viewTouched = true; fitTo([...docs.keys()]); },
     details: () => $("detailsBtn").click(),
     // the top of the Design tab (design-tab.js)
     select: (path) => send({ cmd: "select", path }),
@@ -143,6 +148,11 @@ export function renderInspector() {
     const sel = S.selected && S.selected === S.pageBody ? null : S.selected; // drawn while a body action runs: still the page
     const elementCode = sel && ui.tab === "classes" ? sourceOf(sel.path) : null;
     const top = insp.scrollTop;
+    if (S.canvasOnly) { // nothing selected: the canvas's own panel
+        renderPanel(insp, { canvas: { ...canvasLook(), frames: docs.size, project: data.project && data.project.name } }, panelActions, ui);
+        insp.scrollTop = top;
+        return;
+    }
     const view = inspectorView(sel, sel ? null : pageInfo(), elementCode);
     if (view.page && S.pageBody) view.pageBody = { s: S.pageBody, actions: bodyActions };
     renderPanel(insp, view, panelActions, ui);

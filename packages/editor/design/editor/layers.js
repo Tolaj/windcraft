@@ -53,6 +53,8 @@ export function renderLayers() {
             if (opened) revealedKey = null;
         }
     }
+    // nothing selected on the canvas: no frame is open, so there is no tree to list
+    if (S.canvasOnly) { $("layers").innerHTML = '<div class="px-3 py-3 text-[11px] leading-snug text-neutral-500">No frame selected. Click a frame on the canvas, or a page above, to see its layers.</div>'; return; }
     // Pages are their own section above, so Layers is just the current page's element tree.
     $("layers").innerHTML = S.tree ? layerNode(S.tree, 0) : '<div class="px-2 py-2 text-[11px] text-neutral-500">Loading…</div>';
     revealLayer();
