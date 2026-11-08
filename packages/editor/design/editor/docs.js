@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { agentMain } from "../agent.js";
+import { layoutKit } from "../../../core/layout-compiler.js";
 import { buildPreviewDocument, parseComponentSource, themeMarkup } from "../../playground/component-source.js";
 import { panelStore } from "../panel-state.js";
 import { $, S, data, esc, frame, isTailwindScript, model, send } from "./base.js";
@@ -28,7 +29,7 @@ function canvasParts() {
 
 function editDocument() {
     const { head, attrs } = canvasParts();
-    return `<!DOCTYPE html><html><head>${head}</head><body${attrs}>${model.markup}<script data-wc-agent>window.__wcLoad=${S.loadSeq};(${agentMain.toString()})()<\/script></body></html>`;
+    return `<!DOCTYPE html><html><head>${head}</head><body${attrs}>${model.markup}<script data-wc-agent>window.__wcLoad=${S.loadSeq};window.__wcLayout=(${layoutKit.toString()})();(${agentMain.toString()})()<\/script></body></html>`;
 }
 
 /**

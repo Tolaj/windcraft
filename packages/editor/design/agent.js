@@ -213,7 +213,7 @@ export function agentMain() {
     function redraw() {
         sels = sels.filter(alive);
         const el = primary();
-        const dragging = Boolean(gesture && gesture.type === "intent" && gesture.ghost); // the landing outline and label say it all while dragging
+        const dragging = Boolean(gesture && (gesture.type === "intent" || gesture.type === "free") && gesture.ghost); // the landing outline and label say it all while dragging
         const items = dragging ? [] : sels.filter((e) => e !== document.body).map(boxOf);
         const handles = Boolean(!dragging && el && sels.length === 1 && el !== document.body && tool === "move" && !editing && !isLocked(el));
         let label = "", at = null;
@@ -221,7 +221,7 @@ export function agentMain() {
             const g = geomOf(el);
             if (gesture.type === "radius") { label = `Radius ${gesture.r}`; at = gesture.at; }
             else if (gesture.type === "rotate") { label = `${gesture.deg === undefined ? "" : gesture.deg + "°"}`; at = gesture.at; }
-            else if (gesture.type !== "gap" && gesture.type !== "intent") label = sels.length > 1 ? `${sels.length} selected` : `${g.w} × ${g.h}`; // a gap or padding drag has its own label
+            else if (gesture.type !== "gap" && gesture.type !== "intent" && gesture.type !== "free") label = sels.length > 1 ? `${sels.length} selected` : `${g.w} × ${g.h}`; // a gap or padding drag has its own label
         }
         const bbox = el && el !== document.body && alive(el) ? pageRect(el) : null;
         const data = JSON.stringify({ items, handles, label, bbox, at });
@@ -1062,7 +1062,8 @@ export function agentMain() {
         if (abs.length) {
             gesture = { type: "move", items: abs.map((el) => ({ el, g: geomOf(el), pre: sourcesOf(el, ["left", "top"]) })), sx: e.clientX, sy: e.clientY, moved: false, container: abs[0].parentElement || document.body };
         } else {
-            gesture = { type: "intent", intent: true, el: items[0], sx: e.clientX, sy: e.clientY, moved: false };
+            if (items[0] === document.body) return;
+            gesture = { type: "free", el: items[0], sx: e.clientX, sy: e.clientY, moved: false };
         }
     }
 
@@ -1444,6 +1445,311 @@ export function agentMain() {
         return items.length ? askConvert(items) : changed();
     }
 
+    // ── Free drag: the element goes anywhere, the code follows ────────────────────────────────────────────────────────
+    // The element is lifted out of its place (the box it was in closes up) and a copy follows the pointer to the pixel, snapping to
+    // the lines of the boxes around it. When the pointer rests, the box it is over is rewritten from where its children now are by
+    // the layout compiler (core/layout-compiler.js): rows, columns, grids, gaps, padding and sizes as Tailwind classes, wrappers
+    // where things belong together. Only that box's own layout and its children's places in it change; what is inside each child
+    // stays as it is. The result is shown on the page as it will be saved, and checked: if anything would land anywhere else than
+    // where it is now, the element keeps the exact place it was dropped at instead (absolute in that box). Tab switches between the
+    // two, Esc puts everything back.
+    const LK = window.__wcLayout;
+    const FREE_FIT = 3; // px: how far a piece may land from where it is before the layout counts as not reproducing the design
+    const REPLACED = new Set(["IMG", "SVG", "VIDEO", "CANVAS", "IFRAME", "PICTURE", "INPUT", "SELECT", "TEXTAREA"]);
+    const freeFlags = (k) => {
+        const own = (k.getAttribute("class") || "").split(/\s+/).filter((c) => !c.includes(":"));
+        return {
+            replaced: REPLACED.has(k.tagName.toUpperCase()),
+            fixedW: own.some((c) => /^(w|size)-(\d|\[|px)/.test(c)) || k.hasAttribute("width"),
+            fixedH: own.some((c) => /^(h|size)-(\d|\[|px)/.test(c)) || k.hasAttribute("height"),
+            block: /^(block|flex|grid|list-item|table|flow-root)$/.test(getComputedStyle(k).display),
+        };
+    };
+    /** How wide something is on its own: its content on one line (an image, or anything with a fixed width: as it is). */
+    function freeNat(k, f) {
+        if (f.replaced || f.fixedW) return k.getBoundingClientRect().width;
+        const old = k.getAttribute("style");
+        ["width:max-content", "max-width:none", "min-width:0", "flex:none"].forEach((d) => { const [p, v] = d.split(":"); k.style.setProperty(p, v, "important"); });
+        const w = k.getBoundingClientRect().width;
+        if (old === null) k.removeAttribute("style"); else k.setAttribute("style", old);
+        return w;
+    }
+    /** How tall something is on its own: its content's height (a box stretched by its row or the screen is taller than that). */
+    function freeNatH(k, f) {
+        if (f.replaced || f.fixedH) return k.getBoundingClientRect().height;
+        const old = k.getAttribute("style");
+        ["height:auto", "min-height:0", "max-height:none", "flex:none", "align-self:flex-start"].forEach((d) => { const [p, v] = d.split(":"); k.style.setProperty(p, v, "important"); });
+        const h = k.getBoundingClientRect().height;
+        if (old === null) k.removeAttribute("style"); else k.setAttribute("style", old);
+        return h;
+    }
+    const hasOwnText = (c) => Array.prototype.some.call(c.childNodes, (n) => n.nodeType === 3 && n.textContent.trim());
+    /** Inside the border: the space a box lays its children out in. */
+    function innerOf(c) {
+        const r = pageRect(c), cs = getComputedStyle(c), f = (v) => parseFloat(v) || 0;
+        const l = f(cs.borderLeftWidth), t = f(cs.borderTopWidth);
+        return { x: r.x + l, y: r.y + t, w: r.w - l - f(cs.borderRightWidth), h: r.h - t - f(cs.borderBottomWidth) };
+    }
+    /** The box the element is dropped into: the deepest box that holds all of it (and lays out boxes, not running text). */
+    function freeTarget(g, box) {
+        const cx = box.x + box.w / 2 - window.scrollX, cy = box.y + box.h / 2 - window.scrollY;
+        const hit = document.elementsFromPoint(cx, cy).find((n) => !isOverlay(n) && n !== root && n !== g.el && !g.el.contains(n)) || document.body;
+        // how much of the element is inside a box. Its own box (or one around it) holds it when most of it is in there; another box
+        // only when it is clearly put inside it, and that box is clearly bigger than it (not a neighbour of the same size)
+        const inside = (c) => { const r = innerOf(c); const ox = Math.max(0, Math.min(box.x + box.w, r.x + r.w) - Math.max(box.x, r.x)), oy = Math.max(0, Math.min(box.y + box.h, r.y + r.h) - Math.max(box.y, r.y)); return { share: (ox * oy) / Math.max(1, box.w * box.h), room: Math.min(r.w / Math.max(1, box.w), r.h / Math.max(1, box.h)) }; };
+        // the part hanging out of a box lies over another box: it is placed among those, one level up
+        const overOthers = (c) => c.parentElement && kidsOf(c.parentElement, g.el).some((k) => k !== c && inFlow(k) && !isOverlay(k) && (() => { const r = pageRect(k); return Math.max(0, Math.min(box.x + box.w, r.x + r.w) - Math.max(box.x, r.x)) * Math.max(0, Math.min(box.y + box.h, r.y + r.h) - Math.max(box.y, r.y)) > 0.1 * box.w * box.h; })());
+        const fits = (c) => { const q = inside(c); if (q.share < 0.9 && overOthers(c)) return false; return c.contains(g.home.parent) ? q.share >= 0.6 : q.share >= 0.9 && q.room >= (realKids(c).length ? 1.18 : 2.5); }; // (an empty box: much bigger, a panel, not a placeholder bar beside it) // (another box: clearly bigger both ways, not as tall or as wide as it)
+        for (let c = hit; c && c !== root; c = c.parentElement) if ((c === document.body || accepts(g.el, c)) && !hasOwnText(c) && fits(c)) return c;
+        // thrown past the edge: still in the box it came from (or the one around it), as long as some of it is still over it
+        for (let c = g.home.parent; c && c !== root; c = c.parentElement) if ((c === document.body || accepts(g.el, c)) && !hasOwnText(c) && inside(c).share >= 0.15) return c;
+        return document.body;
+    }
+    /**
+     * Dropped on top of other pieces: they make room. Along the shorter side of the element (a wide bar pushes down, a tall column
+     * pushes across), the pieces in its lane from where it lands on move on by its size plus the box's gap.
+     */
+    function freeMakeRoom(nodes, el, gap, inner, lay) {
+        const area = (a) => a.w * a.h;
+        const ov = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+        if (!nodes.some((n) => ov(n, el) > 0.15 * Math.min(area(n), area(el)))) return;
+        // along the box's own direction (a row makes room sideways); in a grid or the page flow, along the element's shorter side
+        // (in a row, an element nearly as long as the row, a header dropped across it, cannot sit beside the others: it goes across)
+        const rowLen = (inner.home || inner.w) - (inner.pl || 0) - (inner.pr || 0); // (as long as it was with the element in it)
+        const v = lay === "flex row" ? el.w > 0.6 * rowLen : lay === "flex column" || lay === "page flow" ? true : el.w >= el.h, S = v ? "y" : "x", Z = v ? "h" : "w", CS = v ? "x" : "y", CZ = v ? "w" : "h";
+        const lane = nodes.filter((n) => Math.min(n[CS] + n[CZ], el[CS] + el[CZ]) - Math.max(n[CS], el[CS]) > 0);
+        // pieces whose middle is before the element's stay; the element goes after them
+        // what it is dropped on goes after it when its leading edge is past that piece's middle (as in Figma's auto layout)
+        const before = lane.filter((n) => n[S] + n[Z] / 2 < el[S]);
+        const natAlong0 = (n) => (v ? n.natH : n.nat);
+        // a piece before it that fills (bigger than its content) ends where the element begins; one that cannot, the element goes after
+        before.forEach((n) => { const cut = n[S] + n[Z] - (el[S] - gap); if (cut > 0 && n[Z] - cut >= natAlong0(n) - 1) n[Z] -= cut; });
+        if (before.length) el[S] = Math.max(el[S], Math.max(...before.map((n) => n[S] + n[Z])) + gap);
+        const after = lane.filter((n) => !before.includes(n) && n[S] < el[S] + el[Z] + gap);
+        if (!after.length) return;
+        const shift = el[S] + el[Z] + gap - Math.min(...after.map((n) => n[S]));
+        // a piece that fills to the end of the box (taller than its content) gets shorter instead of moving past the end, as a
+        // "fill" does in Figma: the sidebar under a new header keeps reaching the bottom
+        const end = inner[S] + inner[Z] - inner[v ? "pb" : "pr"], natAlong = (n) => (v ? n.natH : n.nat);
+        lane.filter((n) => !before.includes(n)).forEach((n) => {
+            if (Math.abs(n[S] + n[Z] - end) <= 2 && n[Z] - shift >= natAlong(n) - 1) { n[S] += shift; n[Z] -= shift; } else n[S] += shift;
+        });
+    }
+    function freeStart(g) {
+        const el = g.el;
+        g.home = { parent: el.parentElement, next: el.nextSibling, cls: el.getAttribute("class"), style: el.getAttribute("style") };
+        const r = pageRect(el), cs = getComputedStyle(el);
+        g.rect = r;
+        g.flags = freeFlags(el);
+        g.nat = freeNat(el, g.flags);
+        g.natH = freeNatH(el, g.flags);
+        const ghost = el.cloneNode(true);
+        ghost.querySelectorAll("[contenteditable]").forEach((n) => n.removeAttribute("contenteditable"));
+        ["color", "font-family", "font-size", "font-weight", "font-style", "line-height", "letter-spacing", "text-align", "text-transform"].forEach((p) => ghost.style.setProperty(p, cs.getPropertyValue(p)));
+        Object.assign(ghost.style, { position: "absolute", left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px`, margin: "0", boxSizing: "border-box", pointerEvents: "none", opacity: "0.9", zIndex: "2" });
+        ghost.style.setProperty("box-shadow", `0 ${px(10)}px ${px(28)}px rgba(0,0,0,.18), 0 0 0 ${px(1)}px rgba(0,0,0,.08)`);
+        overlay.appendChild(ghost);
+        g.ghost = ghost;
+        el.style.setProperty("visibility", "hidden"); // lifted, but its space stays while dragging: nothing moves under the pointer
+        g.targets = targetsFor([el]);
+        g.box = { ...r };
+        g.homeW = innerOf(el.parentElement).w;
+        g.seq = 0;
+    }
+    function freeMove(g, e) {
+        const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
+        const box = { x: g.rect.x + dx, y: g.rect.y + dy, w: g.rect.w, h: g.rect.h };
+        const s = e.metaKey ? { dx: null, dy: null } : snapDelta(box, g.targets, [0, 1, 2], [0, 1, 2]);
+        box.x += s.dx || 0; box.y += s.dy || 0;
+        const ax = Math.abs(dx), ay = Math.abs(dy);
+        showGuides(box, g.targets, [0, 1, 2], [0, 1, 2], e.metaKey, ax > 2 * ay ? ["left", "right"] : ay > 2 * ax ? ["up", "down"] : ["left", "right", "up", "down"]);
+        Object.assign(g.ghost.style, { left: `${box.x}px`, top: `${box.y}px` });
+        g.box = box;
+        g.ready = false;
+        clearTimeout(g.timer);
+        g.timer = setTimeout(() => freePreview(g), 90); // when the pointer rests: what it means, on the page
+    }
+    /** The page back as it was with the element lifted (no preview). */
+    function freeRevert(g) {
+        const s = g.snap;
+        if (!s) return;
+        g.snap = null;
+        s.T.replaceChildren(...s.nodes);
+        const back = (k, v) => { if (v === null) k.removeAttribute("class"); else k.setAttribute("class", v); };
+        back(s.T, s.cls);
+        s.kidCls.forEach(([k, v]) => back(k, v));
+        const el = g.el, h = g.home;
+        if (el.parentElement !== h.parent || el.nextSibling !== h.next) { if (h.next && h.next.parentElement === h.parent) h.parent.insertBefore(el, h.next); else h.parent.appendChild(el); }
+        back(el, h.cls);
+        el.style.removeProperty("display");
+        el.style.setProperty("visibility", "hidden");
+        el.style.removeProperty("opacity");
+    }
+    /** Rewrites box T from a compiled tree: T's own layout, wrappers, and each piece's place classes. */
+    function freeApply(T, tree, byK, firstPiece) {
+        const join = (list) => [...new Set(list)].join(" ");
+        T.setAttribute("class", join([...LK.stripInner(T.getAttribute("class")), ...tree.cls]));
+        const make = (node) => {
+            if (node.group) { const d = document.createElement("div"); d.setAttribute("class", join(node.cls)); node.kids.forEach((k) => d.appendChild(make(k))); return d; }
+            const k = byK[node.k];
+            k.setAttribute("class", join([...LK.stripOuter(k === byK.el ? byK.elCls : k.getAttribute("class")), ...node.cls]));
+            tidyStyle(k);
+            return k;
+        };
+        // the new children go where the first one was (a marker holds the place: the pieces themselves are being moved)
+        const mark = document.createComment("");
+        if (firstPiece && firstPiece.parentElement === T) T.insertBefore(mark, firstPiece); else T.appendChild(mark);
+        tree.kids.map(make).forEach((n) => T.insertBefore(n, mark));
+        mark.remove();
+    }
+    const tokensOf = (T) => [T, ...T.querySelectorAll("*")].flatMap((n) => (n.getAttribute("class") || "").split(/\s+/)).filter((c) => c && !c.includes(":"));
+    async function freePreview(g) {
+        if (g.busy) { g.again = true; return; }
+        g.busy = true;
+        const seq = ++g.seq;
+        try {
+            freeRevert(g);
+            const el = g.el, box = { ...g.box };
+            const T = freeTarget(g, box);
+            // moved clear of where it was (or into another box): its old place closes up; a small move keeps everything else still
+            const o = g.rect, clear = Math.min(box.x + box.w, o.x + o.w) <= Math.max(box.x, o.x) || Math.min(box.y + box.h, o.y + o.h) <= Math.max(box.y, o.y);
+            if (T !== g.home.parent || clear) el.style.setProperty("display", "none");
+            const kids = kidsOf(T, el).filter((k) => inFlow(k) && !isOverlay(k));
+            const inner = innerOf(T), tpad = getComputedStyle(T);
+            inner.pb = parseFloat(tpad.paddingBottom) || 0; inner.pr = parseFloat(tpad.paddingRight) || 0; inner.pl = parseFloat(tpad.paddingLeft) || 0;
+            if (T === g.home.parent) inner.home = g.homeW;
+            const byK = { el, elCls: g.home.cls };
+            const nodes = kids.map((k, i) => { const f = freeFlags(k), r = pageRect(k); byK[String(i)] = k; return { k: String(i), kind: "leaf", x: r.x, y: r.y, w: r.w, h: r.h, nat: freeNat(k, f), natH: freeNatH(k, f), ...f, z: i }; });
+            // hanging over the box's edge means at the edge: the element is pulled inside its content
+            const cin = { x: inner.x + (parseFloat(tpad.paddingLeft) || 0), y: inner.y + (parseFloat(tpad.paddingTop) || 0) };
+            cin.w = inner.w - (cin.x - inner.x) - inner.pr; cin.h = inner.h - (cin.y - inner.y) - inner.pb;
+            if (box.w <= cin.w) box.x = Math.min(Math.max(box.x, cin.x), cin.x + cin.w - box.w);
+            if (box.y < cin.y) box.y = cin.y;
+            const me = { k: "el", kind: "leaf", ...box, nat: g.nat, natH: g.natH, ...g.flags, z: kids.length };
+            const tcs = getComputedStyle(T), lay = layoutOf(T);
+            const gapAlong = (me.w >= me.h ? parseFloat(tcs.rowGap) : parseFloat(tcs.columnGap)) || 0;
+            const gapDir = lay === "flex row" ? parseFloat(tcs.columnGap) || 0 : lay === "flex column" ? parseFloat(tcs.rowGap) || 0 : gapAlong;
+            if (!g.exact) freeMakeRoom(nodes, me, lay === "page flow" ? 0 : gapDir, inner, lay);
+            g.snap = { T, cls: T.getAttribute("class"), nodes: [...T.childNodes], kidCls: kids.map((k) => [k, k.getAttribute("class")]) };
+            const firstPiece = kids[0] || null;
+            let kind = "layout";
+            // checked from the box's corner: a box that hugs its content and is centred moves when its content changes size, and
+            // that is the layout working, not the design breaking
+            const t0 = innerOf(T);
+            const fitsNow = (list) => { const t1 = innerOf(T); return list.map((n) => { const r = pageRect(byK[n.k]); const x = r.x - t1.x + t0.x, y = r.y - t1.y + t0.y; return { k: n.k, want: [n.x, n.y, n.w, n.h].map(Math.round), got: [x, y, r.w, r.h].map(Math.round), d: Math.max(Math.abs(x - n.x), Math.abs(y - n.y), Math.abs(r.w - n.w), Math.abs(r.h - n.h)) }; }); };
+            // a grid's cells are its slots: the element goes to the cell it is over (before or after it, by the pointer's side)
+            if (!g.exact && lay === "grid" && kids.length) {
+                const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+                let at = 0, best = Infinity;
+                kids.forEach((k, i) => { const r = pageRect(k); const d = Math.hypot(Math.max(r.x - cx, 0, cx - r.x - r.w), Math.max(r.y - cy, 0, cy - r.y - r.h)); if (d < best) { best = d; const lead = box.x < g.rect.x ? box.x : box.x + box.w; at = lead > r.x + r.w / 2 && cy > r.y - 1 ? i + 1 : i; } }); // (by its leading edge: dragged left, it goes before)
+                T.insertBefore(el, kids[at] || null);
+                el.style.removeProperty("display");
+                el.style.removeProperty("visibility");
+                kind = "order";
+            }
+            const f0 = (v) => parseFloat(v) || 0, pad = { t: f0(tpad.paddingTop), r: f0(tpad.paddingRight), b: f0(tpad.paddingBottom), l: f0(tpad.paddingLeft) };
+            if (T !== document.body) { const tf = freeFlags(T); pad.hugH = Math.abs(freeNatH(T, tf) - pageRect(T).h) <= 2; }
+            if (!g.exact && kind !== "order") {
+                const tree = LK.compile(inner, [...nodes, me], { pad });
+                // the smallest edit first: when the new layout is the box's children in another order (no wrappers, no layers), only
+                // the order changes and every class stays (a card moved in a grid keeps the grid's sm:/xl: columns)
+                if (tree.kids.every((k) => k.k !== undefined && !k.cls.includes("absolute"))) {
+                    const mark = document.createComment("");
+                    T.insertBefore(mark, firstPiece && firstPiece.parentElement === T ? firstPiece : null);
+                    tree.kids.forEach((k) => T.insertBefore(byK[k.k], mark));
+                    mark.remove();
+                    el.style.removeProperty("display");
+                    el.style.removeProperty("visibility");
+                    if (!fitsNow([...nodes, me]).some((m) => m.d > FREE_FIT)) kind = "order";
+                    else { freeRevert(g); g.snap = { T, cls: T.getAttribute("class"), nodes: [...T.childNodes], kidCls: kids.map((k) => [k, k.getAttribute("class")]) }; if (T !== g.home.parent || clear) el.style.setProperty("display", "none"); }
+                }
+            }
+            if (!g.exact && kind !== "order") {
+                const tree = LK.compile(inner, [...nodes, me], { pad });
+                freeApply(T, tree, byK, firstPiece);
+                el.style.removeProperty("display");
+                el.style.removeProperty("visibility");
+                await settle(tokensOf(T));
+                if (seq !== g.seq || g.ended === "cancel") return;
+                // checked: every piece where it is now (the element where it was dropped)
+                const misses = fitsNow([...nodes, me]);
+                const off = misses.some((m) => m.d > FREE_FIT);
+                window.__wcFreeLast = { target: T.tagName, cls: T.getAttribute("class"), html: T.innerHTML.replace(/\s+/g, " ").slice(0, 1500), misses }; // for checking the drag in tests
+                if (off) { freeRevert(g); g.snap = { T, cls: T.getAttribute("class"), nodes: [...T.childNodes], kidCls: kids.map((k) => [k, k.getAttribute("class")]) }; kind = "exact"; }
+            } else if (g.exact) kind = "exact";
+            if (kind === "exact") {
+                // the exact place: absolute in T, from T's padding box
+                if (getComputedStyle(T).position === "static") T.setAttribute("class", [...(T.getAttribute("class") || "").split(/\s+/).filter(Boolean), "relative"].join(" "));
+                const extra = ["absolute", `left-${LK.tw(box.x - inner.x)}`, `top-${LK.tw(box.y - inner.y)}`];
+                if (!g.flags.fixedW) extra.push(`w-${LK.tw(box.w)}`);
+                if (!g.flags.fixedH && !hasOwnText(el) && !g.flags.replaced) extra.push(`h-${LK.tw(box.h)}`); // a box that was stretched keeps its height
+                el.setAttribute("class", [...LK.stripOuter(g.home.cls), ...extra].join(" "));
+                T.appendChild(el);
+                el.style.removeProperty("display");
+                el.style.removeProperty("visibility");
+                await settle(extra);
+                if (seq !== g.seq || g.ended === "cancel") return;
+            }
+            el.style.setProperty("opacity", g.ended ? "" : "0.35");
+            if (!el.getAttribute("style")) el.removeAttribute("style");
+            const pos = kidsOf(T, null).filter(inFlow).indexOf(el);
+            g.result = { T, kind, words: kind === "exact" ? "Exact position · absolute" : kind === "order" ? `Moved · ${ORD(pos + 1)} of ${kidsOf(T, null).filter(inFlow).length}` : LK.layoutWords(T.getAttribute("class")) };
+            g.ready = true;
+            freeShow(g);
+        } finally {
+            g.busy = false;
+            if (g.again && !g.ended) { g.again = false; freePreview(g); }
+        }
+    }
+    function freeShow(g) {
+        const r = pageRect(g.el), T = g.result.T, tr = pageRect(T), one = px(1);
+        Object.assign(landBox.style, { display: "block", left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
+        landBox.style.setProperty("box-shadow", `inset 0 0 0 ${1.5 * one}px rgba(59,130,246,.9)`);
+        Object.assign(dropBox.style, { display: T === document.body ? "none" : "block", left: `${tr.x}px`, top: `${tr.y}px`, width: `${tr.w}px`, height: `${tr.h}px` });
+        dropHint.textContent = `${T === document.body ? "Page" : T.tagName.toLowerCase()}: ${g.result.words}   Tab: ${g.result.kind === "exact" ? "layout" : "exact position"}`;
+        Object.assign(dropHint.style, { display: "block", transform: "", left: `${tr.x}px`, top: `${Math.max(0, tr.y - px(26))}px`, fontSize: `${px(11)}px`, padding: `${px(4)}px ${px(7)}px` });
+        const room = window.scrollX + document.documentElement.clientWidth - px(4), w = dropHint.offsetWidth;
+        if (tr.x + w > room) dropHint.style.left = `${Math.max(window.scrollX + px(4), room - w)}px`;
+        redraw();
+    }
+    function freeCleanup(g) {
+        clearTimeout(g.timer);
+        if (g.ghost) g.ghost.remove();
+        landBox.style.display = "none";
+        dropBox.style.display = "none";
+        dropHint.style.display = "none";
+        clearGuides();
+    }
+    function freeCancel(g) {
+        g.ended = "cancel";
+        freeCleanup(g);
+        freeRevert(g);
+        const el = g.el, h = g.home;
+        if (h.style === null) el.removeAttribute("style"); else el.setAttribute("style", h.style);
+        if (gesture === g) gesture = null;
+        post({ type: "gesture", on: false });
+        redraw();
+    }
+    function freeToggle(g) { g.exact = !g.exact; freePreview(g); }
+    /** Letting go: what is shown is kept (worked out first if the pointer never rested). */
+    async function freeDrop(g) {
+        g.ended = "drop";
+        clearTimeout(g.timer);
+        // let go about where it started: nothing to change
+        if (Math.abs(g.box.x - g.rect.x) <= 4 && Math.abs(g.box.y - g.rect.y) <= 4) { freeCancel(g); setSelection([g.el]); return; }
+        if (!g.ready || g.busy) { while (g.busy) await new Promise((r) => setTimeout(r, 10)); if (!g.ready) await freePreview(g); }
+        freeCleanup(g);
+        const el = g.el;
+        el.style.removeProperty("opacity");
+        el.style.removeProperty("display");
+        el.style.removeProperty("visibility");
+        if (g.home.style !== null && !el.getAttribute("style")) el.setAttribute("style", g.home.style);
+        tidyStyle(el);
+        g.snap = null;
+        setSelection([el]);
+        changed();
+    }
+
     function resizeGesture(g, e) {
         // work in the element's own axes, so a rotated element resizes along its own edges
         const th = g.rot * Math.PI / 180, cos = Math.cos(th), sin = Math.sin(th);
@@ -1594,7 +1900,11 @@ export function agentMain() {
             gesture = { type: "gap", el, h: gh, props, start: gh.gap, pre: sourcesOf(el, props), inl0: inlineOf(el, props), sx: e.clientX, sy: e.clientY, moved: false };
             return;
         }
-        const t = targetOf(e);
+        // a press on something already selected (or inside it) takes that, at whatever level it was picked, as in Figma: the
+        // header picked with a double-click drags as the header, not as the page block around it
+        const raw = e.target && e.target.nodeType === 1 ? e.target : e.target && e.target.parentElement;
+        const held = !e.shiftKey && !e.metaKey && !e.ctrlKey && raw && !isOverlay(raw) ? sels.find((s) => s !== document.body && s.contains(raw)) : null;
+        const t = held || targetOf(e);
         if (t === document.body) {
             gesture = { type: "marquee", sx: e.clientX, sy: e.clientY, shift: e.shiftKey, hits: [], moved: false };
             if (!e.shiftKey) setSelection([]);
@@ -1634,6 +1944,7 @@ export function agentMain() {
             Object.assign(draftBox.style, { display: "block", left: `${x0}px`, top: `${y0}px`, width: `${Math.abs(e.clientX - g.sx)}px`, height: `${Math.abs(e.clientY - g.sy)}px` });
         } else if (g.type === "move") { moveGesture(g, e); redraw(); }
         else if (g.type === "intent") { if (!g.ghost) intentStart(g); intentGesture(g, e); }
+        else if (g.type === "free") { if (!g.ghost) freeStart(g); freeMove(g, e); }
         else if (g.type === "gap") gapGesture(g, e);
         else if (g.type === "resize") { resizeGesture(g, e); if (g.guide) showGuides(g.guide.box, g.targets, g.guide.keysX, g.guide.keysY, false, g.guide.want); else guideLayer.innerHTML = ""; redraw(); }
         else if (g.type === "rotate") { rotateGesture(g, e); redraw(); }
@@ -1680,6 +1991,7 @@ export function agentMain() {
             return;
         }
         if (g.type === "intent") return g.moved && g.ghost ? intentDrop(g, e) : undefined;
+        if (g.type === "free") return g.moved && g.ghost ? freeDrop(g) : undefined;
         if (g.type === "pan") return;
         if (g.type === "move" && g.freeOnMove) return post({ type: "selected", info: describe(primary()) }); // Alt-click: nothing freed
         if (g.moved && g.type === "move") { askConvert(g.items.map((i) => gestureItem(i.el, i.pre, g.freed ? FREE_PROPS : ["left", "top"]))); if (!g.freed && g.items.length === 1) layoutHint(g.container); return; }
@@ -2041,6 +2353,7 @@ export function agentMain() {
     // ── Keyboard ────────────────────────────────────────────────────────────────────────────
     document.addEventListener("keydown", (e) => {
         // while dragging in the layout: Tab tries the next option, Esc puts the element back
+        if (gesture && gesture.type === "free" && gesture.ghost && (e.key === "Tab" || e.key === "Escape")) { e.preventDefault(); if (e.key === "Tab") freeToggle(gesture); else freeCancel(gesture); return; }
         if (gesture && gesture.type === "intent" && gesture.ghost && (e.key === "Tab" || e.key === "Escape")) { e.preventDefault(); if (e.key === "Tab") intentCycle(gesture); else intentCancel(gesture); return; }
         // Ctrl/Cmd + = / - / 0 zoom the plane, never this frame's page
         if ((e.metaKey || e.ctrlKey) && !e.altKey && ["=", "+", "-", "_", "0"].includes(e.key)) { e.preventDefault(); post({ type: "zoomKey", key: e.key }); return; }
@@ -2275,7 +2588,7 @@ export function agentMain() {
         if (m.cmd === "cutSel") { copySelection(true); return; }
         if (m.cmd === "pasteSel") { pasteSelection(); return; }
         if (m.cmd === "nudgeSel") { nudge(m.dx || 0, m.dy || 0); return; }
-        if (m.cmd === "dragKey") { if (gesture && gesture.type === "intent" && gesture.ghost) { if (m.key === "Tab") intentCycle(gesture); else intentCancel(gesture); } return; }
+        if (m.cmd === "dragKey") { if (gesture && gesture.type === "free" && gesture.ghost) { if (m.key === "Tab") freeToggle(gesture); else freeCancel(gesture); return; } if (gesture && gesture.type === "intent" && gesture.ghost) { if (m.key === "Tab") intentCycle(gesture); else intentCancel(gesture); } return; }
         if (m.cmd === "applyGesture") { applyGesture(m); return; }
         if (m.cmd === "applyLayout") { applyLayout(m); return; }
         if (m.cmd === "freePosition") {
