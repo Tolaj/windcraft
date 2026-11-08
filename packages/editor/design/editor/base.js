@@ -56,3 +56,5 @@ export const send = (msg) => frame.contentWindow && frame.contentWindow.postMess
 // Nothing on the canvas is selected (a click on the empty canvas, as in Figma): no frame is the one being worked on, so the Code tool
 // is off, the toolbar names the project, Layers is empty and the Properties panel shows the canvas itself (canvas-mode.js).
 S.canvasOnly = false;
+// Several pages selected at once (Ctrl/Cmd+A on the empty canvas, or a box dragged over several): their keys. They move together.
+S.framesSel = [];

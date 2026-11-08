@@ -52,6 +52,9 @@ textarea.field { height: auto; padding: 6px 8px; font-family: ui-monospace, mono
 .frame { position: relative; overflow: hidden; background: #fff; border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.18); cursor: pointer; width: 100%; height: 100%; }
 .fwrap:hover .frame { outline: calc(1px * var(--iz, 1)) solid #c4c4c4; } /* a page you could open: a light hint, not a selection */
 .fwrap.sel .frame { outline: calc(2px * var(--iz, 1)) solid #111; }
+/* several pages selected (Ctrl/Cmd+A on the canvas, or a box over them): every one outlined, the one open too */
+.fwrap.multi .frame, .fwrap.multi.active .frame { outline: calc(2px * var(--iz, 1)) solid #111 !important; }
+.fwrap.multi .flabel { color: #111; }
 /* the editor: one frame is live, the rest are previews you can click or drag */
 .flabel.drag { pointer-events: auto; cursor: grab; padding: 2px 4px 2px 0; }
 .flabel.drag:active { cursor: grabbing; }

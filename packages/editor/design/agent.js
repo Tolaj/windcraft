@@ -775,6 +775,18 @@ export function agentMain() {
     const staysInGroup = (el, parent) => { const gp = groupAround(el); return !gp || (!!parent && gp.contains(parent)); };
     /** The elements of the design inside `el` that can be picked (not the editor's own overlay, scripts or styles). */
     const realKids = (el) => [...el.children].filter((c) => c !== overlay && !/^(script|style|link|meta)$/i.test(c.tagName));
+    /**
+     * Ctrl/Cmd+A, as in Figma: with nothing (or the page) selected, everything at the top of the page; with something selected,
+     * everything beside it (its parent's children). Hidden ones are left out.
+     */
+    function selectAll() {
+        const cur = sels.filter((el) => el !== document.body);
+        const par = cur.length && cur[0].parentElement ? cur[0].parentElement : document.body;
+        const all = realKids(par).filter((c) => getComputedStyle(c).display !== "none");
+        if (!all.length) return;
+        inside = par !== document.body ? par : null; // they are picked inside that box, so clicks stay at their level
+        setSelection(all);
+    }
     /** What a click on `t` picks, as in Figma: the top level of the design first, a double-click goes one level in, and from there a click
      *  picks at that level (the box selected, or the one gone into, and what sits beside it). Cmd/Ctrl-click picks the deepest. */
     function pickable(t) {
@@ -2051,6 +2063,7 @@ export function agentMain() {
         if (meta && e.shiftKey && k === "h") { e.preventDefault(); toggleHiddenSelection(); return; }
         if (e.shiftKey && !meta && k === "a") { e.preventDefault(); autoLayout(); return; }
         if (e.shiftKey && !meta && k === "g") { e.preventDefault(); gridLayout(); return; }
+        if (meta && !e.shiftKey && k === "a") { e.preventDefault(); selectAll(); return; }
         if (meta && k === "d") { e.preventDefault(); duplicate(); return; }
         if (meta && !e.shiftKey && (k === "c" || k === "x") && sels.length) { e.preventDefault(); copySelection(k === "x"); return; }
         if (meta && !e.shiftKey && k === "v") { e.preventDefault(); pasteSelection(); return; }
@@ -2234,6 +2247,7 @@ export function agentMain() {
             if (m.ev === "up") onUp(ev); else if (gesture) onMove(ev);
             return;
         }
+        if (m.cmd === "selectAll") { selectAll(); return; }
         if (m.cmd === "select") { if (Array.isArray(m.paths)) setSelection(m.paths.map(elAt).filter(Boolean)); else select(elAt(m.path)); return; } // paths: several at once
         if (m.cmd === "previewState") { shownState = m.state || ""; showState(); redraw(); if (primary() && alive(primary())) post({ type: "info", info: describe(primary()) }); return; }
         if (m.cmd === "deselect") { editing = null; setSelection([], true); post({ type: "body", info: describe(document.body) }); return; } // the page's styling, for the page panel

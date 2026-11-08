@@ -73,6 +73,7 @@ export function renderFrameSel() {
     renderSel();
     // a frame's name is blue only while the frame, or something inside it, is selected
     wraps.forEach((en, key) => en.wrap.classList.toggle("sel", key === S.curKey && (S.frameSel === S.curKey || Boolean(S.selected && S.selected.tag !== "body"))));
+    wraps.forEach((en, key) => en.wrap.classList.toggle("multi", S.framesSel.includes(key))); // several pages selected (canvas-mode.js)
     const el = $("fsel");
     const d = docs.get(S.curKey);
     const p = positions()[S.curKey];

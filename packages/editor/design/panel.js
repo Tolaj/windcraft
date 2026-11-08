@@ -155,6 +155,8 @@ function CanvasPanel({ c, actions }) {
         <div class="sec"><div class="secb nopad"><p class="sub first">Canvas</p>
             <div class="row"><span class="lbl">Project</span><span class="truncate text-[11px] text-neutral-700">${c.project || "No project"}</span></div>
             <div class="row"><span class="lbl">Frames</span><span class="text-[11px] text-neutral-700">${c.frames}</span></div>
+            ${c.picked ? html`<div class="row"><span class="lbl">Selected</span><span class="text-[11px] font-medium text-neutral-900">${c.picked === 1 ? "1 page" : c.picked === c.frames ? `All ${c.picked} pages` : `${c.picked} pages`}</span></div>
+                <p class="text-[10px] text-neutral-500">Drag one to move them together. Esc or a click on the canvas lets go.</p>` : ""}
         </div></div>
         <div class="sec"><div class="secb nopad"><p class="sub first">Background</p>
             <div class="flex flex-wrap items-center gap-1.5">${CANVAS_COLORS.map(swatch)}

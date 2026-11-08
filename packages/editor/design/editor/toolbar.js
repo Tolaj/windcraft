@@ -4,7 +4,7 @@ import { $, S, data, send } from "./base.js";
 import { assembleDoc, loadFrame, step, updateChrome } from "./docs.js";
 import { pref } from "./color-ui.js";
 import { applyView, canvas, canvasSize, fitTo, handleWheel, layout, view, zoomAt } from "./plane.js";
-import { activate, anyDirty, boardPayload, docDirty, docs, loadActiveFromStash, pinBoard, remapKey, saveBoard } from "./designs.js";
+import { activate, anyDirty, boardPayload, clearSelection, docDirty, docs, loadActiveFromStash, pinBoard, remapKey, saveBoard, selectAllFrames } from "./designs.js";
 import { openDetails } from "./add-menu.js";
 import { closePreview, openPreview, previewOpen } from "./present.js";
 
@@ -237,6 +237,15 @@ export function init() {
         const key = e.key.toLowerCase();
         if (e.key === "Escape" && S.mode === "preview") { e.preventDefault(); handleKey({ key: "escape" }); return; }
         if (e.code === "Space") { e.preventDefault(); setSpace(true); return; }
+        // Ctrl/Cmd+A selects on the canvas, never the editor's own words: with no page being worked on, every page; otherwise the page's
+        // elements (all at the top with the page selected, all beside the selection with an element selected: the frame does that)
+        if (meta && !e.shiftKey && !e.altKey && key === "a") {
+            e.preventDefault();
+            if (S.mode !== "edit") return;
+            if (S.canvasOnly || S.framesSel.length) return selectAllFrames();
+            return send({ cmd: "selectAll" });
+        }
+        if (e.key === "Escape" && S.framesSel.length) { e.preventDefault(); clearSelection(); return; }
         if (e.shiftKey && (e.key === "!" || e.key === "@")) { e.preventDefault(); handleKey({ key: e.key, meta: false, shift: true }); return; }
         if (["delete", "backspace"].includes(key) || (meta && ["z", "y", "d", "s", "g"].includes(key)) || (meta && S.selected && ["c", "x", "v"].includes(key)) || (S.selected && key.startsWith("arrow")) || (meta && (e.code === "BracketLeft" || e.code === "BracketRight" || (e.shiftKey && (key === "l" || key === "h")))) || (!meta && !e.altKey && TOOL_KEYS[key]) || (!meta && e.shiftKey && (key === "a" || key === "g"))) {
             e.preventDefault();

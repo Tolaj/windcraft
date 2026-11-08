@@ -149,7 +149,7 @@ export function renderInspector() {
     const elementCode = sel && ui.tab === "classes" ? sourceOf(sel.path) : null;
     const top = insp.scrollTop;
     if (S.canvasOnly) { // nothing selected: the canvas's own panel
-        renderPanel(insp, { canvas: { ...canvasLook(), frames: docs.size, project: data.project && data.project.name } }, panelActions, ui);
+        renderPanel(insp, { canvas: { ...canvasLook(), frames: docs.size, picked: S.framesSel.length, project: data.project && data.project.name } }, panelActions, ui);
         insp.scrollTop = top;
         return;
     }

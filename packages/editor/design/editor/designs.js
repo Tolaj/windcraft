@@ -12,7 +12,7 @@ import { renderFloat } from "./frame-handles.js";
 import { renderInspector } from "./inspector.js";
 import { updateCodeHighlight } from "./code-panel.js";
 import { DEFAULT_CATEGORY, setTool } from "./toolbar.js";
-import { setCanvasOnly } from "./canvas-mode.js";
+import { setCanvasOnly, setFramesSel } from "./canvas-mode.js";
 
 // ── Many designs on one plane ────────────────────────────────────────────────
 // One design is live (the iframe you edit). The others are previews in the same project; click one to switch to it.
@@ -265,6 +265,7 @@ function finishMarquee(g, e) {
         return p && p.x < b.x && p.x + widthOf(d) > a.x && p.y < b.y && p.y + heightOfDoc(d) > a.y;
     });
     if (!hit.length) return clearSelection();
+    if (hit.length > 1) { clearSelection(); return setFramesSel(hit); } // a box over several pages selects them all
     const key = hit.includes(S.curKey) ? S.curKey : hit[0];
     if (key !== S.curKey) activate(key);
     selectFrame();
@@ -372,7 +373,8 @@ export async function deletePage(key) {
 }
 
 /** A click on the empty canvas: nothing is selected, not even a frame (the canvas itself shows in the panel, as in Figma). */
-function clearSelection() {
+export function clearSelection() {
+    if (S.framesSel.length) setFramesSel([]);
     S.frameSel = null;
     S.selected = null;
     updateCodeHighlight(false);
@@ -381,6 +383,11 @@ function clearSelection() {
     renderInspector();
     renderLayers();
     renderFloat();
+}
+/** Ctrl/Cmd+A with no page being worked on: every page. */
+export function selectAllFrames() {
+    clearSelection();
+    setFramesSel([...docs.keys()]);
 }
 export function selectFrame() {
     setCanvasOnly(false);
@@ -523,6 +530,11 @@ export function init() {
             const key = wrap.dataset.key;
             const pos = positions()[key];
             gesture = { type: "frame", key, wrap, sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y, moved: false, label: Boolean(label) };
+            // one of several selected pages: they all move together
+            if (S.framesSel.length > 1 && S.framesSel.includes(key)) {
+                const all = positions();
+                gesture.group = S.framesSel.map((k) => ({ key: k, ox: all[k].x, oy: all[k].y, wrap: wraps.get(k).wrap }));
+            }
         } else if (e.target === canvas || e.target === $("plane") || e.target === $("frames")) {
             gesture = S.tool === "move"
                 ? { type: "marquee", sx: e.clientX, sy: e.clientY, moved: false }
@@ -545,6 +557,18 @@ canvas.addEventListener("pointermove", (e) => {
     if (gesture.type === "pan") { view.x = gesture.vx + dx; view.y = gesture.vy + dy; return applyView(); }
     if (gesture.type === "marquee") return drawMarquee(gesture, e);
     if (gesture.type === "fresize") return resizeFrame(gesture, dx / view.z, dy / view.z);
+    if (gesture.group) {
+        gesture.group.forEach((g) => {
+            const p = { x: Math.round((g.ox + dx / view.z) / SNAP) * SNAP, y: Math.round((g.oy + dy / view.z) / SNAP) * SNAP };
+            const d = docs.get(g.key);
+            d.board = { ...(d.board || {}), ...p };
+            g.wrap.classList.add("dragging");
+            g.wrap.style.left = `${p.x}px`;
+            g.wrap.style.top = `${p.y}px`;
+            if (g.key === S.curKey) { frame.style.left = `${p.x}px`; frame.style.top = `${p.y}px`; }
+        });
+        return renderFloat();
+    }
     gesture.wrap.classList.add("dragging");
     const d = docs.get(gesture.key);
     const p = { x: Math.round((gesture.ox + dx / view.z) / SNAP) * SNAP, y: Math.round((gesture.oy + dy / view.z) / SNAP) * SNAP };
@@ -562,6 +586,14 @@ canvas.addEventListener("pointermove", (e) => {
         if (g.type === "pan") { if (!g.moved && !g.mid) clearSelection(); return; }
         if (g.type === "marquee") return finishMarquee(g, e);
         if (g.type === "fresize") { if (g.moved) queueBoardSave(g.key); return; }
+        if (g.group) {
+            g.group.forEach((x) => x.wrap.classList.remove("dragging"));
+            if (g.moved) { g.group.forEach((x) => queueBoardSave(x.key)); layout(); return; }
+            // a click (no drag) on one of them: that page alone
+            setFramesSel([]);
+            if (g.key !== S.curKey) activate(g.key);
+            return selectFrame();
+        }
         g.wrap.classList.remove("dragging");
         if (g.moved) { queueBoardSave(g.key); layout(); return; }
         const switched = g.key !== S.curKey;
