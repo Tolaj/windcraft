@@ -1117,41 +1117,129 @@ export function agentMain() {
         return "page flow";
     };
     const kidsOf = (c, skip) => Array.prototype.filter.call(c.children, (k) => k !== skip && !["SCRIPT", "STYLE"].includes(k.tagName) && !(k.hasAttribute && k.hasAttribute("data-wc-agent-style")));
-    function dropTarget(el, x, y) {
-        const hit = document.elementsFromPoint(x, y).find((n) => !overlay.contains(n) && n !== root && !el.contains(n)) || document.body;
-        // a box that only holds text (a card label, a button-like div) is an item to drop beside, not a container to drop into
-        const holdsText = (k) => !k.children.length && k.textContent.trim() !== "";
-        let c = hit;
-        while (c && c !== document.body && (!CONTAINERS.has(c.tagName.toLowerCase()) || holdsText(c))) c = c.parentElement;
-        c = c || document.body;
-        const px0 = x + window.scrollX, py0 = y + window.scrollY;
-        // near the edge of a container, "before / after it" in its own parent wins over "inside it". For a neighbour of the dragged
-        // element the edges are wide (the outer 30%), so passing over it reorders and only aiming at its middle drops inside it.
-        if (c !== document.body && c.parentElement) {
-            const r = pageRect(c), parentLayout = layoutOf(c.parentElement);
-            const horizontalParent = parentLayout === "flex row" || parentLayout === "grid";
-            const along = horizontalParent ? r.w : r.h;
-            const band = c.parentElement === el.parentElement ? Math.max(8, along * 0.3) : Math.min(14, Math.min(r.w, r.h) / 4);
-            const edge = horizontalParent ? Math.min(px0 - r.x, r.x + r.w - px0) : Math.min(py0 - r.y, r.y + r.h - py0);
-            if (edge >= 0 && edge < band) return { container: c.parentElement, ref: c, before: horizontalParent ? px0 < r.x + r.w / 2 : py0 < r.y + r.h / 2, horizontal: horizontalParent };
-        }
-        const kids = Array.prototype.filter.call(c.children, (k) => k !== el && !["SCRIPT", "STYLE"].includes(k.tagName) && !(k.hasAttribute && k.hasAttribute("data-wc-agent-style")));
-        if (!kids.length) return { container: c, ref: null };
-        // the child the pointer is over, or the nearest one
-        let ref = null, best = Infinity;
-        kids.forEach((k) => {
-            const r = pageRect(k);
-            const dx = px0 < r.x ? r.x - px0 : px0 > r.x + r.w ? px0 - r.x - r.w : 0;
-            const dy = py0 < r.y ? r.y - py0 : py0 > r.y + r.h ? py0 - r.y - r.h : 0;
-            const d = Math.hypot(dx, dy);
-            if (d < best) { best = d; ref = k; }
-        });
-        const r = pageRect(ref), l = layoutOf(c);
-        const inline = /^inline/.test(getComputedStyle(ref).display);
-        const horizontal = l === "flex row" || (l === "grid" && py0 >= r.y && py0 <= r.y + r.h) || (l === "page flow" && inline);
-        return { container: c, ref, before: horizontal ? px0 < r.x + r.w / 2 : py0 < r.y + r.h / 2, horizontal };
+    // tags that are not boxes on the page
+    const NOT_BOXES = new Set(["SCRIPT", "STYLE", "LINK", "META", "TEMPLATE", "BR"]);
+    // ── Where a drop goes: the targeting model ──────────────────────────────────────────────────────────────
+    // Read on the page as it was when the drag started (the boxes do not move under the pointer while the others slide apart), in three
+    // steps that never mix: which box (relation to the element, and what a box can hold), what the drop means, then the slot.
+    //  1. Does the element leave its box? Decided at its own box's level: over its own box, or within the gutter around it, it stays;
+    //     over a direct sibling, in the sibling's outer 30% along the box's direction, it goes beside the sibling; in its middle, into
+    //     it (or into the deepest box there that can hold the element); a sibling that can hold nothing is gone beside. In a grid a
+    //     sibling cell is a place: the element takes it.
+    //  2. Out of its box (past the gutter): into the deepest box under the pointer that can hold the element. A box's edge is not a
+    //     reason to go beside it there: the space between boxes belongs to the box around them, and the slot step puts it in between.
+    //  3. The slot in the chosen box, from its children as they stood (the element left out); the exact middle by reading order.
+    // What a box can hold is read from HTML and layout, not from a list of tags: a list holds only items, a table only rows and cells,
+    // text tags only text-level elements, a link or button no other control; a replaced element nothing; a box of running text is not
+    // dropped into; an empty box only holds what fits in it; a wrapper (its one child fills it and can hold nothing) is passed through.
+    const T_BAND = 0.3, T_GUTTER = 24, T_FILL = 0.9;
+    const T_VOID = /^(img|input|br|hr|meta|link|source|track|wbr|area|col|embed|param|video|audio|canvas|svg|iframe|select|textarea|picture|path|g|circle|rect|line|polyline|polygon|use|ellipse|text)$/;
+    const T_PHRASING = /^(span|a|img|svg|button|strong|em|b|i|u|s|small|label|input|code|abbr|time|mark|sub|sup|kbd|select|textarea|picture|video|audio|canvas|br|wbr|q|cite|dfn|var|samp|data|output|meter|progress)$/;
+    const T_INTERACTIVE = /^(a|button|input|select|textarea|label|details|iframe|video|audio)$/;
+    const T_PHRASING_ONLY = /^(p|h[1-6]|span|button|label|strong|em|b|i|u|s|small|code|abbr|q|cite|sub|sup|mark|time|kbd|samp|var|dfn|legend|summary|pre)$/;
+    const T_BOX = /^(block|flex|inline-flex|grid|inline-grid|flow-root|list-item|table-cell|inline-block)$/;
+    /** The direction a box lays out its children: row, column or grid (text flow reads as a row). */
+    function boxAxis(n) {
+        const cs = getComputedStyle(n);
+        if (cs.display.includes("grid")) return "grid";
+        if (cs.display.includes("flex")) return cs.flexDirection.startsWith("column") ? "column" : "row";
+        if (cs.display === "table-row") return "row";
+        const kids = [...n.children].filter((k) => !NOT_BOXES.has(k.tagName) && getComputedStyle(k).display !== "none");
+        return kids.length && kids.every((k) => /^inline/.test(getComputedStyle(k).display)) ? "row" : "column";
     }
-
+    /** HTML and layout allow `n` to hold the element at all. */
+    function canContain(n, el) {
+        const t = n.tagName.toLowerCase(), d = el.tagName.toLowerCase(), disp = getComputedStyle(n).display;
+        if (T_VOID.test(t) || n.closest("svg")) return false;
+        if (disp === "none" || disp === "contents") return false;
+        if (/^(ul|ol|menu)$/.test(t)) return d === "li";
+        if (/^(table|thead|tbody|tfoot)$/.test(t)) return /^(tr|thead|tbody|tfoot|caption|colgroup)$/.test(d);
+        if (t === "tr") return /^(td|th)$/.test(d);
+        if (T_PHRASING_ONLY.test(t) && !T_PHRASING.test(d)) return false;
+        if ((t === "a" || t === "button" || n.closest("a,button")) && (T_INTERACTIVE.test(d) || el.querySelector("a,button,input,select,textarea"))) return false;
+        return true;
+    }
+    /** `n` is a place this drag may put the element (its own box always is). `geo` gives the start-of-drag boxes. */
+    function canReceive(n, el, geo) {
+        if (n === el.parentElement) return true;
+        if (n === el || el.contains(n) || n === root || !staysInGroup(el, n) || !canContain(n, el)) return false;
+        const kids = [...n.children].filter((k) => k !== el && !NOT_BOXES.has(k.tagName) && !isOverlay(k) && !(k.hasAttribute && k.hasAttribute("data-wc-agent-style")));
+        const ownText = [...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim());
+        if (!kids.length && ownText) return false; // a box of running text
+        if (!T_BOX.test(getComputedStyle(n).display) && n !== document.body) return false;
+        if (!kids.length && !ownText) { const r = geo.rect(n), e0 = geo.el; if (r && (r.w < e0.w || r.h < e0.h)) return false; } // empty: only what fits
+        return true;
+    }
+    const canGoBeside = (n) => !isAbs(n) && !/^(none|contents)$/.test(getComputedStyle(n).display);
+    /** The page as it was when the drag started: every box's rect (the element itself left out), read once. */
+    function startGeometry(el) {
+        const rects = new Map(), order = [];
+        const walk = (n, depth) => { for (const k of n.children) { if (k === el || NOT_BOXES.has(k.tagName) || isOverlay(k) || (k.hasAttribute && k.hasAttribute("data-wc-agent-style"))) continue; const cs = getComputedStyle(k); if (cs.display === "none") continue; const r = pageRect(k); if (r.w > 0 && r.h > 0 && cs.visibility !== "hidden") { rects.set(k, r); order.push({ k, depth }); } if (!(k.closest("svg") && k.tagName.toLowerCase() !== "svg")) walk(k, depth + 1); } };
+        walk(document.body, 1);
+        const er = pageRect(el);
+        return { rects, order, el: er, rect: (n) => rects.get(n) || (n === document.body ? { x: 0, y: 0, w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight } : null) };
+    }
+    /** The boxes under a page point on the start-of-drag page, deepest first, up to the page. */
+    function startChain(geo, x, y) {
+        let hit = null, bd = -1;
+        geo.order.forEach(({ k, depth }) => { const r = geo.rects.get(k); if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h && depth >= bd) { hit = k; bd = depth; } });
+        const out = [];
+        for (let n = hit || document.body; n && n !== document.documentElement; n = n.parentElement) out.push(n);
+        return out;
+    }
+    /** The slot in `c` for a page point, from its children as they stood (the element left out): before which child, or at the end. */
+    function startSlot(geo, el, c, x, y) {
+        const kids = kidsOf(c, el).filter(inFlow).filter((k) => geo.rects.has(k));
+        const ax = boxAxis(c);
+        if (!kids.length) return { container: c, ref: null, horizontal: ax === "row" };
+        const before = kids.find((k) => { const r = geo.rects.get(k), cx = r.x + r.w / 2, cy = r.y + r.h / 2; return ax === "grid" ? r.y > y || (y <= r.y + r.h && cx > x) : ax === "row" ? cx > x : cy > y; });
+        return before ? { container: c, ref: before, before: true, horizontal: ax !== "column" } : { container: c, ref: kids[kids.length - 1], before: false, horizontal: ax !== "column" };
+    }
+    /** Where a drop at client point (cx, cy) goes: { container, ref, before, horizontal, why } (stay: true keeps it where it is). */
+    function targetAt(g, cx, cy) {
+        const el = g.el, par = el.parentElement, geo = g.geo || (g.geo = startGeometry(el));
+        const x = cx + window.scrollX, y = cy + window.scrollY;
+        const S = startChain(geo, x, y), e0 = geo.el;
+        const frac = (n) => { const r = geo.rect(n); return r && r.w && r.h ? [(x - r.x) / r.w, (y - r.y) / r.h] : null; };
+        const inside = (f) => f && f[0] >= 0 && f[0] <= 1 && f[1] >= 0 && f[1] <= 1;
+        // reading order of a box against the element (start rects): "after" when it comes later
+        const readsAfter = (n) => { const r = geo.rect(n); if (!r) return true; const ecy = e0.y + e0.h / 2, ncy = r.y + r.h / 2; return Math.abs(ncy - ecy) < Math.min(e0.h, r.h) / 2 ? r.x + r.w / 2 > e0.x + e0.w / 2 : ncy > ecy; };
+        const sideOf = (n, axis) => { const f = frac(n), i = axis === "row" ? 0 : 1, r = geo.rect(n), size = r ? (i ? r.h : r.w) : 100; return Math.abs(f[i] - 0.5) * size < 1 ? readsAfter(n) : f[i] > 0.5; };
+        const stay = (why) => ({ container: par, ref: null, stay: true, why });
+        const beside = (n, c, after, why) => (canGoBeside(n) ? { container: c, ref: n, before: !after, horizontal: boxAxis(c) !== "column", why } : stay(`${why}, but it is out of the flow: stays`));
+        const wrapper = (w, kid) => { if (!kid) return false; const kids = kidsOf(w, el).filter(inFlow), rw = geo.rect(w), rk = geo.rect(kid); return kids.length === 1 && kids[0] === kid && rw && rk && rk.w >= T_FILL * rw.w && rk.h >= T_FILL * rw.h && !canReceive(kid, el, geo); };
+        // the deepest box in a branch (top-down list) under the pointer that can hold the element
+        const deepest = (branch) => { for (let i = branch.length - 1; i >= 0; i--) { const n = branch[i]; if (inside(frac(n)) && canReceive(n, el, geo) && !wrapper(n, branch[i + 1])) return n; } return null; };
+        const into = (n, why) => ({ ...startSlot(geo, el, n, x, y), why });
+        const iOwn = S.indexOf(par);
+        if (iOwn >= 0) {
+            const branch = S.slice(0, iOwn).reverse();
+            if (!branch.length) return { ...into(par, "over its own box: a slot in it"), open: true }; // (open space in its own box: placed freely)
+            const D = branch[0], f = frac(D), axis = boxAxis(par);
+            if (!inside(f)) return stay("the pointer is outside the box under it");
+            if (axis === "grid") {
+                const inner = deepest(branch.slice(1)), mid = Math.min(f[0], f[1], 1 - f[0], 1 - f[1]) >= T_BAND;
+                if (inner && mid && canReceive(D, el, geo)) return into(inner, "middle of a cell, over a box that can hold it: into it");
+                return beside(D, par, readsAfter(D), "over a cell of its grid: takes its place");
+            }
+            const along = axis === "row" ? f[0] : f[1];
+            if (along < T_BAND || along > 1 - T_BAND) return beside(D, par, along > 0.5, "near a sibling's side: beside it");
+            const X = deepest(branch);
+            if (X) return into(X, X === D ? "middle of a sibling: into it" : "middle of a sibling: into the box there that can hold it");
+            return beside(D, par, sideOf(D, axis), "middle of a sibling that holds nothing: beside it");
+        }
+        const pr = geo.rect(par) || pageRect(par);
+        const out = Math.max(pr.x - x, x - pr.x - pr.w, pr.y - y, y - pr.y - pr.h, 0);
+        if (out <= px(T_GUTTER)) return into(par, "just outside its box (gutter): stays in it");
+        const iA = S.findIndex((n) => n.contains(par));
+        if (iA < 0) return stay("no box around it under the pointer");
+        const A = S[iA], branch = S.slice(0, iA).reverse();
+        if (!branch.length) return canReceive(A, el, geo) ? into(A, "over a box around it: into it") : stay("over a box around it that cannot hold it");
+        const X = deepest(branch);
+        if (X) return into(X, "into the deepest box under the pointer that can hold it");
+        const top = branch[0];
+        return canReceive(A, el, geo) && inside(frac(top)) ? beside(top, A, sideOf(top, boxAxis(A) === "column" ? "column" : "row"), "nothing under the pointer can hold it: beside it") : stay("nothing under the pointer can hold it");
+    }
 
     // ── Dragging in the layout: slots, as in Figma's auto layout ───────────────────────────────────────────────────
     // An element in the flow is never moved by pixels. It is dragged to a slot (before or after a sibling, or into another box): the
@@ -1304,10 +1392,12 @@ export function agentMain() {
             const cross = g.align.cross, Z = cross === "x" ? "w" : "h", n = laneOf(par, el), r = pageRect(el);
             const word = { start: "flex-start", centre: "center", end: "flex-end" }[g.align.k];
             const goal = g.align.k === "start" ? n.box[cross] : g.align.k === "centre" ? n.box[cross] + (n.box[Z] - r[Z]) / 2 : n.box[cross] + n.box[Z] - r[Z];
-            if (Math.abs(r[cross] - goal) > 1) { // not there already
+            // (a box its new row or column stretches is "there" at every line: the guide still meant its own size, placed there)
+            if (Math.abs(r[cross] - goal) > 1 || (g.rect && Math.abs(r[Z] - g.rect[Z]) > 1)) { // not there already
                 const was = inlineOf(el, ["align-self"]);
                 el.style.setProperty("align-self", word);
-                const ok = Math.abs(pageRect(el)[cross] - goal) <= 1.5;
+                const r1 = pageRect(el), goal1 = g.align.k === "start" ? n.box[cross] : g.align.k === "centre" ? n.box[cross] + (n.box[Z] - r1[Z]) / 2 : n.box[cross] + n.box[Z] - r1[Z];
+                const ok = Math.abs(r1[cross] - goal1) <= 1.5;
                 if (was["align-self"]) el.style.setProperty("align-self", was["align-self"]); else el.style.removeProperty("align-self");
                 tidyStyle(el);
                 if (ok) of(el).set["align-self"] = word;
@@ -1522,13 +1612,12 @@ export function agentMain() {
         guideLayer.innerHTML = "";
         const el = g.el, par = el.parentElement;
         if (!g.lane) { g.lane = laneOf(par, el); g.pre = sourcesOf(el, FLOW_PROPS); g.last = kidsOf(par, null).filter(inFlow).slice(-1)[0] === el; }
-        const t = dropTarget(g.el, e.clientX, e.clientY);
+        // where a drop here goes, read on the page as it was when the drag started (see targetAt): what slides apart while dragging
+        // cannot move a box out from under the pointer
+        const t = targetAt(g, Math.min(Math.max(e.clientX, 1), document.documentElement.clientWidth - 2), Math.min(Math.max(e.clientY, 1), innerHeight - 2));
         // an element in a group stays in it: a drop outside the group changes nothing (ungroup to take it out)
         const held = !staysInGroup(g.el, t.container);
-        // over empty space in its own box it is placed freely; over another child, or out of the box, it is dragged to a slot
-        const ax = e.clientX + window.scrollX, ay = e.clientY + window.scrollY;
-        const overChild = g.lane.others.some((o) => ax >= o.r.x && ax <= o.r.x + o.r.w && ay >= o.r.y && ay <= o.r.y + o.r.h);
-        g.free = !held && !overChild && t.container === par;
+        g.free = !held && Boolean(t.open); // over open space in its own box: placed freely
         if (g.free) {
             relax(); g.align = null; g.same = true; g.target = null;
             ghostBox.style.display = "none"; dropBox.style.display = "none"; insertLine.style.display = "none";
@@ -1541,7 +1630,7 @@ export function agentMain() {
             return;
         }
         g.fi = null;
-        g.same = held || sameSlot(g.el, t);
+        g.same = held || Boolean(t.stay) || sameSlot(g.el, t);
         g.target = t.ref || t.container;
         g.pos = t.ref ? (t.before ? "before" : "after") : "inside";
         // the box that follows the pointer, pulled onto the start, centre or end of a flex row or column when it comes near one
@@ -1843,7 +1932,8 @@ export function agentMain() {
             if (g.pos === "before") g.target.before(g.el); else if (g.pos === "after") g.target.after(g.el); else g.target.appendChild(g.el);
             setSelection([g.el]);
             // it settles into its slot from where it was let go
-            if (g.ghost) { const fin = pageRect(g.el); g.el.animate([{ translate: `${g.ghost.x - fin.x}px ${g.ghost.y - fin.y}px` }, { translate: "0 0" }], { duration: 170, easing: EASE }); }
+            // (the selection is drawn again once it has settled: until then its box is still on the way)
+            if (g.ghost) { const fin = pageRect(g.el); const an = g.el.animate([{ translate: `${g.ghost.x - fin.x}px ${g.ghost.y - fin.y}px` }, { translate: "0 0" }], { duration: 170, easing: EASE }); an.onfinish = an.oncancel = () => redraw(); }
             const items = was ? dropSmart(g, e, was, wasFirst, wasLast) : [];
             return items.length ? askConvert(items) : changed();
         }
