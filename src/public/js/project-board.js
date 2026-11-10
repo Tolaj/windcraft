@@ -35,7 +35,7 @@ const KINDS = [["nav", "Navigation"], ["hero", "Hero"], ["section", "Sections"],
 const extractCache = new Map(); // page id -> { key, found }
 function extractedAll() {
     const out = [];
-    pages().filter((p) => p.kind === "page").forEach((pg) => {
+    pages().forEach((pg) => {
         const key = `${pg.version}|${(pg.htmlCode || "").length}`;
         let hit = extractCache.get(pg.id);
         if (!hit || hit.key !== key) {
@@ -52,41 +52,41 @@ const partKind = (it) => { const k = (it.tags || [])[(it.tags || []).length - 1]
 const pages = () => items.filter((i) => i.kind !== "section" || !items.some((p) => p.id === i.parent));
 const sectionsOf = (id) => items.filter((i) => i.kind === "section" && i.parent === id);
 // ── The Components tab's board: each component is its own frame, centred in it (no pages) ───────────────────────────────
-const SIZES = { button: [420, 220], form: [680, 560], nav: [1280, 240], hero: [1280, 720], section: [1280, 560], footer: [1280, 360] };
+const SIZES = { button: [520, 220], form: [680, 560], nav: [1280, 240], hero: [1280, 720], section: [1280, 560], footer: [1280, 360] };
 let compKey = "", compList = [];
 function compBoard() {
-    const found = extractedAll(), saved = items.filter((i) => i.kind === "component");
-    const key = found.map((x) => x.id).join() + "|" + saved.map((x) => `${x.id}.${x.version}`).join();
+    const found = extractedAll();
+    const key = found.map((x) => x.id).join();
     if (key === compKey) return compList;
     compKey = key;
     const mk = (id, title, kind, html, assets) => {
         const [w, h] = SIZES[kind] || [1280, 560];
-        return { id, title, kind: "frame", chip: kind, version: 1, board: { w, h }, htmlCode: `${assets}\n<div style="box-sizing:border-box;min-height:${h}px;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden"><div style="width:100%;max-width:${w - 48}px;${["button", "form"].includes(kind) ? "width:auto" : ""}">${html}</div></div>` };
+        return { id, title, kind: "frame", chip: kind, version: 1, board: { w, h }, htmlCode: `${assets}\n<div style="box-sizing:border-box;min-height:${h}px;display:flex;align-items:center;justify-content:center;padding:24px"><div style="width:100%;max-width:${w - 48}px;${["button", "form"].includes(kind) ? "width:auto" : ""}">${html}</div></div>` };
     };
-    const all = [...saved.map((c) => mk(c.id, c.title, "saved", c.htmlCode || "", "")), ...found.map((x) => mk(x.id, x.name, x.kind, x.html, x.assets))];
-    // rows by kind, left to right, wrapping at 2700px
-    const order = ["saved", ...KINDS.map(([k]) => k)];
-    let y = 0;
-    compList = [];
-    order.forEach((k) => {
-        const row = all.filter((f) => f.chip === k);
-        let x = 0, rowH = 0;
-        row.forEach((f) => {
-            if (x && x + f.board.w > 2700) { x = 0; y += rowH + 80; rowH = 0; }
-            f.board = { w: f.board.w, h: f.board.h, x, y }; x += f.board.w + 48; rowH = Math.max(rowH, f.board.h); compList.push(f);
-        });
-        if (row.length) y += rowH + 120;
-    });
+    const all = [...found.map((x) => mk(x.id, x.name.replace(/^(Button|Form): /, ""), x.kind, x.html, x.assets))];
+    compList = all;
     return compList;
 }
 const boardItems = () => (tab === "component" ? compBoard() : items);
 const frameById = (id) => boardItems().find((i) => i.id === id);
 let builtFor = "page";
 const widthOf = (it) => (it.board && it.board.w) || it.frameW || FRAME_W;
-const heightOf = (it) => (it.board && it.board.h) || heights[it.id] || (it.kind === "section" ? SEC_H : PAGE_H);
+const heightOf = (it) => it.kind === "frame" ? Math.max(it.board.h, Math.min(heights[it.id] || 0, 3000)) : (it.board && it.board.h) || heights[it.id] || (it.kind === "section" ? SEC_H : PAGE_H);
 
 function computeLayout() {
-    if (tab === "component") { boardItems().forEach((f) => { pos[f.id] = { x: f.board.x, y: f.board.y }; }); return; }
+    if (tab === "component") { // rows by kind, left to right, wrapping at 2700px; a frame is as tall as its content needs
+        let y = 0;
+        KINDS.forEach(([k]) => {
+            let x = 0, rowH = 0, any = false;
+            boardItems().filter((f) => f.chip === k).forEach((f) => {
+                const w = widthOf(f), h = heightOf(f);
+                if (x && x + w > 2700) { x = 0; y += rowH + 80; rowH = 0; }
+                pos[f.id] = { x, y }; x += w + 48; rowH = Math.max(rowH, h); any = true;
+            });
+            if (any) y += rowH + 120;
+        });
+        return;
+    }
     Object.assign(pos, layoutItems(items, { frameW: FRAME_W, heightOf, widthOf }));
 }
 
