@@ -1699,6 +1699,13 @@ export function agentMain() {
     function closeRoom() {
         room.anims.forEach((an) => an.cancel());
         room.anims = []; room.slot = null;
+        landBox.style.display = "none";
+    }
+    /** Where the element will land, outlined (as in the ghost drag): its slot in the layout, while it follows the pointer. */
+    function showLanding(g) {
+        const r = g.lay, one = px(1);
+        Object.assign(landBox.style, { display: "block", left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
+        landBox.style.setProperty("box-shadow", `inset 0 0 0 ${1.5 * one}px rgba(59,130,246,.9)`);
     }
     /** Would dropping at `t` leave the element where it came from? (the element may be somewhere else in the DOM by now: the preview) */
     function sameAsHome(g, t) {
@@ -1921,7 +1928,7 @@ export function agentMain() {
         const held = !staysInGroup(g.el, t.container);
         g.free = !held && Boolean(t.open); // over open space in its own box: placed freely
         if (g.free) {
-            liveRoom(g, null, true); g.align = null; g.same = true; g.target = null;
+            liveRoom(g, null, true); g.align = null; g.same = true; g.target = null; landBox.style.display = "none";
             ghostBox.style.display = "none"; dropBox.style.display = "none"; insertLine.style.display = "none";
             let dx = Math.round(e.clientX - g.sx), dy = Math.round(e.clientY - g.sy);
             if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
@@ -1960,6 +1967,7 @@ export function agentMain() {
         ghostBox.style.display = "none";
         liveRoom(g, t, g.same); // the page shows the layout the drop would make
         el.style.setProperty("translate", `${gx - g.lay.x}px ${gy - g.lay.y}px`); // the real element follows the pointer
+        if (held) landBox.style.display = "none"; else showLanding(g); // and the place it will land is outlined
         // the container it would land in
         const cr = pageRect(held ? groupAround(g.el) : t.container); // held in a group: the group it stays in is outlined
         Object.assign(dropBox.style, { display: "block", left: `${cr.x}px`, top: `${cr.y}px`, width: `${cr.w}px`, height: `${cr.h}px`, borderWidth: `${px(1.5)}px` });
