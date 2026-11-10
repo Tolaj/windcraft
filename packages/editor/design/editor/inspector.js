@@ -6,6 +6,9 @@ import { checkTags } from "../code-view.js";
 import { groupOf, variantOf, twShown, hasScale, twValue, fromPx, tokenFor } from "../../../core/prop-tailwind.js";
 import { normalizeValue } from "../css-props.js";
 import { host } from "../host.js";
+import { pageTheme, configError } from "../../../core/theme.js";
+import { withDefaults, onlyChanges, TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
+import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
 import { curWidth, fitTo, heightOfDoc, layout, positions, remeasureHeight, widthOf } from "./plane.js";
@@ -79,6 +82,20 @@ const panelActions = {
     remove: () => { if (S.selected) cmd({ cmd: "remove", path: S.selected.path }); },
     setTag: (tag) => { if (S.selected) cmd({ cmd: "setTag", path: S.selected.path, tag }); },
     setTab: (tab) => panelStore.set({ tab }),
+    // the Tailwind config tab: this page's own config over the project's (only what differs from the project's is stored on the page)
+    twApply: async (text) => {
+        const bad = configError(text);
+        if (bad) return { ok: false, message: bad };
+        if (!data.id) return { ok: false, message: "Save the page first." };
+        const changes = onlyChanges(JSON.parse(String(text).trim() || "{}"), withDefaults(projectConfig()));
+        const tw = Object.keys(changes).length ? JSON.stringify(changes) : "";
+        try { await host.updateComponent(data.id, { twConfig: tw }); } catch (err) { return { ok: false, message: err.message || "Could not save it" }; }
+        data.twConfig = tw; const d = docs.get(S.curKey); if (d) d.meta.twConfig = tw;
+        setPreviewTheme(pageTheme(data.projectTheme, tw));
+        loadFrame(); // the canvas takes the new config
+        renderInspector();
+        return { ok: true };
+    },
     closePanel: () => setPanel(false),
     // a breakpoint picked: the frame goes to its width, so what is edited is what is seen; All sizes leaves the frame as it is
     setBreakpoint: (bp) => { panelStore.set({ bp, all: bp === "" }); if (bp) setDevice(BREAKPOINT_WIDTH[bp]); },
@@ -144,6 +161,13 @@ const bodyActions = Object.fromEntries(Object.entries(panelActions).map(([k, f])
     S.selected = S.pageBody;
     try { return f(...a); } finally { S.selected = null; }
 }]));
+const projectConfig = () => { try { return data.projectTheme && data.projectTheme.config ? JSON.parse(data.projectTheme.config) : {}; } catch { return {}; } };
+/** What the Tailwind config tab shows: this page's effective config (the project's, with Tailwind's defaults under it) and what the page itself changes. */
+function twView() {
+    let mine = {}; try { mine = data.twConfig ? JSON.parse(data.twConfig) : {}; } catch { /* none */ }
+    const text = JSON.stringify(withDefaults(JSON.parse(pageTheme(data.projectTheme, data.twConfig).config || "{}")), null, 2);
+    return { key: `${data.id}:${data.twConfig || ""}`, text, changed: Object.keys(mine), version: TAILWIND_VERSION, saved: Boolean(data.id) };
+}
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
 export function renderInspector() {
     const ui = { ...panelStore.get(), frameW: curWidth() }; // the panel's state, and the frame's width (for the Screen chips)
@@ -156,6 +180,7 @@ export function renderInspector() {
         return;
     }
     const view = inspectorView(sel, sel ? null : pageInfo(), elementCode);
+    if (ui.tab === "tw") view.tw = twView();
     if (view.page && S.pageBody) view.pageBody = { s: S.pageBody, actions: bodyActions };
     renderPanel(insp, view, panelActions, ui);
     insp.scrollTop = top;

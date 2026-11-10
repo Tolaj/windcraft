@@ -212,12 +212,37 @@ const Styles = ({ k, s, actions, page }) => html`<${TypographySection} key=${`t$
     <${AddBox} key=${`c${k}`} actions=${actions} />`;
 
 const CLOSE = html`<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>`;
-const TABS = [["design", "Design"], ["classes", "Code"], ["ai", "AI"]];
+const TABS = [["design", "Design"], ["classes", "Code"], ["ai", "AI"], ["tw", "Tailwind"]];
+
+/** The Tailwind config tab: this page's own config, starting from the project's with Tailwind's defaults under it; Apply stores what differs from the project's. */
+function TailwindTab({ tw, actions }) {
+    const [text, setText] = useState(tw.text);
+    const [note, setNote] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const apply = async (value) => {
+        setBusy(true);
+        const res = await actions.twApply(value);
+        setBusy(false);
+        setNote(res.ok ? { text: "Applied to this page." } : { text: res.message, bad: true });
+    };
+    const bad = configErr(text);
+    return html`<div class="sec"><div class="secb nopad">
+        <p class="sub first">Tailwind config <span class="muted">v${tw.version}</span></p>
+        <p class="muted">Only this page uses these changes. It starts from the project's config; ${tw.changed.length ? html`changed on this page: <b>${tw.changed.join(", ")}</b>.` : "nothing is changed on this page yet."}</p>
+        <textarea class="fi area" rows="22" wrap="off" spellcheck="false" style="font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.4;white-space:pre" value=${text} onInput=${(e) => { setText(e.target.value); setNote(null); }}></textarea>
+        <p class="text-[11px] text-red-700">${bad || (note && note.bad ? note.text : "")}</p>
+        <button type="button" class="primary" disabled=${busy || Boolean(bad)} onClick=${() => apply(text)}>Apply to this page</button>
+        <button type="button" disabled=${busy || !tw.changed.length} onClick=${() => apply("{}")}>Use the project's config</button>
+        ${note && !note.bad && html`<p class="text-[11px] text-neutral-500">${note.text}</p>`}
+    </div></div>`;
+}
+const configErr = (text) => { if (!String(text).trim()) return ""; try { const v = JSON.parse(text); return v && typeof v === "object" && !Array.isArray(v) ? "" : "It must be a JSON object."; } catch (e) { return `Not valid JSON: ${e.message}`; } };
 
 /** The row at the top: the tabs (or just "Page" when no element is selected) and the close button. */
 function Head({ page, canvas, tab, actions }) {
     return html`<div class="itabs">
-        ${page || canvas ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">${canvas ? "Canvas" : "Page"}</span>`
+        ${canvas ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">Canvas</span>`
+        : page ? html`<button type="button" class=${tab !== "tw" ? "on" : ""} onClick=${() => actions.setTab("design")}>Page</button><button type="button" class=${tab === "tw" ? "on" : ""} onClick=${() => actions.setTab("tw")}>Tailwind config</button>`
         : TABS.filter(([k]) => k !== "ai" || actions.canAI).map(([k, label]) => html`<button type="button" class=${tab === k ? "on" : ""} onClick=${() => actions.setTab(k)}>${label}</button>`)}
         <button type="button" title="Close" style="padding:0" class="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-500 hover:bg-neutral-100" onClick=${actions.closePanel}>${CLOSE}</button>
     </div>`;
@@ -226,7 +251,8 @@ function Head({ page, canvas, tab, actions }) {
 /** The panel: its head, then what the view says to show. The Design tab's parts are keyed by the element: another one gets fresh fields, so nothing typed for one can land on the next. */
 function Panel({ view, tab, actions }) {
     let body;
-    if (view.design) {
+    if (view.tw) body = html`<${TailwindTab} key=${view.tw.key} tw=${view.tw} actions=${actions} />`;
+    else if (view.design) {
         const { key, s } = view.design;
         body = html`<${DesignTop} key=${key} s=${s} actions=${actions} />
             ${WIREFRAME_TAGS.has(s.tag) && html`<${WireframeRow} key=${`w${key}`} onOpen=${actions.wireframes} label="Add a wireframe" hint=${`Inside this ${s.tag}`} />`}
