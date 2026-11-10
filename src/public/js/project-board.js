@@ -22,6 +22,11 @@ let selectedId = null;
 const wraps = new Map();
 
 const byId = (id) => items.find((i) => i.id === id);
+// what a part of a page is: its last tag when it is one of the extracted kinds (nav, hero, section, footer, form, button)
+const PART_KINDS = ["nav", "hero", "section", "footer", "form", "button"];
+// a part's title is "<page>: <name>"; the row already says which page it is from
+const partName = (it) => { const par = it.kind === "section" && byId(it.parent); return par && it.title.startsWith(`${par.title}: `) ? it.title.slice(par.title.length + 2) : it.title; };
+const partKind = (it) => { const k = (it.tags || [])[(it.tags || []).length - 1]; return PART_KINDS.includes(k) ? k : "section"; };
 const pages = () => items.filter((i) => i.kind !== "section" || !items.some((p) => p.id === i.parent));
 const sectionsOf = (id) => items.filter((i) => i.kind === "section" && i.parent === id);
 const widthOf = (it) => (it.board && it.board.w) || it.frameW || FRAME_W;
@@ -141,7 +146,7 @@ function buildFrames() {
         const wrap = document.createElement("div");
         wrap.className = `fwrap${it.id === selectedId ? " sel" : ""}`;
         wrap.dataset.id = it.id;
-        wrap.innerHTML = `<div class="flabel">${it.group ? `<i class="fgroup">${esc(it.group)} / </i>` : ""}${esc(it.title)}<span>${it.kind === "section" ? "section" : `v${it.version}`}</span></div><div class="frame"></div>`;
+        wrap.innerHTML = `<div class="flabel">${it.group ? `<i class="fgroup">${esc(it.group)} / </i>` : ""}${esc(it.title)}<span>${it.kind === "section" ? partKind(it) : `v${it.version}`}</span></div><div class="frame"></div>`;
         world.appendChild(wrap);
         wraps.set(it.id, { wrap, frame: wrap.querySelector(".frame"), iframe: null });
         observer.observe(wrap);
@@ -288,8 +293,11 @@ function renderOutline() {
     $("tabTheme").className = `flex-1 whitespace-nowrap border-b-2 px-2 py-2.5 ${tab === "theme" ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}`;
     $("filters").classList.toggle("hidden", tab === "theme");
     if (tab === "theme") { [["tabPages", "page"], ["tabComponents", "component"]].forEach(([id]) => { $(id).className = "flex-1 whitespace-nowrap border-b-2 border-transparent px-2 py-2.5 text-neutral-500 hover:text-neutral-900"; }); return; }
-    // Components lists the components and the parts made from pages (marked "from <page>"); Pages lists the pages, with their parts nested
-    const list = (tab === "component" ? items.filter((i) => i.kind === "component" || (i.kind === "section" && byId(i.parent))) : pages().filter((i) => i.kind !== "component")).filter(matchesFilter);
+    // Components lists the components, then the parts made from pages under their page's name; Pages lists the pages, with their parts nested
+    let list = (tab === "component" ? items.filter((i) => i.kind === "component" || (i.kind === "section" && byId(i.parent))) : pages().filter((i) => i.kind !== "component")).filter(matchesFilter);
+    // Components: the project's own components first, then the parts of each page under that page's name, in page order
+    const pageOrder = (it) => { const k = pages().indexOf(byId(it.parent)); return k < 0 ? 1e6 : k; };
+    if (tab === "component") list = [...list.filter((i) => i.kind === "component"), ...list.filter((i) => i.kind === "section").sort((a, b) => pageOrder(a) - pageOrder(b) || (a.order || 0) - (b.order || 0))];
     $("filters").classList.remove("hidden");
     const pc = pages().filter((i) => i.kind !== "component").length, cc = items.filter((i) => i.kind === "component" || (i.kind === "section" && byId(i.parent))).length;
     $("tabPages").title = `${pc} page${pc === 1 ? "" : "s"}`;
@@ -299,10 +307,10 @@ function renderOutline() {
     });
     let prev = ""; // a heading where the group changes ("Public site", then "Customer area")
     $("outline").innerHTML = list.map((p) => {
-        const g = tab === "component" ? "" : p.group || "";
+        const g = tab === "component" ? (p.kind === "section" ? (byId(p.parent) || {}).title || "" : "Components") : p.group || "";
         const heading = g !== prev && (g || prev) ? `<div class="group-head">${esc(g || "No group")}</div>` : "";
         prev = g;
-        const row = (it, depth) => `<div class="layer-row cursor-pointer gap-1 px-1 ${it.id === selectedId ? "is-selected" : ""}" style="padding-left:${depth * 14 + 6}px" data-pick="${it.id}"><span class="shrink-0 font-mono text-[10px] text-neutral-500">${it.kind === "section" ? "sec" : it.kind === "component" ? "comp" : "page"}</span><span class="truncate">${esc(it.title)}</span>${tab === "component" && it.kind === "section" && byId(it.parent) ? `<span class="ml-auto shrink-0 truncate pl-2 text-[10px] text-neutral-400">from ${esc(byId(it.parent).title)}</span>` : ""}</div>`;
+        const row = (it, depth) => `<div class="layer-row cursor-pointer gap-1 px-1 ${it.id === selectedId ? "is-selected" : ""}" style="padding-left:${depth * 14 + 6}px" data-pick="${it.id}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${it.kind === "section" ? partKind(it) : it.kind === "component" ? "comp" : "page"}</span><span class="truncate" title="${esc(it.title)}">${esc(partName(it))}</span></div>`;
         return heading + row(p, 0) + (tab === "component" ? "" : sectionsOf(p.id).map((s) => row(s, 1)).join(""));
     }).join("") || `<div class="p-3 text-neutral-500">${filterOn() ? "Nothing matches." : tab === "component" ? "No components yet. Press + New design, or save a page: its parts appear here." : "No pages yet."}</div>`;
     dimBoard();
