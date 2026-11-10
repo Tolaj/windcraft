@@ -32,3 +32,4 @@ select.fi { -webkit-appearance: none; appearance: none; padding-right: 20px; bac
 
 /* the page is black and white: checkboxes and radios too, not the browser's blue */
 input[type="checkbox"], input[type="radio"] { accent-color: #111; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }

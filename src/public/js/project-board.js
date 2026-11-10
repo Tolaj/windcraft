@@ -356,6 +356,7 @@ function renderOutline() {
     if ((tab === "component" ? "component" : "page") !== builtFor) { buildFrames(); fitAll(); }
     $("outline").classList.toggle("hidden", tab === "theme");
     $("themePanel").classList.toggle("hidden", tab !== "theme");
+    $("configSpace").classList.toggle("hidden", tab !== "theme"); $("configSpace").classList.toggle("flex", tab === "theme");
     $("tabTheme").className = `flex-1 whitespace-nowrap border-b-2 px-2 py-2.5 ${tab === "theme" ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}`;
     $("filters").classList.toggle("hidden", tab === "theme");
     if (tab === "theme") { [["tabPages", "page"], ["tabComponents", "component"]].forEach(([id]) => { $(id).className = "flex-1 whitespace-nowrap border-b-2 border-transparent px-2 py-2.5 text-neutral-500 hover:text-neutral-900"; }); return; }
@@ -407,7 +408,9 @@ function redrawPreviews() {
 function renderTheme() {
     const strip = (scale) => Object.values(scale).map((c) => `<i style="background:${c}"></i>`).join("");
     $("themePanel").innerHTML = `<style>.sw{display:flex;height:14px;border-radius:4px;overflow:hidden;margin-top:6px}.sw i{flex:1}.chip{cursor:pointer;border:1px solid #e5e5e5;border-radius:6px;padding:4px 8px;background:#fff}.chip.on{border-color:#111;background:#f5f5f5;font-weight:600}</style>
-        <p class="text-neutral-500">One small set of choices. Every preview, the editor and exports use it: <code>bg-brand-600</code>, <code>gray-*</code>, <code>rounded-*</code>, the sans font.</p>
+        <p class="text-neutral-500">The project's Tailwind config is on the right. Every preview, the editor and exports use it.</p>
+        <button id="thToggle" type="button" class="mt-3 flex h-8 w-full items-center justify-between rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-800 hover:bg-neutral-50">Theme options <span id="thArrow">▸</span></button>
+        <div id="thOptions" class="hidden">
         <label class="mt-3 block font-semibold text-neutral-900">Brand colour</label>
         <div class="mt-1 flex items-center gap-2"><input id="thBrand" type="color" value="${theme.brand}" class="h-7 w-9 cursor-pointer rounded border border-neutral-200 p-0.5"><input id="thBrandHex" class="fi" value="${theme.brand}" maxlength="7" spellcheck="false"></div>
         <div id="thBrandScale" class="sw">${strip(brandScale(theme.brand))}</div>
@@ -419,12 +422,12 @@ function renderTheme() {
         <datalist id="thFonts">${FONTS.map((f) => `<option value="${esc(f)}">`).join("")}</datalist>
         <label class="mt-4 block font-semibold text-neutral-900">Corners</label>
         <div id="thRadii" class="mt-1 flex flex-wrap gap-1.5">${RADII.map((r) => `<button type="button" class="chip ${theme.radius === r ? "on" : ""}" data-radius="${r}">${r}</button>`).join("")}</div>
-        <label class="mt-4 block font-semibold text-neutral-900">Tailwind config</label>
-        <p class="mt-1 text-neutral-500">Extra <code>theme.extend</code> as JSON: colors, fontFamily, spacing, keyframes, animation. It is merged over the choices above.</p>
-        <textarea id="thConfig" class="fi area mono mt-1" rows="10" spellcheck="false" placeholder='{\n  "colors": { "accent": "#f97316" },\n  "keyframes": { "wiggle": { "0%,100%": { "transform": "rotate(-3deg)" }, "50%": { "transform": "rotate(3deg)" } } },\n  "animation": { "wiggle": "wiggle 1s ease-in-out infinite" }\n}'>${esc(theme.config || "")}</textarea>
-        <p id="thConfigMsg" class="mt-1 text-red-700"></p>
-        <button id="thSave" type="button" class="mt-5 h-8 w-full rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Apply theme</button>
+        </div>
+        <button id="thSave" type="button" class="mt-5 h-8 w-full rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Apply</button>
         <p id="thMsg" class="mt-2 text-neutral-500"></p>`;
+    $("configSpace").innerHTML = `<div class="flex items-center gap-3 border-b border-neutral-200 px-4 py-2.5"><span class="text-sm font-semibold text-neutral-900">Tailwind config</span><span class="text-xs text-neutral-500">Extra <code>theme.extend</code> as JSON: colors, fontFamily, spacing, keyframes, animation. Merged over the theme options; Apply (left) to use it.</span><span id="thConfigMsg" class="ml-auto text-xs text-red-700"></span></div>
+        <textarea id="thConfig" class="mono min-h-0 flex-1 resize-none border-0 p-4 text-[13px] leading-5 outline-none" spellcheck="false" placeholder='{\n  "colors": { "accent": "#f97316" },\n  "keyframes": {\n    "wiggle": { "0%,100%": { "transform": "rotate(-3deg)" }, "50%": { "transform": "rotate(3deg)" } }\n  },\n  "animation": { "wiggle": "wiggle 1s ease-in-out infinite" }\n}'>${esc(theme.config || "")}</textarea>`;
+    $("thToggle").addEventListener("click", () => { const open = $("thOptions").classList.toggle("hidden"); $("thArrow").textContent = open ? "▸" : "▾"; });
     const refresh = () => {
         $("thBrandScale").innerHTML = strip(brandScale(theme.brand));
         $("thGrayScale").innerHTML = strip(grayScale(theme.gray));
