@@ -254,7 +254,7 @@ function renderHeader() {
     $("newDesignBtn").href = `/design/new?project=${project.id}&kind=component`; // the same as New project: a blank page, the code below it
     const ab = $("activeBtn");
     ab.textContent = project.active ? "Active project ✓" : "Set as active";
-    ab.className = project.active ? "h-7 rounded-md border border-[#0d99ff] bg-[#e5f4ff] px-2.5 text-xs font-medium text-[#0b6fc2]" : "h-7 rounded-md border border-neutral-200 px-2.5 text-xs hover:bg-neutral-50";
+    ab.className = project.active ? "h-7 rounded-md border border-neutral-900 bg-neutral-100 px-2.5 text-xs font-medium text-neutral-900" : "h-7 rounded-md border border-neutral-200 px-2.5 text-xs hover:bg-neutral-50";
     $("boardEmpty").classList.toggle("hidden", items.length > 0);
     $("boardEmpty").classList.toggle("flex", items.length === 0);
 }
@@ -391,7 +391,7 @@ function renderDetails() {
         ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}
         ${secs.length ? `<p class="mb-1 mt-4 font-semibold text-neutral-700">Sections</p>${secs.map((s) => `<button type="button" data-pick="${s.id}" class="block w-full truncate rounded px-1.5 py-1 text-left hover:bg-neutral-100">${esc(s.title)}</button>`).join("")}` : ""}
         <button type="button" id="focusBtn" class="mt-4 h-8 w-full rounded-md border border-neutral-200 text-xs hover:bg-neutral-50">Zoom to this frame (Shift+2)</button>
-        <a href="/design/${it.id}" class="mt-2 flex h-8 items-center justify-center rounded-md bg-[#0d99ff] text-xs font-semibold text-white hover:bg-[#0a84e0]">Open in editor</a>
+        <a href="/design/${it.id}" class="mt-2 flex h-8 items-center justify-center rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Open in editor</a>
         ${it.kind === "section" ? "" : `<label class="mt-3 block text-neutral-500">Category <span class="text-neutral-400">(a pricing page is a page; every other category is a component)</span></label>
         <select id="detCat" class="fi">${(data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((c) => `<option value="${esc(c.slug)}" ${it.category === c.slug ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>
         <label class="mt-3 block text-neutral-500">Tags <span class="text-neutral-400">(comma separated)</span></label>
@@ -515,7 +515,7 @@ fitAll();
     const btn = $("shareBtn");
     let card = null;
     const link = () => `${location.origin}/p/${project.shareToken}`;
-    const paint = () => { btn.textContent = project.shareToken ? "Shared" : "Share"; btn.className = `h-7 rounded-md border px-2.5 text-xs ${project.shareToken ? "border-[#0d99ff] bg-[#e5f4ff] font-medium text-[#0b6fc2]" : "border-neutral-200 hover:bg-neutral-50"}`; };
+    const paint = () => { btn.textContent = project.shareToken ? "Shared" : "Share"; btn.className = `h-7 rounded-md border px-2.5 text-xs ${project.shareToken ? "border-neutral-900 bg-neutral-100 font-medium text-neutral-900" : "border-neutral-200 hover:bg-neutral-50"}`; };
     const set = async (on) => {
         const res = await fetch(`/api/projects/${project.id}/share`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) });
         const json = await res.json();

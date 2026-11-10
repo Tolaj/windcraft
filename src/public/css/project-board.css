@@ -29,3 +29,6 @@
 .fi:focus { outline: none; border-color: #111; background: #fff; }
 textarea.fi.area { height: auto; padding: 6px; line-height: 1.4; resize: vertical; }
 select.fi { -webkit-appearance: none; appearance: none; padding-right: 20px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23737373' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 5px center; background-size: 12px; }
+
+/* the page is black and white: checkboxes and radios too, not the browser's blue */
+input[type="checkbox"], input[type="radio"] { accent-color: #111; }
