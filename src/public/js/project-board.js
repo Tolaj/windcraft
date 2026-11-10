@@ -51,10 +51,42 @@ const extractedById = (id) => String(id).startsWith("x:") && extractedAll().find
 const partKind = (it) => { const k = (it.tags || [])[(it.tags || []).length - 1]; return PART_KINDS.includes(k) ? k : "section"; };
 const pages = () => items.filter((i) => i.kind !== "section" || !items.some((p) => p.id === i.parent));
 const sectionsOf = (id) => items.filter((i) => i.kind === "section" && i.parent === id);
+// ── The Components tab's board: each component is its own frame, centred in it (no pages) ───────────────────────────────
+const SIZES = { button: [420, 220], form: [680, 560], nav: [1280, 240], hero: [1280, 720], section: [1280, 560], footer: [1280, 360] };
+let compKey = "", compList = [];
+function compBoard() {
+    const found = extractedAll(), saved = items.filter((i) => i.kind === "component");
+    const key = found.map((x) => x.id).join() + "|" + saved.map((x) => `${x.id}.${x.version}`).join();
+    if (key === compKey) return compList;
+    compKey = key;
+    const mk = (id, title, kind, html, assets) => {
+        const [w, h] = SIZES[kind] || [1280, 560];
+        return { id, title, kind: "frame", chip: kind, version: 1, board: { w, h }, htmlCode: `${assets}\n<div style="box-sizing:border-box;min-height:${h}px;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden"><div style="width:100%;max-width:${w - 48}px;${["button", "form"].includes(kind) ? "width:auto" : ""}">${html}</div></div>` };
+    };
+    const all = [...saved.map((c) => mk(c.id, c.title, "saved", c.htmlCode || "", "")), ...found.map((x) => mk(x.id, x.name, x.kind, x.html, x.assets))];
+    // rows by kind, left to right, wrapping at 2700px
+    const order = ["saved", ...KINDS.map(([k]) => k)];
+    let y = 0;
+    compList = [];
+    order.forEach((k) => {
+        const row = all.filter((f) => f.chip === k);
+        let x = 0, rowH = 0;
+        row.forEach((f) => {
+            if (x && x + f.board.w > 2700) { x = 0; y += rowH + 80; rowH = 0; }
+            f.board = { w: f.board.w, h: f.board.h, x, y }; x += f.board.w + 48; rowH = Math.max(rowH, f.board.h); compList.push(f);
+        });
+        if (row.length) y += rowH + 120;
+    });
+    return compList;
+}
+const boardItems = () => (tab === "component" ? compBoard() : items);
+const frameById = (id) => boardItems().find((i) => i.id === id);
+let builtFor = "page";
 const widthOf = (it) => (it.board && it.board.w) || it.frameW || FRAME_W;
 const heightOf = (it) => (it.board && it.board.h) || heights[it.id] || (it.kind === "section" ? SEC_H : PAGE_H);
 
 function computeLayout() {
+    if (tab === "component") { boardItems().forEach((f) => { pos[f.id] = { x: f.board.x, y: f.board.y }; }); return; }
     Object.assign(pos, layoutItems(items, { frameW: FRAME_W, heightOf, widthOf }));
 }
 
@@ -93,8 +125,8 @@ function fitTo(list, maxZ = 1) {
     applyView();
 }
 
-const fitAll = () => fitTo(items);
-const focusItem = (id) => { const it = byId(id); if (it) fitTo([it], 0.8); };
+const fitAll = () => fitTo(boardItems());
+const focusItem = (id) => { const it = frameById(id); if (it) fitTo([it], 0.8); };
 
 board.addEventListener("wheel", (e) => {
     e.preventDefault();
@@ -120,7 +152,7 @@ const observer = new IntersectionObserver((entries) => {
 
 function mount(id) {
     const entry = wraps.get(id);
-    const it = byId(id);
+    const it = frameById(id);
     if (!entry || !it || entry.iframe) return;
     const f = document.createElement("iframe");
     f.setAttribute("sandbox", "allow-scripts");
@@ -152,7 +184,7 @@ function scheduleLayout() {
 
 function placeFrames() {
     computeLayout();
-    items.forEach((it) => {
+    boardItems().forEach((it) => {
         const entry = wraps.get(it.id);
         if (!entry) return;
         const p = pos[it.id];
@@ -164,11 +196,12 @@ function buildFrames() {
     observer.disconnect();
     wraps.clear();
     world.innerHTML = "";
-    items.forEach((it) => {
+    builtFor = tab === "component" ? "component" : "page";
+    boardItems().forEach((it) => {
         const wrap = document.createElement("div");
         wrap.className = `fwrap${it.id === selectedId ? " sel" : ""}`;
         wrap.dataset.id = it.id;
-        wrap.innerHTML = `<div class="flabel">${it.group ? `<i class="fgroup">${esc(it.group)} / </i>` : ""}${esc(it.title)}<span>${it.kind === "section" ? partKind(it) : `v${it.version}`}</span></div><div class="frame"></div>`;
+        wrap.innerHTML = `<div class="flabel" style="width:${widthOf(it)}px;box-sizing:border-box;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${it.group ? `<i class="fgroup">${esc(it.group)} / </i>` : ""}${esc(it.title)}<span>${it.chip || (it.kind === "section" ? partKind(it) : `v${it.version}`)}</span></div><div class="frame"></div>`;
         world.appendChild(wrap);
         wraps.set(it.id, { wrap, frame: wrap.querySelector(".frame"), iframe: null });
         observer.observe(wrap);
@@ -189,11 +222,11 @@ let gesture = null;
 board.addEventListener("pointerdown", (e) => {
     const wrap = e.target.closest(".fwrap");
     board.setPointerCapture(e.pointerId);
-    if (wrap && e.button === 0 && !spaceDown) {
+    if (wrap && e.button === 0 && !spaceDown && tab !== "component") {
         const id = wrap.dataset.id;
         gesture = { type: "frame", id, wrap, sx: e.clientX, sy: e.clientY, ox: pos[id].x, oy: pos[id].y, moved: false };
     } else {
-        gesture = { type: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false, onFrame: Boolean(wrap) };
+        gesture = { type: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false, onFrame: Boolean(wrap), pick: tab === "component" && wrap && e.button === 0 ? wrap.dataset.id : null };
         board.style.cursor = "grabbing";
     }
 });
@@ -225,6 +258,8 @@ board.addEventListener("pointerup", () => {
         g.wrap.classList.remove("dragging");
         if (g.moved) { byId(g.id).board = { ...byId(g.id).board, ...pos[g.id] }; queueSave(g.id); }
         else select(g.id);
+    } else if (!g.moved && g.pick) {
+        select(g.pick);
     } else if (!g.moved && !g.onFrame) {
         select(null);
     }
@@ -234,7 +269,7 @@ board.addEventListener("dblclick", (e) => {
     // pointer capture retargets the event to the board, so find the frame under the cursor
     const under = document.elementFromPoint(e.clientX, e.clientY);
     const wrap = under && under.closest(".fwrap");
-    if (wrap) location.href = `/design/${wrap.dataset.id}`;
+    if (wrap && tab !== "component") location.href = `/design/${wrap.dataset.id}`;
 });
 
 // positions are saved a moment after the last drag
@@ -318,6 +353,7 @@ function dimBoard() { wraps.forEach((entry, id) => { const it = byId(id); entry.
 
 let tab = "page"; // the sidebar lists the project's pages or its components, or shows its theme
 function renderOutline() {
+    if ((tab === "component" ? "component" : "page") !== builtFor) { buildFrames(); fitAll(); }
     $("outline").classList.toggle("hidden", tab === "theme");
     $("themePanel").classList.toggle("hidden", tab !== "theme");
     $("tabTheme").className = `flex-1 whitespace-nowrap border-b-2 px-2 py-2.5 ${tab === "theme" ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}`;
@@ -468,7 +504,7 @@ function renderDetails() {
 function select(id) {
     selectedId = id;
     const part = extractedById(id); // a part the rules found: its page is the one marked on the board
-    wraps.forEach((entry, key) => entry.wrap.classList.toggle("sel", key === (part ? part.pageId : id)));
+    wraps.forEach((entry, key) => entry.wrap.classList.toggle("sel", key === (part && tab !== "component" ? part.pageId : id)));
     renderOutline();
     renderDetails();
 }
@@ -524,7 +560,7 @@ document.addEventListener("change", async (e) => {
 
 document.addEventListener("click", async (e) => {
     const pick = e.target.closest("[data-pick]");
-    if (pick) { const part = extractedById(pick.dataset.pick); select(pick.dataset.pick); focusItem(part ? part.pageId : pick.dataset.pick); return; }
+    if (pick) { const part = extractedById(pick.dataset.pick); select(pick.dataset.pick); focusItem(part && tab !== "component" ? part.pageId : pick.dataset.pick); return; }
     if (e.target.dataset.gopage) { select(e.target.dataset.gopage); focusItem(e.target.dataset.gopage); return; }
     if (e.target.dataset.copy) {
         const x = extractedById(e.target.dataset.copy);
