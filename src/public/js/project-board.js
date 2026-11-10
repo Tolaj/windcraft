@@ -1,5 +1,6 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
+import { TAILWIND_DEFAULTS, TAILWIND_VERSION } from "@windcraft/core/tailwind-defaults.js";
 import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, configError, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
 import { extractParts } from "@windcraft/core/extract-parts.js";
@@ -422,7 +423,9 @@ function renderTheme() {
             <button id="thExample" type="button" class="h-8 shrink-0 rounded-md border border-neutral-200 px-3 text-xs hover:bg-neutral-50">Insert example</button>
             <button id="thSave" type="button" class="h-8 shrink-0 rounded-md bg-black px-4 text-xs font-semibold text-white hover:bg-neutral-800">Apply</button></div>
         <div id="secTailwind" class="flex min-h-0 flex-1"><div id="thGutter" class="mono w-12 shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 pr-3 text-right text-[13px] leading-5 text-neutral-400"></div>
-        <textarea id="thConfig" wrap="off" class="mono min-w-0 flex-1 resize-none border-0 bg-white p-4 text-[13px] leading-5 text-neutral-900 outline-none" spellcheck="false">${esc(theme.config || "")}</textarea></div>
+        <textarea id="thConfig" wrap="off" class="mono min-w-0 flex-1 resize-none border-0 bg-white p-4 text-[13px] leading-5 text-neutral-900 outline-none" spellcheck="false">${esc(theme.config || "")}</textarea>
+        <div class="flex w-80 shrink-0 flex-col border-l border-neutral-200 bg-neutral-50"><div class="border-b border-neutral-200 px-3 py-2.5"><p class="text-xs font-semibold text-neutral-900">Tailwind defaults <span class="font-normal text-neutral-500">v${TAILWIND_VERSION}</span></p><p class="mt-0.5 text-[11px] text-neutral-500">What Tailwind uses when you set nothing. Add a section to your config, then edit the values.</p></div>
+        <div id="twDefaults" class="min-h-0 flex-1 overflow-auto p-2 text-[11px]">${Object.entries(TAILWIND_DEFAULTS).map(([k, v]) => `<details class="mb-1 rounded-md border border-neutral-200 bg-white"><summary class="flex cursor-pointer items-center gap-2 px-2.5 py-1.5"><span class="font-medium text-neutral-900">${k}</span><span class="text-neutral-400">${Object.keys(v).length}</span><button type="button" data-add="${k}" class="ml-auto rounded border border-neutral-200 px-1.5 py-0.5 hover:bg-neutral-50">Add</button></summary><pre class="mono max-h-56 overflow-auto border-t border-neutral-100 p-2 text-[10.5px] leading-4 text-neutral-700">${esc(JSON.stringify(v, null, 2))}</pre></details>`).join("")}</div></div></div>
         <div id="secTheme" class="hidden min-h-0 flex-1 overflow-auto p-8 text-xs"><div class="mx-auto max-w-md space-y-6">
         <label class="block font-semibold text-neutral-900">Brand colour</label>
         <div class="mt-1 flex items-center gap-2"><input id="thBrand" type="color" value="${theme.brand}" class="h-7 w-9 cursor-pointer rounded border border-neutral-200 p-0.5"><input id="thBrandHex" class="fi" value="${theme.brand}" maxlength="7" spellcheck="false"></div>
@@ -447,6 +450,18 @@ function renderTheme() {
     };
     $("themePanel").addEventListener("click", (e) => { const b = e.target.closest("[data-sec]"); if (b) { cfgSection = b.dataset.sec; showSection(); } });
     showSection();
+    $("twDefaults").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-add]");
+        if (!b) return;
+        e.preventDefault(); // the button sits in the summary: do not also open or close it
+        const k = b.dataset.add, text = $("thConfig").value.trim();
+        let cur = {};
+        if (text) { try { cur = JSON.parse(text); } catch { $("thConfigMsg").textContent = "Fix the JSON first, then add a section."; return; } }
+        if (!cur || typeof cur !== "object" || Array.isArray(cur)) cur = {};
+        cur[k] = { ...TAILWIND_DEFAULTS[k], ...(cur[k] && typeof cur[k] === "object" ? cur[k] : {}) }; // what you already changed wins
+        $("thConfig").value = JSON.stringify(cur, null, 2); $("thConfigMsg").textContent = ""; gutter();
+        $("thConfig").scrollTop = 0;
+    });
     const gutter = () => { const n = Math.max(30, $("thConfig").value.split("\n").length); $("thGutter").innerHTML = Array.from({ length: n }, (_, i) => i + 1).join("<br>"); $("thGutter").scrollTop = $("thConfig").scrollTop; };
     $("thConfig").addEventListener("scroll", () => { $("thGutter").scrollTop = $("thConfig").scrollTop; });
     $("thConfig").addEventListener("input", gutter);

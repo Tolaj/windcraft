@@ -26,7 +26,7 @@ const SYSTEM_STACK = ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI",
 const HEX = /^#?([0-9a-f]{6})$/i;
 const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 ]{0,39}$/;
 
-const MAX_CONFIG = 20000;
+const MAX_CONFIG = 60000;
 /** The extra Tailwind config as pretty JSON text: a JSON object of at most 20 KB, anything else becomes "" (nothing is ever evaluated). */
 export function cleanConfig(input) {
     if (input === undefined || input === null || input === "") return "";
@@ -43,7 +43,7 @@ export function configError(text) {
     try {
         const v = JSON.parse(text);
         if (!v || typeof v !== "object" || Array.isArray(v)) return "It must be a JSON object, like {\"colors\": {...}}.";
-        if (JSON.stringify(v).length > MAX_CONFIG) return "It is too long (20 KB at most).";
+        if (JSON.stringify(v).length > MAX_CONFIG) return "It is too long (60 KB at most).";
         return "";
     } catch (err) { return `Not valid JSON: ${err.message}`; }
 }
