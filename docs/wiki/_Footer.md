@@ -1,0 +1,1 @@
+Windcraft is MIT licensed. Found something wrong on this page? [Open an issue](https://github.com/Tolaj/windcraft/issues/new) or fix it in a pull request: the pages live in [`docs/wiki`](https://github.com/Tolaj/windcraft/tree/main/docs/wiki).

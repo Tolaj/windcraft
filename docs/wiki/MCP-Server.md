@@ -1,6 +1,4 @@
-[← Back to the README](../README.md)
-
-# Connect Claude, Claude Code or Cursor (MCP)
+# MCP Server
 
 Windcraft runs an [MCP](https://modelcontextprotocol.io) server, so your AI tools can read your design system and save pages into your projects. The server address is your Windcraft address plus `/mcp`:
 
@@ -38,7 +36,7 @@ claude mcp add --transport http tailwind-library https://your-windcraft-address/
 }
 ```
 
-The **Connect** page has a **Run test** button that checks the connection and says what to fix. Running it yourself? Claude on the web needs a public HTTPS address, so set `PUBLIC_URL` (see [Run the full app](../README.md#run-the-full-app)). The tools include `get_design_guide`, `search_components`, `get_component`, `save_design`, `save_pages` and `apply_design_patch`.
+The **Connect** page has a **Run test** button that checks the connection and says what to fix. Running it yourself? Claude on the web needs a public HTTPS address, so set `PUBLIC_URL` (see [Self-Hosting](Self-Hosting)). The tools include `get_design_guide`, `search_components`, `get_component`, `save_design`, `save_pages` and `apply_design_patch`.
 
 ## What to ask
 

@@ -14,7 +14,7 @@
 [![Figma plugin](https://img.shields.io/badge/Figma-plugin-F24E1E?logo=figma&logoColor=white)](https://www.figma.com/community/plugin/1697363010304569719)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-[**Try it live**](https://windcraft.swapniljadhav.com/) · [Watch the demo](docs/media/windcraft-demo.mp4) · [Get started](#get-started) · [npm](#npm-windcraft-editor) · [MCP](#mcp-claude-claude-code-cursor) · [Contribute](#contributing)
+[**Try it live**](https://windcraft.swapniljadhav.com/) · [Watch the demo](docs/media/windcraft-demo.mp4) · [Get started](#get-started) · [Wiki](https://github.com/Tolaj/windcraft/wiki) · [npm](#npm-windcraft-editor) · [MCP](#mcp-claude-claude-code-cursor) · [Contribute](#contributing)
 
 <br>
 
@@ -24,7 +24,7 @@
 
 ## Contents
 
-[What it is](#what-it-is) · [Screenshots](#screenshots) · [What you can do](#what-you-can-do) · [Get started](#get-started) · [How it is built](#how-it-is-built) · [Status](#status) · [Roadmap](#roadmap) · [Contributing](#contributing) · [License](#license)
+[What it is](#what-it-is) · [Screenshots](#screenshots) · [What you can do](#what-you-can-do) · [Get started](#get-started) · [Documentation](#documentation) · [How it is built](#how-it-is-built) · [Status](#status) · [Roadmap](#roadmap) · [Contributing](#contributing) · [License](#license)
 
 ## What it is
 
@@ -81,7 +81,7 @@ You can start from a blank page, from a Figma design (with a plugin that runs on
 - **AI:** describe a page and **Anthropic Claude** or any **OpenAI-compatible local model** (Ollama, LM Studio, vLLM) drafts it with your project's tokens and best-matching components.
 
 **Connect and share**
-- **MCP server:** Claude, Claude Code and Cursor can read your design system and save pages into your projects. [Setup guide](docs/mcp.md).
+- **MCP server:** Claude, Claude Code and Cursor can read your design system and save pages into your projects. [Setup guide](https://github.com/Tolaj/windcraft/wiki/MCP-Server).
 - **Projects:** one look per project (brand scale, gray, font, radius), a share link, a full-screen prototype view, export to HTML, React, Vue or Svelte, version history and a gallery.
 
 ## Get started
@@ -146,7 +146,7 @@ https://windcraft.swapniljadhav.com/mcp          (yours: https://your-windcraft-
 |---|---|
 | **Claude** (claude.ai) | Settings → Connectors → Add custom connector → paste the address → Connect → sign in to Windcraft → Allow. No token. |
 | **Claude Code** | Create an access token on the Connect page (`/connect`), then: `claude mcp add --transport http tailwind-library <address> --header "Authorization: Bearer $TAILWIND_LIBRARY_TOKEN"` |
-| **Cursor** and other clients | Add an HTTP server with the address and the header `Authorization: Bearer <token>`. The [MCP guide](docs/mcp.md) has the JSON. |
+| **Cursor** and other clients | Add an HTTP server with the address and the header `Authorization: Bearer <token>`. The [MCP guide](https://github.com/Tolaj/windcraft/wiki/MCP-Server) has the JSON. |
 
 Then just ask. Some things to say:
 
@@ -159,7 +159,7 @@ Then just ask. Some things to say:
 | "Make the Contact button in my Pricing page rose-500. Change nothing else." | A small patch to the saved design; the rest of the code is untouched. |
 | "Which project am I working on? Switch to Acme." | Reads or changes your active project. |
 
-The Connect page has a **Run test** button that checks the connection and says what to fix. The full tool list is in the [MCP guide](docs/mcp.md).
+The Connect page has a **Run test** button that checks the connection and says what to fix. The full tool list is in the [MCP guide](https://github.com/Tolaj/windcraft/wiki/MCP-Server).
 
 ### Figma plugin
 
@@ -208,6 +208,23 @@ npm run demo
 ```
 
 Open <http://localhost:4000/editor/demo/> (add `?theme` to see a project theme applied).
+
+## Documentation
+
+The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides:
+
+| Page | What is in it |
+|---|---|
+| [Getting Started](https://github.com/Tolaj/windcraft/wiki/Getting-Started) | Every way in, and your first five minutes |
+| [Using the Editor](https://github.com/Tolaj/windcraft/wiki/Using-the-Editor) | Selecting, dragging, screen sizes, handles, the Properties panel |
+| [Embedding the Editor (npm)](https://github.com/Tolaj/windcraft/wiki/Embedding-the-Editor-npm) | `startEditor`, `mountEditor`, `embedEditor` and their options |
+| [MCP Server](https://github.com/Tolaj/windcraft/wiki/MCP-Server) | Connect Claude, Claude Code or Cursor, what to ask, the tool list |
+| [Figma Plugin](https://github.com/Tolaj/windcraft/wiki/Figma-Plugin) | Install, what it converts, what it does not |
+| [Self-Hosting](https://github.com/Tolaj/windcraft/wiki/Self-Hosting) | Run the full app, environment variables |
+| [Architecture](https://github.com/Tolaj/windcraft/wiki/Architecture) | Packages, the sandboxed frame, how a drag works |
+| [Contributing and Reviews](https://github.com/Tolaj/windcraft/wiki/Contributing-and-Reviews) | How to contribute and how pull requests are reviewed |
+| [FAQ and Troubleshooting](https://github.com/Tolaj/windcraft/wiki/FAQ-and-Troubleshooting) | Common problems |
+| [Roadmap and Status](https://github.com/Tolaj/windcraft/wiki/Roadmap-and-Status) | What is solid, what is new, where to help |
 
 ## How it is built
 
@@ -266,7 +283,7 @@ Windcraft is MIT licensed and open to everyone. You do not need to ask first.
 3. **Check:** `npm test` and `npm run typecheck`. A bug fix in `packages/core` or the Figma converter should come with a test that fails without it.
 4. **Open a pull request** into `main` and say what you changed and how you checked it.
 
-A first-time pull request gets a reply and a decision with reasons, including when the answer is "not now". [CONTRIBUTING.md](CONTRIBUTING.md) has the setup, the repo layout and the project's principles (the output stays real HTML and Tailwind; the Figma converter uses fixed rules, no LLM).
+A first-time pull request gets a reply and a decision with reasons, including when the answer is "not now". [CONTRIBUTING.md](CONTRIBUTING.md) and the wiki's [Contributing and Reviews](https://github.com/Tolaj/windcraft/wiki/Contributing-and-Reviews) have the setup, how reviews work and the project's principles (the output stays real HTML and Tailwind; the Figma converter uses fixed rules, no LLM).
 
 **Questions, bugs, ideas:** [open an issue](https://github.com/Tolaj/windcraft/issues/new). Steps, what you expected, what happened and your browser; a screenshot or a short recording helps a lot.
 
