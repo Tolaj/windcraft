@@ -19,6 +19,7 @@ const WORDS = {
     "align-self": ["self", pick({ auto: "self-auto", "flex-start": "self-start", start: "self-start", center: "self-center", "flex-end": "self-end", end: "self-end", stretch: "self-stretch", baseline: "self-baseline" })],
     "justify-self": ["justifySelf", pick({ auto: "justify-self-auto", start: "justify-self-start", center: "justify-self-center", end: "justify-self-end", stretch: "justify-self-stretch" })],
     "text-align": ["textAlign", same("text-")],
+    "flex-shrink": ["shrink", pick({ 0: "shrink-0", 1: "shrink" })],
     "flex-grow": ["grow", pick({ 0: "grow-0", 1: "grow" })],
     "text-decoration-line": ["textDecoration", pick({ none: "no-underline", underline: "underline", "line-through": "line-through", overline: "overline" })],
     "text-transform": ["textTransform", pick({ none: "normal-case", uppercase: "uppercase", lowercase: "lowercase", capitalize: "capitalize" })],

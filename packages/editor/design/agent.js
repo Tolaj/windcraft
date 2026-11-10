@@ -1687,6 +1687,13 @@ export function agentMain() {
                 }
             }
         }
+        // 6. a size taken from the box it was in (w-full, h-full, a fraction) means something else in another box: it keeps the size it
+        // had (an icon that filled a 16x24 holder does not collapse, or stretch, in the row it is dropped into)
+        if (moved && g.rect) {
+            const r = pageRect(el);
+            ["w", "h"].forEach((a) => { if (has(el, new RegExp(`^${a}-(full|\\d+\\/\\d+)$`)) && Math.abs(r[a] - g.rect[a]) > 2) of(el).set[a === "w" ? "width" : "height"] = g.rect[a]; });
+            if (plan.has(el) && (plan.get(el).set.width || plan.get(el).set.height) && /^(flex row|flex column)$/.test(lay) && /^(IMG|SVG|VIDEO|CANVAS|PICTURE)$/.test(el.tagName.toUpperCase())) of(el).set["flex-shrink"] = "0";
+        }
         const work = [];
         plan.forEach((p, k) => { const props = Object.keys(p.set); if (props.length || p.clear.length) work.push({ k, p, props, pre: sourcesOf(k, props) }); });
         work.forEach(({ k, p }) => Object.entries(p.set).forEach(([prop, v]) => k.style.setProperty(prop, typeof v === "number" ? `${Math.round(v)}px` : v)));
