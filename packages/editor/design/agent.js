@@ -1490,14 +1490,6 @@ export function agentMain() {
     // An element in the flow is never moved by pixels. It is dragged to a slot (before or after a sibling, or into another box): the
     // others slide apart to make room, the place it will take is marked, and on release it settles into it. Across a flex row or column
     // a drag onto the start, centre or end of the box is written as an alignment (self-*), with a guide that says so.
-    /** Would dropping at `t` leave the element where it is among its siblings? */
-    function sameSlot(el, t) {
-        if (t.container !== el.parentElement) return false;
-        if (!t.ref) return true;
-        const kids = kidsOf(el.parentElement, null), others = kids.filter((k) => k !== el);
-        const i = others.indexOf(t.ref);
-        return i >= 0 && (t.before ? i : i + 1) === kids.indexOf(el);
-    }
     /** A box as the place things are dropped into: its content box, the other children (before: ahead of `skip` in the DOM) and its layout. */
     function laneOf(c, skip) {
         const cs = getComputedStyle(c), pr = pageRect(c);
@@ -1683,58 +1675,57 @@ export function agentMain() {
         return work.map(({ k, p, props, pre }) => gestureItem(k, pre, props, p.clear));
     }
 
-    // ── Making room: the others slide apart while an element is dragged between slots ─────────────────────────────
-    // Web Animations only (the `translate` property, which composes with the page's own transforms), so nothing is written to the page
-    // and cancelling them puts everything back. A grid or a wrapping row has no single line to slide along: there the line marks the slot.
-    const room = { anims: [], shift: new Map(), slot: null };
-    /** The others slide back to their places (an element dragged out of the slots into free space). */
-    const relax = () => { room.shift.forEach((v, k) => slide(k, v.a, 0)); room.slot = null; };
+    // ── Making room: the page shows the layout the drop will make ─────────────────────────────────────────────────
+    // While an element is dragged between slots it is put in the slot in the page itself (the DOM), so every box around it lays out as it
+    // will once it is let go (a card in a row that grows to fill it takes the new width, a wrapping row wraps anew, a grid re-flows),
+    // and each one that moved is animated from where it was (Web Animations on the `translate` property, which composes with the
+    // page's own transforms). The element itself keeps following the pointer, its `translate` made up from where its slot now is.
+    // Back at its own slot it goes home; Esc, or going on as the ghost drag, puts it home too. Nothing is written until the drop.
+    const room = { anims: [], slot: null };
     const EASE = "cubic-bezier(.2,.8,.3,1)";
-    const slideAxis = (c) => {
-        const cs = getComputedStyle(c), l = layoutOf(c);
-        if (cs.display.includes("flex") && (cs.flexDirection.includes("reverse") || cs.flexWrap !== "nowrap")) return null;
-        return l === "flex row" ? "x" : l === "flex column" || l === "page flow" ? "y" : null;
-    };
-    /** The space between neighbours along `a`: a flex box's gap, else what is measured between its children. */
-    function spacing(c, a, kids) {
-        if (layoutOf(c) !== "page flow") { const v = parseFloat(getComputedStyle(c)[a === "x" ? "columnGap" : "rowGap"]); return isNaN(v) ? 0 : v; }
-        const Z = a === "x" ? "w" : "h", d = [];
-        for (let i = 1; i < kids.length; i++) { const p = pageRect(kids[i - 1]), q = pageRect(kids[i]); d.push(q[a] - (p[a] + p[Z])); }
-        return Math.max(0, median(d.filter((v) => v >= 0)));
-    }
-    function slide(k, a, to) {
-        const cur = room.shift.get(k) || { a, px: 0 };
-        if (Math.abs(cur.px - to) < 0.5) return;
-        const at = (v) => (a === "x" ? `${v}px 0` : `0 ${v}px`);
-        room.anims.push(k.animate([{ translate: at(cur.px) }, { translate: at(to) }], { duration: 170, easing: EASE, fill: "forwards" }));
-        room.shift.set(k, { a, px: to });
+    /** The element back in the DOM place it came from. */
+    function homeDom(g) {
+        const el = g.el, h = g.home0;
+        if (!h || el.parentElement === h.parent && el.nextSibling === h.next) return;
+        if (h.next && h.next.parentElement === h.parent) h.parent.insertBefore(el, h.next); else h.parent.appendChild(el);
     }
     function closeRoom() {
         room.anims.forEach((an) => an.cancel());
-        room.anims = []; room.shift.clear(); room.slot = null;
+        room.anims = []; room.slot = null;
     }
-    function makeRoom(g, t, held) {
-        const el = g.el, slot = held ? null : { c: t.container, ref: t.ref || null, before: Boolean(t.before) };
-        if (room.slot && slot && room.slot.c === slot.c && room.slot.ref === slot.ref && room.slot.before === slot.before) return;
-        if (!room.slot && !slot) return;
-        room.slot = slot || { c: null, ref: null, before: false };
-        const want = new Map(), old = el.parentElement, ao = slideAxis(old), r = pageRect(el);
-        const oldKids = kidsOf(old, null).filter(inFlow), i0 = oldKids.indexOf(el);
-        let So = 0;
-        if (ao && oldKids.length > 1) {
-            So = r[ao === "x" ? "w" : "h"] + spacing(old, ao, oldKids);
-            oldKids.forEach((k, i) => { if (k !== el && i > i0) want.set(k, { a: ao, px: -So }); }); // the others close the gap it leaves
-        }
-        if (slot) {
-            const c = t.container, at = slideAxis(c);
-            if (at) {
-                const kids = kidsOf(c, el).filter(inFlow), j = t.ref ? kids.indexOf(t.ref) + (t.before ? 0 : 1) : kids.length;
-                const St = c === old && at === ao ? So : r[at === "x" ? "w" : "h"] + spacing(c, at, kids);
-                kids.forEach((k, p) => { if (p >= j) { const w = want.get(k); want.set(k, { a: at, px: (w ? w.px : 0) + St }); } }); // and open the slot it goes to
-            }
-        }
-        want.forEach((v, k) => slide(k, v.a, v.px));
-        room.shift.forEach((v, k) => { if (!want.has(k)) slide(k, v.a, 0); });
+    /** Would dropping at `t` leave the element where it came from? (the element may be somewhere else in the DOM by now: the preview) */
+    function sameAsHome(g, t) {
+        const h = g.home0;
+        if (t.container !== h.parent) return false;
+        if (!t.ref) return true;
+        const others = kidsOf(h.parent, g.el), i = others.indexOf(t.ref);
+        return i >= 0 && (t.before ? i : i + 1) === h.index;
+    }
+    /** Put the element in the slot `t` says (or home, when `home`), and let the others find their new places. */
+    function liveRoom(g, t, home) {
+        const el = g.el, h = g.home0;
+        const slot = home ? { home: true } : { c: t.container, ref: t.ref || null, before: Boolean(t.before) };
+        const cur = room.slot;
+        if (cur && cur.home === slot.home && cur.c === slot.c && cur.ref === slot.ref && cur.before === slot.before) return;
+        if (!cur && home) { room.slot = slot; return; } // never left its slot
+        room.slot = slot;
+        // where everything around it is now, as it shows (animations under way included)
+        const around = new Set();
+        [el.parentElement, home ? h.parent : slot.c].forEach((c) => kidsOf(c, el).filter(inFlow).forEach((k) => around.add(k)));
+        const was = new Map([...around].map((k) => [k, pageRect(k)]));
+        room.anims.forEach((an) => an.cancel());
+        room.anims = [];
+        el.style.removeProperty("translate");
+        if (home) homeDom(g);
+        else if (slot.ref) { if (slot.before) slot.ref.before(el); else slot.ref.after(el); }
+        else slot.c.appendChild(el);
+        // the others as the layout puts them, and where the element's own slot is
+        was.forEach((r0, k) => {
+            const r1 = pageRect(k), dx = r0.x - r1.x, dy = r0.y - r1.y;
+            if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+            room.anims.push(k.animate([{ translate: `${dx}px ${dy}px` }, { translate: "0 0" }], { duration: 170, easing: EASE }));
+        });
+        g.lay = pageRect(el);
     }
 
     // ── Free drag: the element follows the pointer to the pixel, and the drop is read as what it means ──────────────
@@ -1854,6 +1845,7 @@ export function agentMain() {
     function reorderCancel(g) {
         if (g.leave) return intentCancel(g);
         g.el.style.removeProperty("translate");
+        homeDom(g);
         tidyStyle(g.el);
         closeRoom();
         guideLayer.innerHTML = "";
@@ -1875,6 +1867,7 @@ export function agentMain() {
         const el = g.el;
         closeRoom();
         el.style.removeProperty("translate"); tidyStyle(el);
+        homeDom(g); // the ghost drag starts from the page as it was
         guideLayer.innerHTML = ""; insertLine.style.display = "none"; ghostBox.style.display = "none"; dropBox.style.opacity = "";
         g.free = false; g.fi = null; g.align = null; g.align0 = null; g.target = null; g.same = false;
         g.leave = true;
@@ -1891,7 +1884,12 @@ export function agentMain() {
     }
     function reorderGesture(g, e) {
         const el = g.el;
-        if (!g.lane) { const par0 = el.parentElement; g.lane = laneOf(par0, el); g.pre = sourcesOf(el, FLOW_PROPS); g.last = kidsOf(par0, null).filter(inFlow).slice(-1)[0] === el; }
+        if (!g.lane) {
+            const par0 = el.parentElement, flow0 = kidsOf(par0, null).filter(inFlow);
+            g.lane = laneOf(par0, el); g.pre = sourcesOf(el, FLOW_PROPS); g.last = flow0.slice(-1)[0] === el;
+            g.home0 = { parent: par0, next: el.nextSibling, index: kidsOf(par0, null).indexOf(el), first: flow0[0] === el, last: g.last };
+            g.lay = g.rect;
+        }
         // where a drop here goes, read on the page as it was when the drag started (see targetAt): what slides apart while dragging
         // cannot move a box out from under the pointer
         const cx = Math.min(Math.max(e.clientX, 1), document.documentElement.clientWidth - 2), cy = Math.min(Math.max(e.clientY, 1), innerHeight - 2);
@@ -1909,7 +1907,7 @@ export function agentMain() {
         const held = !staysInGroup(g.el, t.container);
         g.free = !held && Boolean(t.open); // over open space in its own box: placed freely
         if (g.free) {
-            relax(); g.align = null; g.same = true; g.target = null;
+            liveRoom(g, null, true); g.align = null; g.same = true; g.target = null;
             ghostBox.style.display = "none"; dropBox.style.display = "none"; insertLine.style.display = "none";
             let dx = Math.round(e.clientX - g.sx), dy = Math.round(e.clientY - g.sy);
             if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
@@ -1920,7 +1918,7 @@ export function agentMain() {
             return;
         }
         g.fi = null;
-        g.same = held || Boolean(t.stay) || sameSlot(g.el, t);
+        g.same = held || Boolean(t.stay) || sameAsHome(g, t);
         g.target = t.ref || t.container;
         g.pos = t.ref ? (t.before ? "before" : "after") : "inside";
         // the box that follows the pointer, pulled onto the start, centre or end of a flex row or column when it comes near one
@@ -1946,8 +1944,8 @@ export function agentMain() {
         } else g.align0 = null;
         g.ghost = { x: gx, y: gy };
         ghostBox.style.display = "none";
-        el.style.setProperty("translate", `${gx - g.rect.x}px ${gy - g.rect.y}px`); // the real element follows the pointer
-        makeRoom(g, t, held);
+        liveRoom(g, t, g.same); // the page shows the layout the drop would make
+        el.style.setProperty("translate", `${gx - g.lay.x}px ${gy - g.lay.y}px`); // the real element follows the pointer
         // the container it would land in
         const cr = pageRect(held ? groupAround(g.el) : t.container); // held in a group: the group it stays in is outlined
         Object.assign(dropBox.style, { display: "block", left: `${cr.x}px`, top: `${cr.y}px`, width: `${cr.w}px`, height: `${cr.h}px`, borderWidth: `${px(1.5)}px` });
@@ -1955,17 +1953,7 @@ export function agentMain() {
         dropHint.textContent = held ? "In a group · ungroup to take it out" : g.same ? (g.align ? `Align ${g.align.k === "centre" ? "center" : g.align.k}` : "Same slot · Alt-drag to place freely") : `${t.ref ? "Insert in" : "Drop into"} ${tag} · ${layoutOf(t.container)}`;
         Object.assign(dropHint.style, { display: "block", left: `${cr.x}px`, top: `${Math.max(0, cr.y - px(22))}px`, fontSize: `${px(11)}px`, padding: `${px(4)}px ${px(7)}px` });
         redraw();
-        if (!t.ref || g.same || slideAxis(t.container)) { insertLine.style.display = "none"; return; } // where the others slide apart the gap is the marker
-        // a grid or a wrapping row: the line sits in the gap between the two children it goes between, and never outside the container
-        const r = pageRect(t.ref), th = px(2.5);
-        const kids = kidsOf(t.container, g.el).filter(inFlow), i = kids.indexOf(t.ref), nb = kids[t.before ? i - 1 : i + 1];
-        const nr = nb ? pageRect(nb) : null;
-        let at = t.horizontal ? (t.before ? r.x : r.x + r.w) : (t.before ? r.y : r.y + r.h);
-        if (nr) at = (at + (t.horizontal ? (t.before ? nr.x + nr.w : nr.x) : (t.before ? nr.y + nr.h : nr.y))) / 2;
-        const line = t.horizontal
-            ? { l: Math.min(Math.max(at, cr.x), cr.x + cr.w) - th / 2, t: r.y, w: th, h: r.h }
-            : { l: Math.max(r.x, cr.x), t: Math.min(Math.max(at, cr.y), cr.y + cr.h) - th / 2, w: Math.min(r.w, cr.w), h: th };
-        Object.assign(insertLine.style, { display: "block", left: `${line.l}px`, top: `${line.t}px`, width: `${line.w}px`, height: `${line.h}px` });
+        insertLine.style.display = "none"; // the layout shows the slot: the gap it leaves is the marker
     }
 
     function resizeGesture(g, e) {
@@ -2218,8 +2206,8 @@ export function agentMain() {
             redraw(); return;
         }
         if (g.type === "reorder" && g.moved && g.target) {
-            const was = g.el.parentElement, wasKids = was ? kidsOf(was, null).filter(inFlow) : [];
-            const wasFirst = wasKids[0] === g.el, wasLast = wasKids[wasKids.length - 1] === g.el;
+            // (the preview has put it in its slot already; where it came from is what was kept at the start)
+            const was = g.home0.parent, wasFirst = g.home0.first, wasLast = g.home0.last;
             if (g.pos === "before") g.target.before(g.el); else if (g.pos === "after") g.target.after(g.el); else g.target.appendChild(g.el);
             setSelection([g.el]);
             // it settles into its slot from where it was let go
