@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not work as it should
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did and what you saw. A screenshot or a short screen recording helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps. If it needs a page, paste its HTML.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where are you running it
+      options:
+        - The live site
+        - The npm package (windcraft-editor)
+        - The demo (npm run demo)
+        - The full app on my own server
+        - The Figma plugin
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: Chrome 130, Safari 18, Firefox 132 ...
+    validations:
+      required: true
