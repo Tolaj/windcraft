@@ -55,8 +55,8 @@ async function existingPage(userId, { id, project, title }) {
 const hashOf = (html) => crypto.createHash("sha1").update(String(html)).digest("hex");
 
 /**
- * Makes (or brings up to date) the parts of a page: one "section" component per well-defined part (nav, hero, section, footer) and element
- * (form, button), see core/extract-parts.js, linked to the
+ * Makes (or brings up to date) the parts of a page: one "section" component per well-defined part (nav, hero, section, footer, see
+ * core/extract-parts.js; forms and buttons are listed by the project page's rules, not saved), linked to the
  * page, with the page's styles so each renders on its own. A page saved again: each section is matched to an old one by name, else by its
  * kind (hero, pricing...) and place (a hero whose heading changed is still the hero), then updated; new ones are added, ones no longer
  * there removed. A part someone changed by hand since it was made (its code no longer matches what was generated) keeps its code.
@@ -64,7 +64,7 @@ const hashOf = (html) => crypto.createHash("sha1").update(String(html)).digest("
 export async function syncSections(userId, page, { doc, baseTags = [], project, isNew = false }) {
     const sections = [], created = [];
     const assets = [...doc.links, ...doc.styles].join("\n");
-    const fresh = extractParts(doc.body).map((s, order) => buildDoc(userId, {
+    const fresh = extractParts(doc.body).filter((s) => s.part).map((s, order) => buildDoc(userId, {
         title: `${page.title}: ${s.name}`,
         description: `${s.name} (${s.kind}) from "${page.title}": ${s.reason}`,
         htmlCode: `${assets ? assets + "\n" : ""}${s.html}`,
@@ -73,7 +73,7 @@ export async function syncSections(userId, page, { doc, baseTags = [], project, 
     }));
     const old = !isNew ? await Component.find({ createdBy: userId, parent: page._id, kind: "section" }) : [];
     const kept = new Set();
-    const kindOf = (tags) => (tags || [])[(tags || []).length - 1]; // a part's last tag is its kind (nav, hero, section, footer, form, button)
+    const kindOf = (tags) => (tags || [])[(tags || []).length - 1]; // a part's last tag is its kind (nav, hero, section, footer)
     const byName = new Map(fresh.map((f) => [f, old.find((o) => o.title.toLowerCase() === f.title.toLowerCase())]));
     byName.forEach((o) => o && kept.add(o));
     for (const f of fresh) {
