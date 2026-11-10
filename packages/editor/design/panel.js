@@ -8,6 +8,7 @@
 //   classes-section.js: the Code tab below the element's code; controls.js, group-controls.js: the blocks they are made of
 import { html, render, useState, useEffect, useLayoutEffect, useRef } from "../vendor/preact-htm.js";
 import { UiContext } from "./panel-state.js";
+import { configError } from "../../core/theme.js";
 import { highlight, checkTags } from "./code-view.js";
 import { TextInput, Field } from "./controls.js";
 import { DesignTop } from "./design-tab.js";
@@ -225,10 +226,10 @@ function TailwindTab({ tw, actions }) {
         setBusy(false);
         setNote(res.ok ? { text: "Applied to this page." } : { text: res.message, bad: true });
     };
-    const bad = configErr(text);
+    const bad = configError(text);
     return html`<div class="sec"><div class="secb nopad">
         <p class="sub first">Tailwind config <span class="muted">v${tw.version}</span></p>
-        <p class="muted">Only this page uses these changes. It starts from the project's config; ${tw.changed.length ? html`changed on this page: <b>${tw.changed.join(", ")}</b>.` : "nothing is changed on this page yet."}</p>
+        <p class="muted">Only this page uses these changes. It starts from the project's config${tw.projectLink ? html` (<a href=${tw.projectLink} class="underline">edit the project's</a>)` : ""}; ${tw.changed.length ? html`changed on this page: <b>${tw.changed.join(", ")}</b>.` : "nothing is changed on this page yet."}</p>
         <textarea class="fi area" rows="22" wrap="off" spellcheck="false" style="font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.4;white-space:pre" value=${text} onInput=${(e) => { setText(e.target.value); setNote(null); }}></textarea>
         <p class="text-[11px] text-red-700">${bad || (note && note.bad ? note.text : "")}</p>
         <button type="button" class="primary" disabled=${busy || Boolean(bad)} onClick=${() => apply(text)}>Apply to this page</button>
@@ -236,7 +237,6 @@ function TailwindTab({ tw, actions }) {
         ${note && !note.bad && html`<p class="text-[11px] text-neutral-500">${note.text}</p>`}
     </div></div>`;
 }
-const configErr = (text) => { if (!String(text).trim()) return ""; try { const v = JSON.parse(text); return v && typeof v === "object" && !Array.isArray(v) ? "" : "It must be a JSON object."; } catch (e) { return `Not valid JSON: ${e.message}`; } };
 
 /** The row at the top: the tabs (or just "Page" when no element is selected) and the close button. */
 function Head({ page, canvas, tab, pageTab, actions }) {

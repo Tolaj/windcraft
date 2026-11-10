@@ -1,6 +1,7 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
-import { TAILWIND_VERSION, withDefaults, onlyChanges } from "@windcraft/core/tailwind-defaults.js";
+import { TAILWIND_VERSION, withDefaults } from "@windcraft/core/tailwind-defaults.js";
+import { configText, configStore, changedSections } from "@windcraft/core/config-scope.js";
 import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, configError, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
 import { extractParts } from "@windcraft/core/extract-parts.js";
@@ -414,7 +415,7 @@ function redrawPreviews() {
 }
 let cfgSection = "tailwind";
 // the editor opens with Tailwind's defaults filled in, so they can be edited right away; only what differs from them is saved
-const shownConfig = () => { let c = {}; try { c = theme.config ? JSON.parse(theme.config) : {}; } catch { /* nothing saved */ } return JSON.stringify(withDefaults(c), null, 2); };
+const shownConfig = () => configText(theme.config);
 function renderTheme() {
     const strip = (scale) => Object.values(scale).map((c) => `<i style="background:${c}"></i>`).join("");
     $("themePanel").innerHTML = `<style>.sw{display:flex;height:14px;border-radius:4px;overflow:hidden;margin-top:6px}.sw i{flex:1}.chip{cursor:pointer;border:1px solid #e5e5e5;border-radius:6px;padding:4px 8px;background:#fff}.chip.on{border-color:#111;background:#f5f5f5;font-weight:600}</style>
@@ -471,7 +472,7 @@ function renderTheme() {
     $("thSave").addEventListener("click", async () => {
         const bad = configError($("thConfig").value);
         if (bad) { $("thConfigMsg").textContent = bad; return; }
-        theme = normalizeTheme({ ...theme, font: $("thFont").value, config: onlyChanges(JSON.parse($("thConfig").value.trim() || "{}")) });
+        theme = normalizeTheme({ ...theme, font: $("thFont").value, config: configStore($("thConfig").value).stored });
         $("thConfig").value = shownConfig(); gutter();
         $("thMsg").textContent = "Saving…";
         try {
@@ -501,40 +502,8 @@ function renderPartDetails(x) {
         <p class="mt-3 text-neutral-400">Found by the rules, so it changes when the page does. To keep one, copy it into a new design.</p>`;
 }
 
-let detTab = "details"; // a selected page's panel: its details, or its own Tailwind config
-const detTabs = (it) => `<div class="-mx-3 -mt-3 mb-3 flex border-b border-neutral-200">${[["details", "Details"], ["tw", "Tailwind config"]].map(([k, t]) => `<button type="button" data-dettab="${k}" class="flex-1 border-b-2 px-2 py-2 text-xs ${detTab === k ? "border-neutral-900 font-semibold text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}">${t}</button>`).join("")}</div>`;
-const projectConfig = () => { try { return project.theme && project.theme.config ? JSON.parse(project.theme.config) : {}; } catch { return {}; } };
-/** A page's own Tailwind config: the project's, with Tailwind's defaults under it, ready to edit; only what differs from the project's is saved on the page. */
-function renderPageConfig(it) {
-    let mine = {}; try { mine = it.twConfig ? JSON.parse(it.twConfig) : {}; } catch { /* none */ }
-    const shown = JSON.stringify(withDefaults(JSON.parse(pageTheme(project.theme, it.twConfig).config || "{}")), null, 2);
-    $("details").innerHTML = detTabs(it) + `<p class="text-neutral-500">This page's own Tailwind config. It starts from the project's config (Config tab); change a value and only that page uses it.</p>
-        <p class="mt-1 text-neutral-500">${Object.keys(mine).length ? `<b class="text-neutral-800">${Object.keys(mine).length}</b> section${Object.keys(mine).length === 1 ? "" : "s"} changed on this page: ${esc(Object.keys(mine).join(", "))}.` : "Nothing changed on this page yet."}</p>
-        <textarea id="pgConfig" wrap="off" class="fi area mono mt-2" style="height:58vh;font-size:11px;line-height:1.4;white-space:pre" spellcheck="false">${esc(shown)}</textarea>
-        <p id="pgMsg" class="mt-1 min-h-[1rem] text-red-700"></p>
-        <div class="mt-1 flex gap-2"><button type="button" id="pgSave" class="h-8 flex-1 rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Apply to this page</button><button type="button" id="pgReset" class="h-8 rounded-md border border-neutral-200 px-3 text-xs hover:bg-neutral-50" title="Use the project's config">Reset</button></div>`;
-    $("pgConfig").addEventListener("input", (e) => { $("pgMsg").textContent = configError(e.target.value); });
-    const apply = async (twConfig) => {
-        $("pgMsg").textContent = "";
-        const ok = await saveField({ twConfig }, (x) => { x.twConfig = twConfig; });
-        if (!ok) return;
-        const entry = wraps.get(it.id); if (entry && entry.iframe) entry.iframe.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it), fixedScreen: true, theme: themeFor(it) });
-        sectionsOf(it.id).forEach((s) => { const e2 = wraps.get(s.id); if (e2 && e2.iframe) e2.iframe.srcdoc = buildPreviewDocument(parseComponentSource(s.htmlCode), { width: widthOf(s), fixedScreen: true, theme: themeFor(s) }); });
-        renderPageConfig(it);
-    };
-    $("pgSave").addEventListener("click", () => {
-        const bad = configError($("pgConfig").value);
-        if (bad) { $("pgMsg").textContent = bad; return; }
-        const changes = onlyChanges(JSON.parse($("pgConfig").value.trim() || "{}"), withDefaults(projectConfig())); // against the project's, not Tailwind's
-        apply(Object.keys(changes).length ? JSON.stringify(changes) : "");
-    });
-    $("pgReset").addEventListener("click", () => apply(""));
-}
-
 function renderDetails() {
     const el = $("details");
-    const wide = detTab === "tw" && selectedId && !extractedById(selectedId) && byId(selectedId) && byId(selectedId).kind !== "section";
-    $("detailsAside").classList.toggle("w-72", !wide); $("detailsAside").classList.toggle("w-[28rem]", Boolean(wide));
     const part = selectedId && extractedById(selectedId);
     if (part) return renderPartDetails(part);
     const it = selectedId && byId(selectedId);
@@ -548,14 +517,14 @@ function renderDetails() {
             <p class="mt-4 text-neutral-500">Click a frame to see its details. Drag frames to arrange them. Double-click a frame to open it in the editor.</p>`;
         return;
     }
-    if (it.kind !== "section" && detTab === "tw") return renderPageConfig(it);
     const secs = sectionsOf(it.id);
-    el.innerHTML = (it.kind === "section" ? "" : detTabs(it)) + `<div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${it.kind}</span><span class="font-mono text-[10px] text-neutral-400">v${it.version}</span></div>
+    el.innerHTML = `<div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${it.kind}</span><span class="font-mono text-[10px] text-neutral-400">v${it.version}</span></div>
         <p class="mt-2 text-sm font-semibold text-neutral-900">${esc(it.title)}</p>
         <p class="mt-1 text-neutral-500">${esc(it.description || "")}</p>
         ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}
         ${secs.length ? `<p class="mb-1 mt-4 font-semibold text-neutral-700">Sections</p>${secs.map((s) => `<button type="button" data-pick="${s.id}" class="block w-full truncate rounded px-1.5 py-1 text-left hover:bg-neutral-100">${esc(s.title)}</button>`).join("")}` : ""}
         <button type="button" id="focusBtn" class="mt-4 h-8 w-full rounded-md border border-neutral-200 text-xs hover:bg-neutral-50">Zoom to this frame (Shift+2)</button>
+        ${it.kind === "section" ? "" : `<p class="mt-3 text-neutral-500">Tailwind config: ${changedSections(it.twConfig).length ? `<b class="text-neutral-800">${esc(changedSections(it.twConfig).join(", "))}</b> changed on this page` : "same as the project's"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>`}
         <a href="/design/${it.id}" class="mt-2 flex h-8 items-center justify-center rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Open in editor</a>
         ${it.kind === "section" ? "" : `<label class="mt-3 block text-neutral-500">Category <span class="text-neutral-400">(a pricing page is a page; every other category is a component)</span></label>
         <select id="detCat" class="fi">${(data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((c) => `<option value="${esc(c.slug)}" ${it.category === c.slug ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>
@@ -574,7 +543,6 @@ function renderDetails() {
 }
 
 function select(id) {
-    if (id !== selectedId) detTab = "details";
     selectedId = id;
     const part = extractedById(id); // a part the rules found: its page is the one marked on the board
     wraps.forEach((entry, key) => entry.wrap.classList.toggle("sel", key === (part && tab !== "component" ? part.pageId : id)));
@@ -632,8 +600,6 @@ document.addEventListener("change", async (e) => {
 });
 
 document.addEventListener("click", async (e) => {
-    const dt = e.target.closest("[data-dettab]");
-    if (dt) { detTab = dt.dataset.dettab; renderDetails(); return; }
     const pick = e.target.closest("[data-pick]");
     if (pick) { const part = extractedById(pick.dataset.pick); select(pick.dataset.pick); focusItem(part && tab !== "component" ? part.pageId : pick.dataset.pick); return; }
     if (e.target.dataset.gopage) { select(e.target.dataset.gopage); focusItem(e.target.dataset.gopage); return; }
@@ -684,6 +650,7 @@ renderOutline();
 renderDetails();
 applyView();
 fitAll();
+if (location.hash === "#config") { tab = "theme"; renderOutline(); renderTheme(); } // the editor links here
 
 // ── Share link: anyone with it can look at the project and copy its code (no account, nothing editable) ──────────────
 (() => {

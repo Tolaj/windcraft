@@ -6,8 +6,9 @@ import { checkTags } from "../code-view.js";
 import { groupOf, variantOf, twShown, hasScale, twValue, fromPx, tokenFor } from "../../../core/prop-tailwind.js";
 import { normalizeValue } from "../css-props.js";
 import { host } from "../host.js";
-import { pageTheme, configError } from "../../../core/theme.js";
-import { withDefaults, onlyChanges, TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
+import { pageTheme } from "../../../core/theme.js";
+import { TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
+import { configText, configStore, changedSections } from "../../../core/config-scope.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
@@ -85,11 +86,9 @@ const panelActions = {
     setPageTab: (pageTab) => panelStore.set({ pageTab }),
     // the Tailwind config tab: this page's own config over the project's (only what differs from the project's is stored on the page)
     twApply: async (text) => {
-        const bad = configError(text);
-        if (bad) return { ok: false, message: bad };
+        const { stored: tw, error } = configStore(text, data.projectTheme && data.projectTheme.config); // against the project's config, not Tailwind's
+        if (error) return { ok: false, message: error };
         if (!data.id) return { ok: false, message: "Save the page first." };
-        const changes = onlyChanges(JSON.parse(String(text).trim() || "{}"), withDefaults(projectConfig()));
-        const tw = Object.keys(changes).length ? JSON.stringify(changes) : "";
         try { await host.updateComponent(data.id, { twConfig: tw }); } catch (err) { return { ok: false, message: err.message || "Could not save it" }; }
         data.twConfig = tw; const d = docs.get(S.curKey); if (d) d.meta.twConfig = tw;
         setPreviewTheme(pageTheme(data.projectTheme, tw));
@@ -162,12 +161,11 @@ const bodyActions = Object.fromEntries(Object.entries(panelActions).map(([k, f])
     S.selected = S.pageBody;
     try { return f(...a); } finally { S.selected = null; }
 }]));
-const projectConfig = () => { try { return data.projectTheme && data.projectTheme.config ? JSON.parse(data.projectTheme.config) : {}; } catch { return {}; } };
 /** What the Tailwind config tab shows: this page's effective config (the project's, with Tailwind's defaults under it) and what the page itself changes. */
 function twView() {
-    let mine = {}; try { mine = data.twConfig ? JSON.parse(data.twConfig) : {}; } catch { /* none */ }
-    const text = JSON.stringify(withDefaults(JSON.parse(pageTheme(data.projectTheme, data.twConfig).config || "{}")), null, 2);
-    return { key: `${data.id}:${data.twConfig || ""}`, text, changed: Object.keys(mine), version: TAILWIND_VERSION, saved: Boolean(data.id) };
+    const text = configText(data.projectTheme && data.projectTheme.config, data.twConfig || "");
+    const projectLink = host.projectUrl && data.project ? `${host.projectUrl(data.project.id)}#config` : "";
+    return { key: `${data.id}:${data.twConfig || ""}`, text, changed: changedSections(data.twConfig), version: TAILWIND_VERSION, saved: Boolean(data.id), projectLink };
 }
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
 export function renderInspector() {

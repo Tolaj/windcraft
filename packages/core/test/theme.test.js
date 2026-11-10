@@ -63,3 +63,18 @@ test("a page's theme is the project's with the page's own config laid over it", 
     assert.deepEqual(pageTheme(proj, ""), normalizeTheme(proj));
     assert.deepEqual(pageTheme(proj, "{bad"), normalizeTheme(proj));
 });
+
+import { configText, configStore, changedSections } from "../config-scope.js";
+test("config levels: what an editor shows and what it stores", () => {
+    const project = JSON.stringify({ screens: { md: "800px" } });
+    assert.equal(JSON.parse(configText(project)).screens.md, "800px");
+    assert.equal(JSON.parse(configText(project, "")).screens.md, "800px", "a page with no changes shows the project's");
+    assert.equal(JSON.parse(configText(project, JSON.stringify({ screens: { lg: "1100px" } }))).screens.lg, "1100px");
+    const shown = configText(project, "");
+    assert.deepEqual(configStore(shown, project), { stored: "" }, "nothing changed on the page: nothing stored");
+    const edited = shown.replace('"lg": "1024px"', '"lg": "1100px"');
+    assert.deepEqual(JSON.parse(configStore(edited, project).stored), { screens: { lg: "1100px" } }, "a page stores only its difference from the project");
+    assert.deepEqual(JSON.parse(configStore(shown).stored), { screens: { md: "800px" } }, "the project level stores its difference from Tailwind's defaults");
+    assert.match(configStore("{bad").error, /Not valid JSON/);
+    assert.deepEqual(changedSections(JSON.stringify({ screens: {}, colors: {} })), ["screens", "colors"]);
+});
