@@ -239,17 +239,17 @@ function TailwindTab({ tw, actions }) {
 const configErr = (text) => { if (!String(text).trim()) return ""; try { const v = JSON.parse(text); return v && typeof v === "object" && !Array.isArray(v) ? "" : "It must be a JSON object."; } catch (e) { return `Not valid JSON: ${e.message}`; } };
 
 /** The row at the top: the tabs (or just "Page" when no element is selected) and the close button. */
-function Head({ page, canvas, tab, actions }) {
+function Head({ page, canvas, tab, pageTab, actions }) {
     return html`<div class="itabs">
         ${canvas ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">Canvas</span>`
-        : page ? html`<button type="button" class=${tab !== "tw" ? "on" : ""} onClick=${() => actions.setTab("design")}>Page</button><button type="button" class=${tab === "tw" ? "on" : ""} onClick=${() => actions.setTab("tw")}>Tailwind config</button>`
+        : page ? html`<button type="button" class=${pageTab !== "tw" ? "on" : ""} onClick=${() => actions.setPageTab("page")}>Page</button><button type="button" class=${pageTab === "tw" ? "on" : ""} onClick=${() => actions.setPageTab("tw")}>Tailwind config</button>`
         : TABS.filter(([k]) => k !== "ai" || actions.canAI).map(([k, label]) => html`<button type="button" class=${tab === k ? "on" : ""} onClick=${() => actions.setTab(k)}>${label}</button>`)}
         <button type="button" title="Close" style="padding:0" class="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-500 hover:bg-neutral-100" onClick=${actions.closePanel}>${CLOSE}</button>
     </div>`;
 }
 
 /** The panel: its head, then what the view says to show. The Design tab's parts are keyed by the element: another one gets fresh fields, so nothing typed for one can land on the next. */
-function Panel({ view, tab, actions }) {
+function Panel({ view, tab, pageTab, actions }) {
     let body;
     if (view.tw) body = html`<${TailwindTab} key=${view.tw.key} tw=${view.tw} actions=${actions} />`;
     else if (view.design) {
@@ -266,10 +266,10 @@ function Panel({ view, tab, actions }) {
     else if (view.page) body = html`<${PagePanel} page=${view.page} actions=${actions} />${view.pageBody && html`
         <div class="pagehead"><b>Page styling</b><span>Applies to the whole page (its body), not an element. Click an element to style it.</span></div>
         <${LayoutSection} key="page-l" s=${view.pageBody.s} actions=${view.pageBody.actions} /><${SpacingSection} key="page-s" s=${view.pageBody.s} actions=${view.pageBody.actions} /><${Styles} k="page" page s=${view.pageBody.s} actions=${view.pageBody.actions} />`}`;
-    return html`<${Head} page=${view.page} canvas=${view.canvas} tab=${tab} actions=${actions} />${body}`;
+    return html`<${Head} page=${view.page} canvas=${view.canvas} tab=${tab} pageTab=${pageTab} actions=${actions} />${body}`;
 }
 
 /** Draws the panel into its element. `view` comes from inspectorView (panel-model.js), `ui` is the panel's state (panel-state.js) plus what is worked out at the time of drawing. */
 export function renderPanel(container, view, actions, ui) {
-    render(html`<${UiContext.Provider} value=${ui}><${Panel} view=${view} tab=${ui.tab} actions=${actions} /></${UiContext.Provider}>`, container);
+    render(html`<${UiContext.Provider} value=${ui}><${Panel} view=${view} tab=${ui.tab} pageTab=${ui.pageTab} actions=${actions} /></${UiContext.Provider}>`, container);
 }

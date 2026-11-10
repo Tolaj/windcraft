@@ -82,6 +82,7 @@ const panelActions = {
     remove: () => { if (S.selected) cmd({ cmd: "remove", path: S.selected.path }); },
     setTag: (tag) => { if (S.selected) cmd({ cmd: "setTag", path: S.selected.path, tag }); },
     setTab: (tab) => panelStore.set({ tab }),
+    setPageTab: (pageTab) => panelStore.set({ pageTab }),
     // the Tailwind config tab: this page's own config over the project's (only what differs from the project's is stored on the page)
     twApply: async (text) => {
         const bad = configError(text);
@@ -180,7 +181,7 @@ export function renderInspector() {
         return;
     }
     const view = inspectorView(sel, sel ? null : pageInfo(), elementCode);
-    if (ui.tab === "tw") view.tw = twView();
+    if (view.page ? ui.pageTab === "tw" : ui.tab === "tw") view.tw = twView();
     if (view.page && S.pageBody) view.pageBody = { s: S.pageBody, actions: bodyActions };
     renderPanel(insp, view, panelActions, ui);
     insp.scrollTop = top;
