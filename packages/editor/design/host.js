@@ -12,6 +12,7 @@
  * @property {(projectId: string, positions: object[]) => void} saveLayoutOnExit   the same, while the page is closing
  * @property {(body: object, onText?: (text: string) => void) => Promise<string>} [generate]   the AI drafts a page; resolves to its HTML. Omit it and the editor shows no AI box or AI tab
  * @property {(id: string | null) => void} showDesign   the address now shows this saved design (null: an unsaved one)
+ * @property {(projectId: string, theme: object) => Promise<object>} [saveProjectTheme]   saves the project's theme (its plugins live there) and resolves to the theme as kept; omit it and the plugins are shown but not changed
  * @property {(projectId: string) => string} [projectUrl]   where a project's own page is (the project name links there); omit for none
  * @property {(where: { projectId: string, designId: string }) => string} [previewUrl]   the address of the prototype page for a saved design (the play button opens it in its own tab); omit it and Preview opens over the editor instead
  * @property {(id: string) => void} openDesign   go to this design (loads the page again)

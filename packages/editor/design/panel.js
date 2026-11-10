@@ -143,8 +143,9 @@ function AiTab({ path, outer, actions }) {
 const WIREFRAME_TAGS = new Set(["div", "section", "main", "header", "footer", "aside", "nav", "article", "form", "li", "figure"]);
 /** The card that opens the wireframe popup: blank sections and page layouts to put in the page, or inside the selected box. */
 const WF_ICON = html`<svg class="wfico" viewBox="0 0 36 26" fill="currentColor"><rect x="0.5" y="0.5" width="35" height="25" rx="3" fill="none" stroke="currentColor" /><rect x="3" y="3" width="30" height="4" rx="1" /><rect x="3" y="9" width="9" height="14" rx="1" /><rect x="14" y="9" width="19" height="14" rx="1" opacity=".55" /></svg>`;
+const PLUG_ICON = html`<svg class="wfico" viewBox="0 0 36 26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="0.8" y="0.8" width="34.4" height="24.4" rx="3" /><path d="M14 9v3M22 9v3M11 12h14v3a7 7 0 0 1-14 0z" transform="translate(0 -1)" /><path d="M18 21v2" /></svg>`;
 const WF_ARROW = html`<svg class="wfarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6" /></svg>`;
-const WireframeRow = ({ onOpen, label, hint }) => html`<div class="sec wfsec"><button type="button" class="wfbtn" onClick=${onOpen}>${WF_ICON}
+const WireframeRow = ({ onOpen, label, hint, icon }) => html`<div class="sec wfsec"><button type="button" class="wfbtn" onClick=${onOpen}>${icon || WF_ICON}
     <span class="min-w-0"><span class="wft">${label}</span><span class="wfs">${hint}</span></span>${WF_ARROW}</button></div>`;
 
 /** The canvas's own panel (nothing selected, as in Figma): the project, its frames, the canvas background and dot grid. */
@@ -228,9 +229,8 @@ function TailwindTab({ tw, actions }) {
     };
     const bad = configError(text);
     return html`<div class="sec" style="display:flex;flex-direction:column;height:calc(100% - 44px);min-height:360px"><div class="secb nopad" style="display:flex;flex-direction:column;flex:1;min-height:0">
-        <p class="sub first">Plugins</p>
-        ${tw.plugins.length ? html`<div class="flex flex-wrap" style="gap:4px;margin-bottom:4px">${tw.plugins.map((n) => html`<span style="background:#f0f0f0;border-radius:10px;padding:1px 8px;font-size:10.5px">${n}</span>`)}</div>` : html`<p class="muted">None on in this project.</p>`}
-        <p class="muted">${tw.pluginsLink ? html`<a href=${tw.pluginsLink} class="underline">Manage plugins in the project</a>. ` : ""}They apply to every page.</p>
+        ${tw.canManage ? html`<${WireframeRow} onOpen=${actions.openPlugins} label=${tw.plugins.length ? `Plugins · ${tw.plugins.length} on` : "Plugins"} hint=${tw.plugins.length ? tw.plugins.join(", ") : "Forms, typography, Preline and more"} icon=${PLUG_ICON} />`
+            : tw.plugins.length ? html`<p class="sub first">Plugins</p><p class="muted">${tw.plugins.join(", ")}. They apply to every page.</p>` : null}
         <p class="sub">Tailwind config <span class="muted">v${tw.version}</span></p>
         <p class="muted">Only this page uses these changes. It starts from the project's config${tw.projectLink ? html` (<a href=${tw.projectLink} class="underline">edit the project's</a>)` : ""}; ${tw.changed.length ? html`changed on this page: <b>${tw.changed.join(", ")}</b>.` : "nothing is changed on this page yet."}</p>
         <textarea class="fi area" wrap="off" spellcheck="false" style="flex:1;min-height:0;resize:none;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.4;white-space:pre" value=${text} onInput=${(e) => { setText(e.target.value); setNote(null); }}></textarea>
