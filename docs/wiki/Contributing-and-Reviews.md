@@ -25,7 +25,7 @@ Open an issue with the steps, what you expected, what happened and your browser.
 
 ## How pull requests are reviewed
 
-A pull request gets a reply, and a decision with reasons.
+Maintainers review in their own time. Here is what to expect, so nothing is a surprise.
 
 1. **Acknowledged** in the thread.
 2. **Checked by a maintainer**: the problem is reproduced, the change is tried locally with the tests and the type check, and it is read against the guidelines above.

@@ -283,7 +283,7 @@ Windcraft is MIT licensed and open to everyone. You do not need to ask first.
 3. **Check:** `npm test` and `npm run typecheck`. A bug fix in `packages/core` or the Figma converter should come with a test that fails without it.
 4. **Open a pull request** into `main` and say what you changed and how you checked it.
 
-A first-time pull request gets a reply and a decision with reasons, including when the answer is "not now". [CONTRIBUTING.md](CONTRIBUTING.md) and the wiki's [Contributing and Reviews](https://github.com/Tolaj/windcraft/wiki/Contributing-and-Reviews) have the setup, how reviews work and the project's principles (the output stays real HTML and Tailwind; the Figma converter uses fixed rules, no LLM).
+[CONTRIBUTING.md](CONTRIBUTING.md) and the wiki's [Contributing and Reviews](https://github.com/Tolaj/windcraft/wiki/Contributing-and-Reviews) have the setup, how reviews work and the project's principles (the output stays real HTML and Tailwind; the Figma converter uses fixed rules, no LLM).
 
 **Questions, bugs, ideas:** [open an issue](https://github.com/Tolaj/windcraft/issues/new). Steps, what you expected, what happened and your browser; a screenshot or a short recording helps a lot.
 
