@@ -7,7 +7,7 @@ import FigmaDraft from "../models/figmaDraft.model.js";
 import { figmaSourceInfo, updateFromFigma } from "../services/figma-update.service.js";
 import { publicBase } from "../utils/publicUrl.js";
 import { resolveProject } from "../services/project.service.js";
-import { normalizeTheme } from "@windcraft/core/theme.js";
+import { normalizeTheme, pageTheme } from "@windcraft/core/theme.js";
 
 const router = express.Router();
 
@@ -66,7 +66,7 @@ router.get("/:id", async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return notFound(req, res);
     try {
         const find = () => Component.findOne({ _id: req.params.id, createdBy: req.session.user.id })
-            .select("title htmlCode version category description tags isPublished useAsReference project kind parent board group frameW")
+            .select("title htmlCode version category description tags isPublished useAsReference project kind parent board group frameW twConfig")
             .lean();
         let c = await retry(find);
         if (!c) { await wait(600); c = await retry(find); } // a design saved a moment ago may not be readable everywhere yet
@@ -82,7 +82,7 @@ router.get("/:id", async (req, res) => {
         })) : [];
         const proj = c.project ? await optional("the project theme", () => Project.findOne({ _id: c.project, owner: req.session.user.id }).select("theme").lean(), null) : null;
         renderEditor(res, {
-            theme: normalizeTheme(proj && proj.theme),
+            theme: pageTheme(proj && proj.theme, c.twConfig),
             project: c.project ? projects.find((p) => p.id === String(c.project)) || null : null, projects,
             figmaSource: await optional("the Figma data", () => figmaSourceInfo(c._id), null),
             id: String(c._id), title: c.title, group: c.group || "", frameW: c.frameW || null, version: c.version || 1, htmlCode: c.htmlCode,

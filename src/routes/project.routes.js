@@ -55,7 +55,7 @@ projectPages.get("/:id", async (req, res) => {
         if (!project) throw new Error("missing");
         const active = await getActiveProject(req.session.user.id);
         const items = await Component.find({ createdBy: req.session.user.id, project: project._id })
-            .select("title description kind parent order group tags version htmlCode board useAsReference updatedAt")
+            .select("title description kind parent order group tags version htmlCode board useAsReference twConfig updatedAt")
             .sort("order createdAt")
             .lean();
         const data = {
@@ -63,7 +63,7 @@ projectPages.get("/:id", async (req, res) => {
             categories: Object.entries(Object.entries(categories).reduce((g, [slug, c]) => ((g[c.group] ||= []).push({ slug, name: c.name }), g), {})).map(([group, list]) => ({ group, items: list })), // for each design's category
             projects: (await Project.find({ owner: req.session.user.id }).select("name").sort("name").lean()).map((x) => ({ id: String(x._id), name: x.name })), // for "Move to project"
             items: items.map((c) => ({
-                id: String(c._id), title: c.title, useAsReference: c.useAsReference !== false, group: c.group || "", description: c.description, kind: c.kind, parent: c.parent ? String(c.parent) : null,
+                id: String(c._id), title: c.title, useAsReference: c.useAsReference !== false, twConfig: c.twConfig || "", group: c.group || "", description: c.description, kind: c.kind, parent: c.parent ? String(c.parent) : null,
                 version: c.version || 1, tags: c.tags || [], htmlCode: c.htmlCode, frameW: c.frameW || null, board: c.board && Number.isFinite(c.board.x) ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) } : null, updatedAt: c.updatedAt,
             })),
         };

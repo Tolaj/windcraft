@@ -97,7 +97,7 @@ export const themeMarkup = () => (previewTheme ? themeHead(previewTheme) : "");
 
 /** Builds a complete, standalone document for an iframe's srcdoc. */
 /** `fixedScreen`: the frame follows its content's height, so screen-sized content gets the device's screen height (screenHeightCss). */
-export function buildPreviewDocument(parsed, { width, fixedScreen = false } = {}) {
+export function buildPreviewDocument(parsed, { width, fixedScreen = false, theme = null } = {}) {
     const head = [
         '<meta charset="utf-8">',
         `<meta name="viewport" content="width=${width || "device-width"}, initial-scale=1">`,
@@ -105,7 +105,7 @@ export function buildPreviewDocument(parsed, { width, fixedScreen = false } = {}
 
     if (!parsed.hasTailwindScript) {
         head.push('<script src="https://cdn.tailwindcss.com"><\/script>');
-        if (previewTheme) head.push(themeMarkup());
+        if (theme || previewTheme) head.push(theme ? themeHead(theme) : themeMarkup()); // `theme`: this one page's own (the project's with the page's config over it)
     }
     head.push(...parsed.links);
     parsed.styles.forEach((s) => {

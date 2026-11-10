@@ -50,6 +50,14 @@ export function configError(text) {
 const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
 const deepMerge = (a, b) => { const out = { ...a }; for (const k of Object.keys(b)) { if (k === "__proto__" || k === "constructor" || k === "prototype") continue; out[k] = isObj(a[k]) && isObj(b[k]) ? deepMerge(a[k], b[k]) : b[k]; } return out; };
 
+/** The theme for one page: the project's theme with the page's own Tailwind config (changes only, as stored) laid over the project's. */
+export function pageTheme(theme, pageConfig) {
+    const t = normalizeTheme(theme);
+    const mine = cleanConfig(pageConfig);
+    if (!mine) return t;
+    return normalizeTheme({ ...t, config: JSON.stringify(deepMerge(t.config ? JSON.parse(t.config) : {}, JSON.parse(mine))) });
+}
+
 /** A theme from anything: every field checked, anything invalid replaced by the default. */
 export function normalizeTheme(input) {
     const t = input && typeof input === "object" ? input : {};

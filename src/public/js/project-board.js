@@ -1,7 +1,7 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
 import { TAILWIND_VERSION, withDefaults, onlyChanges } from "@windcraft/core/tailwind-defaults.js";
-import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, configError, brandScale, grayScale } from "@windcraft/core/theme.js";
+import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, configError, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
 import { extractParts } from "@windcraft/core/extract-parts.js";
 import { parseDocument } from "@windcraft/core/split-sections.js";
@@ -60,11 +60,11 @@ function compBoard() {
     const key = found.map((x) => x.id).join();
     if (key === compKey) return compList;
     compKey = key;
-    const mk = (id, title, kind, html, assets) => {
+    const mk = (id, title, kind, html, assets, pageOf) => {
         const [w, h] = SIZES[kind] || [1280, 560];
-        return { id, title, kind: "frame", chip: kind, version: 1, board: { w, h }, htmlCode: `${assets}\n<div style="box-sizing:border-box;min-height:${h}px;display:flex;align-items:center;justify-content:center;padding:24px"><div style="width:100%;max-width:${w - 48}px;${["button", "form"].includes(kind) ? "width:auto" : ""}">${html}</div></div>` };
+        return { id, title, kind: "frame", chip: kind, pageOf, version: 1, board: { w, h }, htmlCode: `${assets}\n<div style="box-sizing:border-box;min-height:${h}px;display:flex;align-items:center;justify-content:center;padding:24px"><div style="width:100%;max-width:${w - 48}px;${["button", "form"].includes(kind) ? "width:auto" : ""}">${html}</div></div>` };
     };
-    const all = [...found.map((x) => mk(x.id, x.name.replace(/^(Button|Form): /, ""), x.kind, x.html, x.assets))];
+    const all = [...found.map((x) => mk(x.id, x.name.replace(/^(Button|Form): /, ""), x.kind, x.html, x.assets, x.pageId))];
     compList = all;
     return compList;
 }
@@ -72,6 +72,8 @@ const boardItems = () => (tab === "component" ? compBoard() : items);
 const frameById = (id) => boardItems().find((i) => i.id === id);
 let builtFor = "page";
 const widthOf = (it) => (it.board && it.board.w) || it.frameW || FRAME_W;
+// a page's own Tailwind config sits over the project's; a section or a found part uses its page's
+const themeFor = (it) => { const owner = it.kind === "section" ? byId(it.parent) || it : it.pageOf ? byId(it.pageOf) || it : it; return pageTheme(project.theme, owner.twConfig); };
 const heightOf = (it) => it.kind === "frame" ? Math.max(it.board.h, Math.min(heights[it.id] || 0, 3000)) : (it.board && it.board.h) || heights[it.id] || (it.kind === "section" ? SEC_H : PAGE_H);
 
 function computeLayout() {
@@ -160,7 +162,7 @@ function mount(id) {
     f.setAttribute("tabindex", "-1");
     f.title = it.title;
     f.style.cssText = `position:absolute;left:0;top:0;width:${widthOf(it)}px;height:100%;border:0;pointer-events:none;background:#fff;`;
-    f.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true });
+    f.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true, theme: themeFor(it) });
     entry.frame.appendChild(f);
     entry.iframe = f;
 }
@@ -407,7 +409,7 @@ let theme = normalizeTheme(project.theme);
 function redrawPreviews() {
     wraps.forEach((entry, id) => {
         const it = byId(id);
-        if (entry.iframe && it) entry.iframe.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true });
+        if (entry.iframe && it) entry.iframe.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true, theme: themeFor(it) });
     });
 }
 let cfgSection = "tailwind";
@@ -499,8 +501,40 @@ function renderPartDetails(x) {
         <p class="mt-3 text-neutral-400">Found by the rules, so it changes when the page does. To keep one, copy it into a new design.</p>`;
 }
 
+let detTab = "details"; // a selected page's panel: its details, or its own Tailwind config
+const detTabs = (it) => `<div class="-mx-3 -mt-3 mb-3 flex border-b border-neutral-200">${[["details", "Details"], ["tw", "Tailwind config"]].map(([k, t]) => `<button type="button" data-dettab="${k}" class="flex-1 border-b-2 px-2 py-2 text-xs ${detTab === k ? "border-neutral-900 font-semibold text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}">${t}</button>`).join("")}</div>`;
+const projectConfig = () => { try { return project.theme && project.theme.config ? JSON.parse(project.theme.config) : {}; } catch { return {}; } };
+/** A page's own Tailwind config: the project's, with Tailwind's defaults under it, ready to edit; only what differs from the project's is saved on the page. */
+function renderPageConfig(it) {
+    let mine = {}; try { mine = it.twConfig ? JSON.parse(it.twConfig) : {}; } catch { /* none */ }
+    const shown = JSON.stringify(withDefaults(JSON.parse(pageTheme(project.theme, it.twConfig).config || "{}")), null, 2);
+    $("details").innerHTML = detTabs(it) + `<p class="text-neutral-500">This page's own Tailwind config. It starts from the project's config (Config tab); change a value and only that page uses it.</p>
+        <p class="mt-1 text-neutral-500">${Object.keys(mine).length ? `<b class="text-neutral-800">${Object.keys(mine).length}</b> section${Object.keys(mine).length === 1 ? "" : "s"} changed on this page: ${esc(Object.keys(mine).join(", "))}.` : "Nothing changed on this page yet."}</p>
+        <textarea id="pgConfig" wrap="off" class="fi area mono mt-2" style="height:58vh;font-size:11px;line-height:1.4;white-space:pre" spellcheck="false">${esc(shown)}</textarea>
+        <p id="pgMsg" class="mt-1 min-h-[1rem] text-red-700"></p>
+        <div class="mt-1 flex gap-2"><button type="button" id="pgSave" class="h-8 flex-1 rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Apply to this page</button><button type="button" id="pgReset" class="h-8 rounded-md border border-neutral-200 px-3 text-xs hover:bg-neutral-50" title="Use the project's config">Reset</button></div>`;
+    $("pgConfig").addEventListener("input", (e) => { $("pgMsg").textContent = configError(e.target.value); });
+    const apply = async (twConfig) => {
+        $("pgMsg").textContent = "";
+        const ok = await saveField({ twConfig }, (x) => { x.twConfig = twConfig; });
+        if (!ok) return;
+        const entry = wraps.get(it.id); if (entry && entry.iframe) entry.iframe.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it), fixedScreen: true, theme: themeFor(it) });
+        sectionsOf(it.id).forEach((s) => { const e2 = wraps.get(s.id); if (e2 && e2.iframe) e2.iframe.srcdoc = buildPreviewDocument(parseComponentSource(s.htmlCode), { width: widthOf(s), fixedScreen: true, theme: themeFor(s) }); });
+        renderPageConfig(it);
+    };
+    $("pgSave").addEventListener("click", () => {
+        const bad = configError($("pgConfig").value);
+        if (bad) { $("pgMsg").textContent = bad; return; }
+        const changes = onlyChanges(JSON.parse($("pgConfig").value.trim() || "{}"), withDefaults(projectConfig())); // against the project's, not Tailwind's
+        apply(Object.keys(changes).length ? JSON.stringify(changes) : "");
+    });
+    $("pgReset").addEventListener("click", () => apply(""));
+}
+
 function renderDetails() {
     const el = $("details");
+    const wide = detTab === "tw" && selectedId && !extractedById(selectedId) && byId(selectedId) && byId(selectedId).kind !== "section";
+    $("detailsAside").classList.toggle("w-72", !wide); $("detailsAside").classList.toggle("w-[28rem]", Boolean(wide));
     const part = selectedId && extractedById(selectedId);
     if (part) return renderPartDetails(part);
     const it = selectedId && byId(selectedId);
@@ -514,8 +548,9 @@ function renderDetails() {
             <p class="mt-4 text-neutral-500">Click a frame to see its details. Drag frames to arrange them. Double-click a frame to open it in the editor.</p>`;
         return;
     }
+    if (it.kind !== "section" && detTab === "tw") return renderPageConfig(it);
     const secs = sectionsOf(it.id);
-    el.innerHTML = `<div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${it.kind}</span><span class="font-mono text-[10px] text-neutral-400">v${it.version}</span></div>
+    el.innerHTML = (it.kind === "section" ? "" : detTabs(it)) + `<div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${it.kind}</span><span class="font-mono text-[10px] text-neutral-400">v${it.version}</span></div>
         <p class="mt-2 text-sm font-semibold text-neutral-900">${esc(it.title)}</p>
         <p class="mt-1 text-neutral-500">${esc(it.description || "")}</p>
         ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}
@@ -539,6 +574,7 @@ function renderDetails() {
 }
 
 function select(id) {
+    if (id !== selectedId) detTab = "details";
     selectedId = id;
     const part = extractedById(id); // a part the rules found: its page is the one marked on the board
     wraps.forEach((entry, key) => entry.wrap.classList.toggle("sel", key === (part && tab !== "component" ? part.pageId : id)));
@@ -596,6 +632,8 @@ document.addEventListener("change", async (e) => {
 });
 
 document.addEventListener("click", async (e) => {
+    const dt = e.target.closest("[data-dettab]");
+    if (dt) { detTab = dt.dataset.dettab; renderDetails(); return; }
     const pick = e.target.closest("[data-pick]");
     if (pick) { const part = extractedById(pick.dataset.pick); select(pick.dataset.pick); focusItem(part && tab !== "component" ? part.pageId : pick.dataset.pick); return; }
     if (e.target.dataset.gopage) { select(e.target.dataset.gopage); focusItem(e.target.dataset.gopage); return; }

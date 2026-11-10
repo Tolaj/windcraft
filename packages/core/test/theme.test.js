@@ -51,3 +51,15 @@ test("the editor shows the defaults with the project's changes over them; only t
     assert.deepEqual(onlyChanges(withDefaults({})), {}, "untouched defaults store nothing");
     assert.deepEqual(onlyChanges({ keyframes: { wiggle: { "50%": { opacity: "0.5" } } } }).keyframes.wiggle, { "50%": { opacity: "0.5" } });
 });
+
+import { pageTheme } from "../theme.js";
+test("a page's theme is the project's with the page's own config laid over it", () => {
+    const proj = { brand: "#0ea5e9", config: JSON.stringify({ colors: { accent: "#111111" }, screens: { md: "800px" } }) };
+    const t = pageTheme(proj, JSON.stringify({ colors: { accent: "#f97316" } }));
+    const c = JSON.parse(t.config);
+    assert.equal(c.colors.accent, "#f97316");
+    assert.equal(c.screens.md, "800px");
+    assert.equal(t.brand, "#0ea5e9");
+    assert.deepEqual(pageTheme(proj, ""), normalizeTheme(proj));
+    assert.deepEqual(pageTheme(proj, "{bad"), normalizeTheme(proj));
+});
