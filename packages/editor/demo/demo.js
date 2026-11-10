@@ -32,12 +32,14 @@ const host = {
     openDesign(docId) { location.href = `?design=${docId}`; },
 };
 
+// a project theme with two plugins on, to see the plugin chips in the Tailwind config tab
+const DEMO_PROJECT_THEME = { plugins: ["typography", "preline"] };
 const saved = read()[new URLSearchParams(location.search).get("design") || ""];
 const categories = [{ group: "Demo", items: [{ slug: "demo", name: "Demo" }] }]; // the Details dialog's category list: whatever the app has
 await mountEditor(document.getElementById("root"), {
     host,
     data: saved
-        ? { theme: pageTheme(undefined, saved.twConfig), twConfig: saved.twConfig || "", id: saved._id, title: saved.title, htmlCode: saved.htmlCode, version: saved.version, category: saved.category, description: saved.description, tags: String(saved.tags || "").split(",").filter(Boolean), categories }
+        ? { theme: pageTheme(DEMO_PROJECT_THEME, saved.twConfig), projectTheme: DEMO_PROJECT_THEME, twConfig: saved.twConfig || "", id: saved._id, title: saved.title, htmlCode: saved.htmlCode, version: saved.version, category: saved.category, description: saved.description, tags: String(saved.tags || "").split(",").filter(Boolean), categories }
         : { theme: new URLSearchParams(location.search).has("theme") ? { brand: "#e11d48", gray: "stone", font: "Poppins", radius: "xl" } : undefined, // ?theme: a project theme, to see it applied
             title: "My design", category: new URLSearchParams(location.search).has("blank") ? "" : "demo", description: "A demo design", categories }, // ?blank: a first save asks for details, as on a new design
 });

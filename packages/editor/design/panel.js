@@ -228,7 +228,10 @@ function TailwindTab({ tw, actions }) {
     };
     const bad = configError(text);
     return html`<div class="sec" style="display:flex;flex-direction:column;height:calc(100% - 44px);min-height:360px"><div class="secb nopad" style="display:flex;flex-direction:column;flex:1;min-height:0">
-        <p class="sub first">Tailwind config <span class="muted">v${tw.version}</span></p>
+        <p class="sub first">Plugins</p>
+        ${tw.plugins.length ? html`<div class="flex flex-wrap" style="gap:4px;margin-bottom:4px">${tw.plugins.map((n) => html`<span style="background:#f0f0f0;border-radius:10px;padding:1px 8px;font-size:10.5px">${n}</span>`)}</div>` : html`<p class="muted">None on in this project.</p>`}
+        <p class="muted">${tw.pluginsLink ? html`<a href=${tw.pluginsLink} class="underline">Manage plugins in the project</a>. ` : ""}They apply to every page.</p>
+        <p class="sub">Tailwind config <span class="muted">v${tw.version}</span></p>
         <p class="muted">Only this page uses these changes. It starts from the project's config${tw.projectLink ? html` (<a href=${tw.projectLink} class="underline">edit the project's</a>)` : ""}; ${tw.changed.length ? html`changed on this page: <b>${tw.changed.join(", ")}</b>.` : "nothing is changed on this page yet."}</p>
         <textarea class="fi area" wrap="off" spellcheck="false" style="flex:1;min-height:0;resize:none;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.4;white-space:pre" value=${text} onInput=${(e) => { setText(e.target.value); setNote(null); }}></textarea>
         <p class="text-[11px] text-red-700">${bad || (note && note.bad ? note.text : "")}</p>

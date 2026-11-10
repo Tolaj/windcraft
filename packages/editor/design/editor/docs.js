@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import { agentMain } from "../agent.js";
-import { buildPreviewDocument, parseComponentSource, themeMarkup } from "../../playground/component-source.js";
+import { buildPreviewDocument, parseComponentSource, themeMarkup, tailwindMarkup } from "../../playground/component-source.js";
 import { panelStore } from "../panel-state.js";
 import { $, S, data, esc, frame, isTailwindScript, model, send } from "./base.js";
 import { renderFloat, renderSel } from "./frame-handles.js";
@@ -17,7 +17,7 @@ const styleTag = (s) => `<style${s.type ? ` type="${esc(s.type)}"` : ""}>${s.tex
 /** The page's head and body attributes as the canvas has them: its Tailwind (or the editor's, with the project's theme) and its own CSS. */
 function canvasParts() {
     const head = ['<meta charset="utf-8">', '<meta name="viewport" content="width=device-width, initial-scale=1">'];
-    if (!S.parsed.hasTailwindScript) head.push('<script src="https://cdn.tailwindcss.com"><\/script>', themeMarkup());
+    if (!S.parsed.hasTailwindScript) head.push(tailwindMarkup(), themeMarkup());
     else head.push(...S.parsed.scripts.filter(isTailwindScript).map(scriptTag));
     // the design's own stylesheets are marked, so the panel can tell their rules from the ones Tailwind generates (agent.js sourcesOf)
     const mark = (tag) => tag.replace(/^<(style|link)\b/i, "<$1 data-wc-design");

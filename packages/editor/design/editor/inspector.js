@@ -9,6 +9,7 @@ import { host } from "../host.js";
 import { pageTheme } from "../../../core/theme.js";
 import { TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
 import { configText, configStore, changedSections } from "../../../core/config-scope.js";
+import { PLUGINS, cleanPlugins, cleanCustom } from "../../../core/plugins.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
@@ -165,7 +166,11 @@ const bodyActions = Object.fromEntries(Object.entries(panelActions).map(([k, f])
 function twView() {
     const text = configText(data.projectTheme && data.projectTheme.config, data.twConfig || "");
     const projectLink = host.projectUrl && data.project ? `${host.projectUrl(data.project.id)}#config` : "";
-    return { key: `${data.id}:${data.twConfig || ""}`, text, changed: changedSections(data.twConfig), version: TAILWIND_VERSION, saved: Boolean(data.id), projectLink };
+    const pt = data.projectTheme || {};
+    const hostOf = (u) => { try { return new URL(u).hostname; } catch { return u; } };
+    const plugins = [...cleanPlugins(pt.plugins).map((id) => PLUGINS.find((p) => p.id === id).name), ...cleanCustom(pt.customPlugins).map(hostOf)];
+    const pluginsLink = projectLink ? projectLink.replace(/#config$/, "#plugins") : "";
+    return { plugins, pluginsLink, key: `${data.id}:${data.twConfig || ""}`, text, changed: changedSections(data.twConfig), version: TAILWIND_VERSION, saved: Boolean(data.id), projectLink };
 }
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
 export function renderInspector() {

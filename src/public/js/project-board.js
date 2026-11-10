@@ -1,6 +1,7 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
 import { TAILWIND_VERSION, withDefaults } from "@windcraft/core/tailwind-defaults.js";
+import { PLUGINS, cleanPlugins, cleanCustom, customError, isStylesheet } from "@windcraft/core/plugins.js";
 import { configText, configStore, changedSections } from "@windcraft/core/config-scope.js";
 import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, configError, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
@@ -414,13 +415,14 @@ function redrawPreviews() {
     });
 }
 let cfgSection = "tailwind";
+const pluginSummary = () => { const n = (theme.plugins || []).length + (theme.customPlugins || []).length; return n ? `${n} on` : "None on"; };
 // the editor opens with Tailwind's defaults filled in, so they can be edited right away; only what differs from them is saved
 const shownConfig = () => configText(theme.config);
 function renderTheme() {
     const strip = (scale) => Object.values(scale).map((c) => `<i style="background:${c}"></i>`).join("");
     $("themePanel").innerHTML = `<style>.sw{display:flex;height:14px;border-radius:4px;overflow:hidden;margin-top:6px}.sw i{flex:1}.chip{cursor:pointer;border:1px solid #e5e5e5;border-radius:6px;padding:4px 8px;background:#fff}.chip.on{border-color:#111;background:#f5f5f5;font-weight:600}</style>
         <p class="px-1 pb-2 text-neutral-500">Settings every preview, the editor and exports use.</p>
-        ${[["tailwind", "Tailwind config", "Tailwind's default config, ready to edit"], ["theme", "Theme", "Brand colour, gray, font, corners"]].map(([k, t, d]) => `<button type="button" data-sec="${k}" class="mb-1 block w-full rounded-md border px-2.5 py-2 text-left ${cfgSection === k ? "border-neutral-900 bg-neutral-100" : "border-transparent hover:bg-neutral-50"}"><span class="block text-xs font-semibold text-neutral-900">${t}</span><span class="mt-0.5 block text-[11px] text-neutral-500">${d}</span></button>`).join("")}`;
+        ${[["tailwind", "Tailwind config", "Tailwind's default config, ready to edit"], ["plugins", "Plugins", pluginSummary()], ["theme", "Theme", "Brand colour, gray, font, corners"]].map(([k, t, d]) => `<button type="button" data-sec="${k}" class="mb-1 block w-full rounded-md border px-2.5 py-2 text-left ${cfgSection === k ? "border-neutral-900 bg-neutral-100" : "border-transparent hover:bg-neutral-50"}"><span class="block text-xs font-semibold text-neutral-900">${t}</span><span data-secdesc="${k}" class="mt-0.5 block text-[11px] text-neutral-500">${d}</span></button>`).join("")}`;
     $("configSpace").innerHTML = `<div class="flex items-center gap-3 border-b border-neutral-200 px-5 py-3">
             <div class="min-w-0"><p id="cfgTitle" class="text-sm font-semibold text-neutral-900"></p><p id="cfgHint" class="mt-0.5 text-xs text-neutral-500"></p></div>
             <span id="thConfigMsg" class="ml-auto shrink-0 text-xs text-red-700"></span><span id="thMsg" class="shrink-0 text-xs text-neutral-500"></span>
@@ -441,13 +443,37 @@ function renderTheme() {
         <label class="mt-4 block font-semibold text-neutral-900">Corners</label>
         <div id="thRadii" class="mt-1 flex flex-wrap gap-1.5">${RADII.map((r) => `<button type="button" class="chip ${theme.radius === r ? "on" : ""}" data-radius="${r}">${r}</button>`).join("")}</div>
         </div></div></div>`;
+    $("configSpace").insertAdjacentHTML("beforeend", `<div id="secPlugins" class="hidden min-h-0 flex-1 overflow-auto p-8 text-xs"><div id="plugBody" class="mx-auto max-w-xl"></div></div>`);
+    const drawPlugins = () => {
+        const on = new Set(theme.plugins || []), custom = theme.customPlugins || [];
+        const row = (p) => `<label class="flex cursor-pointer items-center gap-3 border-b border-neutral-100 px-3 py-2.5 last:border-0 hover:bg-neutral-50"><span class="min-w-0 flex-1"><span class="block text-[13px] font-medium text-neutral-900">${esc(p.name)}</span><span class="block text-neutral-500">${esc(p.about)}</span></span><input type="checkbox" data-plug="${p.id}" ${on.has(p.id) ? "checked" : ""} class="h-4 w-4 shrink-0"></label>`;
+        const group = (name, list) => `<p class="mb-1.5 mt-5 font-semibold text-neutral-700 first:mt-0">${name}</p><div class="overflow-hidden rounded-lg border border-neutral-200 bg-white">${list.map(row).join("")}</div>`;
+        $("plugBody").innerHTML = group("Official", PLUGINS.filter((p) => !p.group)) + group("Third party", PLUGINS.filter((p) => p.group)) +
+            `<p class="mb-1.5 mt-5 font-semibold text-neutral-700">Your own links</p>
+            ${custom.length ? `<div class="mb-2 overflow-hidden rounded-lg border border-neutral-200 bg-white">${custom.map((u, i) => `<div class="flex items-center gap-2 border-b border-neutral-100 px-3 py-2 last:border-0"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${isStylesheet(u) ? "css" : "js"}</span><span class="min-w-0 flex-1 truncate font-mono text-[11px] text-neutral-700" title="${esc(u)}">${esc(u)}</span><button type="button" data-unplug="${i}" class="text-neutral-500 hover:text-red-700" title="Remove">Remove</button></div>`).join("")}</div>` : ""}
+            <div class="flex gap-2"><input id="plugUrl" class="fi flex-1 font-mono" placeholder="https://cdn.jsdelivr.net/npm/…/plugin.min.js" spellcheck="false"><button type="button" id="plugAdd" class="h-8 rounded-md border border-neutral-200 px-3 hover:bg-neutral-50">Add</button></div>
+            <p id="plugMsg" class="mt-1 min-h-[1rem] text-red-700"></p>
+            <p class="mt-1 text-neutral-500">A link to a script (.js) or a stylesheet (.css), https only. It runs inside the sandboxed previews and in the editor canvas, so add only what you trust. A Tailwind plugin that needs a build step can't be loaded this way.</p>`;
+        $("themePanel").querySelector('[data-secdesc="plugins"]').textContent = pluginSummary();
+    };
+    $("secPlugins").addEventListener("change", (e) => { const c = e.target.closest("[data-plug]"); if (!c) return; const set = new Set(theme.plugins || []); c.checked ? set.add(c.dataset.plug) : set.delete(c.dataset.plug); theme = { ...theme, plugins: cleanPlugins([...set]) }; drawPlugins(); });
+    $("secPlugins").addEventListener("click", (e) => {
+        const rm = e.target.closest("[data-unplug]");
+        if (rm) { theme = { ...theme, customPlugins: (theme.customPlugins || []).filter((_, i) => i !== Number(rm.dataset.unplug)) }; drawPlugins(); return; }
+        if (e.target.id !== "plugAdd") return;
+        const url = $("plugUrl").value.trim(), bad = customError(url, theme.customPlugins || []);
+        if (bad) { $("plugMsg").textContent = bad; return; }
+        theme = { ...theme, customPlugins: cleanCustom([...(theme.customPlugins || []), url]) }; drawPlugins();
+    });
+    drawPlugins();
     const showSection = () => {
-        const tw = cfgSection === "tailwind";
+        const tw = cfgSection === "tailwind", pl = cfgSection === "plugins";
         $("secTailwind").classList.toggle("hidden", !tw); $("secTailwind").classList.toggle("flex", tw);
-        $("secTheme").classList.toggle("hidden", tw);
+        $("secTheme").classList.toggle("hidden", cfgSection !== "theme");
+        $("secPlugins").classList.toggle("hidden", !pl);
         $("thExample").classList.toggle("hidden", !tw);
-        $("cfgTitle").textContent = tw ? "Tailwind config" : "Theme";
-        $("cfgHint").innerHTML = tw ? "Tailwind's default config (v" + TAILWIND_VERSION + ") as JSON. Edit any value or add your own; only what you change is saved." : "Brand colour, gray, font and corners. They become <code>brand-*</code>, <code>gray-*</code>, <code>font-sans</code> and <code>rounded-*</code>.";
+        $("cfgTitle").textContent = tw ? "Tailwind config" : pl ? "Plugins" : "Theme";
+        $("cfgHint").innerHTML = tw ? "Tailwind's default config (v" + TAILWIND_VERSION + ") as JSON. Edit any value or add your own; only what you change is saved." : pl ? "Tailwind plugins for every page in this project. They load in the previews and the editor; press Apply to use a change." : "Brand colour, gray, font and corners. They become <code>brand-*</code>, <code>gray-*</code>, <code>font-sans</code> and <code>rounded-*</code>.";
         document.querySelectorAll("[data-sec]").forEach((b) => { const on = b.dataset.sec === cfgSection; b.classList.toggle("border-neutral-900", on); b.classList.toggle("bg-neutral-100", on); b.classList.toggle("border-transparent", !on); });
     };
     $("themePanel").addEventListener("click", (e) => { const b = e.target.closest("[data-sec]"); if (b) { cfgSection = b.dataset.sec; showSection(); } });
@@ -650,7 +676,7 @@ renderOutline();
 renderDetails();
 applyView();
 fitAll();
-if (location.hash === "#config") { tab = "theme"; renderOutline(); renderTheme(); } // the editor links here
+if (location.hash === "#config" || location.hash === "#plugins") { tab = "theme"; if (location.hash === "#plugins") cfgSection = "plugins"; renderOutline(); renderTheme(); } // the editor links here
 
 // ── Share link: anyone with it can look at the project and copy its code (no account, nothing editable) ──────────────
 (() => {

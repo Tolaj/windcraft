@@ -1,4 +1,5 @@
 import { themeHead } from "../../core/theme.js";
+import { tailwindTag } from "../../core/plugins.js";
 const TAILWIND_RE = /tailwindcss|@tailwindcss\/browser/i;
 
 const isTailwindScript = (s) => s.src && TAILWIND_RE.test(s.src);
@@ -92,6 +93,8 @@ const HEIGHT_REPORTER = `
 // The theme's Tailwind config is added only where this adds Tailwind itself: a design that brings its own script keeps its own config.
 let previewTheme = null;
 export const setPreviewTheme = (theme) => { previewTheme = theme || null; };
+/** The Tailwind script tag for the open design: the play CDN with the project's official plugins. */
+export const tailwindMarkup = () => tailwindTag(previewTheme);
 /** The head markup for the theme (the font and the config), or nothing without one. */
 export const themeMarkup = () => (previewTheme ? themeHead(previewTheme) : "");
 
@@ -104,7 +107,7 @@ export function buildPreviewDocument(parsed, { width, fixedScreen = false, theme
     ];
 
     if (!parsed.hasTailwindScript) {
-        head.push('<script src="https://cdn.tailwindcss.com"><\/script>');
+        head.push(tailwindTag(theme || previewTheme));
         if (theme || previewTheme) head.push(theme ? themeHead(theme) : themeMarkup()); // `theme`: this one page's own (the project's with the page's config over it)
     }
     head.push(...parsed.links);
