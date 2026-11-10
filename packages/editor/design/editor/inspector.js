@@ -378,9 +378,10 @@ export function convertGesture(items) {
             if (!it.made && (pre.source === "inline" || pre.source === "design")) return; // it was CSS: it stays CSS
             if (!tw && pre.source !== "tailwind") return;
             const cols = prop === "grid-template-columns" && /^repeat\((\d+),\s*minmax\(0px?,\s*1fr\)\)$/.exec(value); // grid-cols-3
-            const group = cols ? "gridCols" : groupOf(prop);
+            const fit = prop === "grid-template-columns" && /^repeat\((\d+),\s*auto\)$/.exec(value); // grid-cols-[repeat(3,auto)]: columns as wide as their content
+            const group = cols || fit ? "gridCols" : groupOf(prop);
             if (!group) return;
-            const tv = cols ? cols[1] : /^-?[\d.]+px$/.test(value) ? fromPx(group, Math.round(parseFloat(value))) : twValue(prop, value, false); // a size, or a word (flex, column, absolute)
+            const tv = fit ? `[repeat(${fit[1]},auto)]` : cols ? cols[1] : /^-?[\d.]+px$/.test(value) ? fromPx(group, Math.round(parseFloat(value))) : twValue(prop, value, false); // a size, or a word (flex, column, absolute)
             if (tv === null) return;
             const built = GROUPS[group].build(tv);
             if (!GROUPS[group].re.test(built)) return;
