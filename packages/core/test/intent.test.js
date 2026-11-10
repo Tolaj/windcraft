@@ -125,3 +125,12 @@ test("equal padding on both sides of an axis is px-/py-", () => {
     assert.equal(r.classes, "p-6 px-9");
     assert.equal(r.tokens["padding-left"], "px-9");
 });
+
+test("moving an element to another place takes the old place's margins off at every size", () => {
+    // written for Desktop by an earlier drop (lg:mt-8 lg:mx-auto); a move is for every size, so the clear is not just the plain class
+    const r = compileItem(item("bg-black lg:mt-8 lg:mx-auto md:self-center", {}, { structural: true, clear: ["mt", "mx", "self"] }), { tw: true, width: W.lg });
+    assert.equal(r.classes, "bg-black");
+    // a per-device edit (not a move) still only touches its own size
+    const d = compileItem(item("bg-black lg:mx-auto", {}, { clear: ["mx"] }), { tw: true, width: W.lg });
+    assert.equal(d.classes, "bg-black lg:mx-auto");
+});

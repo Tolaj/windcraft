@@ -1577,7 +1577,13 @@ export function agentMain() {
     // centre or the end of a column it is centred or pushed there. Everything goes through the same pixels-to-classes step as a move.
     const inFlow = (k) => !isAbs(k) && getComputedStyle(k).display !== "none";
     const median = (a) => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : 0; };
-    function dropSmart(g, e, old, wasFirst, wasLast) {
+    /**
+     * A drop to another slot or box is a change of structure, for every size: the markup is one for all of them. So what it writes
+     * (the rhythm of the new neighbours) goes on every size, and what the old place gave the element comes off at every size and
+     * state too (`lg:mx-auto`, `md:mt-8`, `hover:...` included), not only the plain class. `reflow` is false for a drop that changes
+     * no place in the markup (let go in its own slot, aligned there): that one is for the device being edited.
+     */
+    function dropSmart(g, e, old, wasFirst, wasLast, reflow = true) {
         const el = g.el, par = el.parentElement;
         if (!par || el === document.body) return [];
         const plan = new Map(); // element -> { set: {prop: px | word}, clear: [class groups] }
@@ -1593,6 +1599,11 @@ export function agentMain() {
             if (v === 0 && has(k, new RegExp(`^${group}-`))) { const c = of(k).clear; if (!c.includes(group)) c.push(group); } else of(k).set[prop] = v;
         };
         const noMargins = (k, groups) => groups.forEach((gp) => { if (has(k, new RegExp(`^${gp}-(?!auto$)`)) && !of(k).clear.includes(gp)) of(k).clear.push(gp); });
+        // 0. the exact offset it was given in its old slot (relative + left/top) belongs to that slot, not to the new one
+        if (reflow && (moved || kidsOf(par, null).indexOf(el) !== (g.home0 ? g.home0.index : (g.ih ? g.ih.index : -1)))) {
+            const offs = ["left", "top", "right", "bottom", "inset"].filter((gp) => has(el, new RegExp(`^-?${gp}-`)));
+            if (offs.length) { const c = of(el).clear; offs.forEach((gp) => { if (!c.includes(gp)) c.push(gp); }); if (has(el, /^relative$/) && !c.includes("position")) c.push("position"); }
+        }
         // 1. alignment and auto margins only mean something in the layout they were made for
         if (moved && lay !== layoutOf(old)) {
             if (has(el, /^self-/)) of(el).clear.push("self");
@@ -1679,7 +1690,7 @@ export function agentMain() {
         const work = [];
         plan.forEach((p, k) => { const props = Object.keys(p.set); if (props.length || p.clear.length) work.push({ k, p, props, pre: sourcesOf(k, props) }); });
         work.forEach(({ k, p }) => Object.entries(p.set).forEach(([prop, v]) => k.style.setProperty(prop, typeof v === "number" ? `${Math.round(v)}px` : v)));
-        return work.map(({ k, p, props, pre }) => gestureItem(k, pre, props, p.clear));
+        return work.map(({ k, p, props, pre }) => { const it = gestureItem(k, pre, props, p.clear); if (reflow) it.structural = true; return it; });
     }
 
     // ── Making room: the page shows the layout the drop will make ─────────────────────────────────────────────────
@@ -2224,7 +2235,7 @@ export function agentMain() {
         }
         if (g.type === "reorder" && g.moved && g.same) {
             // let go in its own slot: nothing moves, unless it was dropped on the start, centre or end of a flex box (then it is aligned there)
-            if (g.align) { const items = dropSmart(g, e, g.el.parentElement, false, false); if (items.length) return askConvert(items); }
+            if (g.align) { const items = dropSmart(g, e, g.el.parentElement, false, false, false); if (items.length) return askConvert(items); }
             redraw(); return;
         }
         if (g.type === "reorder" && g.moved && g.target) {
