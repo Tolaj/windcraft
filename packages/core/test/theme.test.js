@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DEFAULT_THEME, normalizeTheme, brandScale, grayScale, radiusScale, tailwindConfig, themeHead, fontUrl } from "../theme.js";
 
 test("normalizeTheme keeps valid choices and replaces anything else with the default", () => {
-    assert.deepEqual(normalizeTheme({ brand: "#E11D48", gray: "zinc", font: "Poppins", radius: "xl" }), { brand: "#e11d48", gray: "zinc", font: "Poppins", radius: "xl" });
+    assert.deepEqual(normalizeTheme({ brand: "#E11D48", gray: "zinc", font: "Poppins", radius: "xl" }), { brand: "#e11d48", gray: "zinc", font: "Poppins", radius: "xl", config: "" });
     assert.deepEqual(normalizeTheme(null), DEFAULT_THEME);
     assert.deepEqual(normalizeTheme({ brand: "red", gray: "hot", font: "a;b<script>", radius: "huge" }), DEFAULT_THEME);
     assert.equal(normalizeTheme({ brand: "ff0000" }).brand, "#ff0000");

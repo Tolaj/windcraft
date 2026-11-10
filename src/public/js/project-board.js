@@ -1,6 +1,6 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
-import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, brandScale, grayScale } from "@windcraft/core/theme.js";
+import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, configError, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
 import { extractParts } from "@windcraft/core/extract-parts.js";
 import { parseDocument } from "@windcraft/core/split-sections.js";
@@ -419,6 +419,10 @@ function renderTheme() {
         <datalist id="thFonts">${FONTS.map((f) => `<option value="${esc(f)}">`).join("")}</datalist>
         <label class="mt-4 block font-semibold text-neutral-900">Corners</label>
         <div id="thRadii" class="mt-1 flex flex-wrap gap-1.5">${RADII.map((r) => `<button type="button" class="chip ${theme.radius === r ? "on" : ""}" data-radius="${r}">${r}</button>`).join("")}</div>
+        <label class="mt-4 block font-semibold text-neutral-900">Tailwind config</label>
+        <p class="mt-1 text-neutral-500">Extra <code>theme.extend</code> as JSON: colors, fontFamily, spacing, keyframes, animation. It is merged over the choices above.</p>
+        <textarea id="thConfig" class="fi area mono mt-1" rows="10" spellcheck="false" placeholder='{\n  "colors": { "accent": "#f97316" },\n  "keyframes": { "wiggle": { "0%,100%": { "transform": "rotate(-3deg)" }, "50%": { "transform": "rotate(3deg)" } } },\n  "animation": { "wiggle": "wiggle 1s ease-in-out infinite" }\n}'>${esc(theme.config || "")}</textarea>
+        <p id="thConfigMsg" class="mt-1 text-red-700"></p>
         <button id="thSave" type="button" class="mt-5 h-8 w-full rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Apply theme</button>
         <p id="thMsg" class="mt-2 text-neutral-500"></p>`;
     const refresh = () => {
@@ -432,8 +436,12 @@ function renderTheme() {
     $("thGrays").addEventListener("click", (e) => { const b = e.target.closest("[data-gray]"); if (b) { theme.gray = b.dataset.gray; refresh(); } });
     $("thRadii").addEventListener("click", (e) => { const b = e.target.closest("[data-radius]"); if (b) { theme.radius = b.dataset.radius; refresh(); } });
     $("thFont").addEventListener("input", (e) => { theme = normalizeTheme({ ...theme, font: e.target.value }); });
+    $("thConfig").addEventListener("input", (e) => { $("thConfigMsg").textContent = configError(e.target.value); });
     $("thSave").addEventListener("click", async () => {
-        theme = normalizeTheme({ ...theme, font: $("thFont").value });
+        const bad = configError($("thConfig").value);
+        if (bad) { $("thConfigMsg").textContent = bad; return; }
+        theme = normalizeTheme({ ...theme, font: $("thFont").value, config: $("thConfig").value });
+        $("thConfig").value = theme.config;
         $("thMsg").textContent = "Saving…";
         try {
             const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) });
