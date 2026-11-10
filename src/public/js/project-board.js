@@ -300,6 +300,9 @@ $("tidyBtn").addEventListener("click", () => {
     fitAll();
 });
 
+// the Config editor sits inside the board: the board's pan, zoom and pointer capture must not take its clicks, typing or scrolling
+["pointerdown", "pointerup", "pointermove", "wheel", "dblclick"].forEach((t) => $("configSpace").addEventListener(t, (e) => e.stopPropagation()));
+
 // ── Header, outline, details ─────────────────────────────────────────────────
 function renderHeader() {
     $("projName").textContent = project.name;
@@ -356,6 +359,7 @@ function renderOutline() {
     if ((tab === "component" ? "component" : "page") !== builtFor) { buildFrames(); fitAll(); }
     $("outline").classList.toggle("hidden", tab === "theme");
     $("themePanel").classList.toggle("hidden", tab !== "theme");
+    $("detailsAside").classList.toggle("hidden", tab === "theme");
     $("configSpace").classList.toggle("hidden", tab !== "theme"); $("configSpace").classList.toggle("flex", tab === "theme");
     $("tabTheme").className = `flex-1 whitespace-nowrap border-b-2 px-2 py-2.5 ${tab === "theme" ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}`;
     $("filters").classList.toggle("hidden", tab === "theme");
@@ -408,7 +412,7 @@ function redrawPreviews() {
 function renderTheme() {
     const strip = (scale) => Object.values(scale).map((c) => `<i style="background:${c}"></i>`).join("");
     $("themePanel").innerHTML = `<style>.sw{display:flex;height:14px;border-radius:4px;overflow:hidden;margin-top:6px}.sw i{flex:1}.chip{cursor:pointer;border:1px solid #e5e5e5;border-radius:6px;padding:4px 8px;background:#fff}.chip.on{border-color:#111;background:#f5f5f5;font-weight:600}</style>
-        <p class="text-neutral-500">The project's Tailwind config is on the right. Every preview, the editor and exports use it.</p>
+        <p class="text-neutral-500">Every preview, the editor and exports use the project's config. Apply is at the top right of the editor.</p>
         <button id="thToggle" type="button" class="mt-3 flex h-8 w-full items-center justify-between rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-800 hover:bg-neutral-50">Theme options <span id="thArrow">▸</span></button>
         <div id="thOptions" class="hidden">
         <label class="mt-3 block font-semibold text-neutral-900">Brand colour</label>
@@ -422,11 +426,20 @@ function renderTheme() {
         <datalist id="thFonts">${FONTS.map((f) => `<option value="${esc(f)}">`).join("")}</datalist>
         <label class="mt-4 block font-semibold text-neutral-900">Corners</label>
         <div id="thRadii" class="mt-1 flex flex-wrap gap-1.5">${RADII.map((r) => `<button type="button" class="chip ${theme.radius === r ? "on" : ""}" data-radius="${r}">${r}</button>`).join("")}</div>
-        </div>
-        <button id="thSave" type="button" class="mt-5 h-8 w-full rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Apply</button>
-        <p id="thMsg" class="mt-2 text-neutral-500"></p>`;
-    $("configSpace").innerHTML = `<div class="flex items-center gap-3 border-b border-neutral-200 px-4 py-2.5"><span class="text-sm font-semibold text-neutral-900">Tailwind config</span><span class="text-xs text-neutral-500">Extra <code>theme.extend</code> as JSON: colors, fontFamily, spacing, keyframes, animation. Merged over the theme options; Apply (left) to use it.</span><span id="thConfigMsg" class="ml-auto text-xs text-red-700"></span></div>
-        <textarea id="thConfig" class="mono min-h-0 flex-1 resize-none border-0 p-4 text-[13px] leading-5 outline-none" spellcheck="false" placeholder='{\n  "colors": { "accent": "#f97316" },\n  "keyframes": {\n    "wiggle": { "0%,100%": { "transform": "rotate(-3deg)" }, "50%": { "transform": "rotate(3deg)" } }\n  },\n  "animation": { "wiggle": "wiggle 1s ease-in-out infinite" }\n}'>${esc(theme.config || "")}</textarea>`;
+        </div>`;
+    const EXAMPLE = `{\n  "colors": { "accent": "#f97316" },\n  "keyframes": {\n    "wiggle": { "0%,100%": { "transform": "rotate(-3deg)" }, "50%": { "transform": "rotate(3deg)" } }\n  },\n  "animation": { "wiggle": "wiggle 1s ease-in-out infinite" }\n}`;
+    $("configSpace").innerHTML = `<div class="flex items-center gap-3 border-b border-neutral-200 px-5 py-3">
+            <div class="min-w-0"><p class="text-sm font-semibold text-neutral-900">Tailwind config</p><p class="mt-0.5 text-xs text-neutral-500">Extra <code>theme.extend</code> as JSON (colors, fontFamily, spacing, keyframes, animation). Merged over the theme options.</p></div>
+            <span id="thConfigMsg" class="ml-auto shrink-0 text-xs text-red-700"></span><span id="thMsg" class="shrink-0 text-xs text-neutral-500"></span>
+            <button id="thExample" type="button" class="h-8 shrink-0 rounded-md border border-neutral-200 px-3 text-xs hover:bg-neutral-50">Insert example</button>
+            <button id="thSave" type="button" class="h-8 shrink-0 rounded-md bg-black px-4 text-xs font-semibold text-white hover:bg-neutral-800">Apply</button></div>
+        <div class="flex min-h-0 flex-1"><div id="thGutter" class="mono w-12 shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 pr-3 text-right text-[13px] leading-5 text-neutral-400"></div>
+        <textarea id="thConfig" wrap="off" class="mono min-w-0 flex-1 resize-none border-0 bg-white p-4 text-[13px] leading-5 text-neutral-900 outline-none" spellcheck="false">${esc(theme.config || "")}</textarea></div>`;
+    const gutter = () => { const n = Math.max(30, $("thConfig").value.split("\n").length); $("thGutter").innerHTML = Array.from({ length: n }, (_, i) => i + 1).join("<br>"); $("thGutter").scrollTop = $("thConfig").scrollTop; };
+    $("thConfig").addEventListener("scroll", () => { $("thGutter").scrollTop = $("thConfig").scrollTop; });
+    $("thConfig").addEventListener("input", gutter);
+    $("thExample").addEventListener("click", () => { $("thConfig").value = EXAMPLE; $("thConfigMsg").textContent = ""; gutter(); });
+    gutter();
     $("thToggle").addEventListener("click", () => { const open = $("thOptions").classList.toggle("hidden"); $("thArrow").textContent = open ? "▸" : "▾"; });
     const refresh = () => {
         $("thBrandScale").innerHTML = strip(brandScale(theme.brand));
