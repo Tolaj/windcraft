@@ -10,11 +10,11 @@
 [![npm](https://img.shields.io/npm/v/windcraft-editor?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/windcraft-editor)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3_%26_4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![MCP](https://img.shields.io/badge/MCP-server-8A2BE2)](docs/mcp.md)
+[![MCP](https://img.shields.io/badge/MCP-server-8A2BE2)](#mcp-claude-claude-code-cursor)
 [![Figma plugin](https://img.shields.io/badge/Figma-plugin-F24E1E?logo=figma&logoColor=white)](https://www.figma.com/community/plugin/1697363010304569719)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-[**Try it live**](https://windcraft.swapniljadhav.com/) · [Watch the demo](docs/media/windcraft-demo.mp4) · [Get started](#get-started) · [Contribute](#contributing)
+[**Try it live**](https://windcraft.swapniljadhav.com/) · [Watch the demo](docs/media/windcraft-demo.mp4) · [Get started](#get-started) · [npm](#npm-windcraft-editor) · [MCP](#mcp-claude-claude-code-cursor) · [Contribute](#contributing)
 
 <br>
 
@@ -86,22 +86,101 @@ You can start from a blank page, from a Figma design (with a plugin that runs on
 
 ## Get started
 
-**Just look:** [open Windcraft live](https://windcraft.swapniljadhav.com/), nothing to install.
+Pick your way in:
 
-**Run the editor locally, no database** (about 30 seconds):
+| I want to... | Use | Jump to |
+|---|---|---|
+| Try it now, nothing to install | The live editor | [Online](#online) |
+| Put the editor in my own site or app | The npm package `windcraft-editor` | [npm](#npm-windcraft-editor) |
+| Let Claude, Claude Code or Cursor build and save pages | The MCP server | [MCP](#mcp-claude-claude-code-cursor) |
+| Turn a Figma design into HTML and Tailwind | The Figma plugin | [Figma plugin](#figma-plugin) |
+| Run my own copy (accounts, projects, AI) | The full app | [Self-host](#self-host-the-full-app) |
+| Hack on the editor itself | The demo, no database | [Run the editor locally](#run-the-editor-locally-no-database) |
+
+### Online
+
+Open **<https://windcraft.swapniljadhav.com/>**. Nothing to install.
+
+### npm: `windcraft-editor`
+
+```bash
+npm install windcraft-editor
+```
+
+Serve `node_modules/windcraft-editor` as static files (for example `app.use("/windcraft", express.static("node_modules/windcraft-editor"))`) and import from it:
+
+```js
+import { startEditor } from "/windcraft/editor/index.js";
+startEditor(document.getElementById("root"), { html: "<h1>Hello</h1>" });
+```
+
+No bundler or backend is needed. To try it without installing, save this as `index.html`, run `npx serve` next to it and open the address it prints:
+
+```html
+<div id="root"></div>
+<script type="module">
+  import { startEditor } from "https://unpkg.com/windcraft-editor/editor/index.js";
+  startEditor(document.getElementById("root"), {
+    html: '<h1 class="p-10 text-4xl font-bold">Hello</h1>',
+  });
+</script>
+```
+
+| Function | Use it when |
+|---|---|
+| `startEditor(root, options)` | The editor is the whole page. Designs are saved in the browser. |
+| `mountEditor(root, options)` | You want to load and save on your own server (give it a host: a few functions). |
+| `embedEditor(root, options)` | The editor lives in one box of a page. It runs in an iframe, so several can share a page. |
+
+The [full guide](packages/editor/README.md) has the options, the host functions and `onChange`.
+
+### MCP: Claude, Claude Code, Cursor
+
+Windcraft runs an [MCP](https://modelcontextprotocol.io) server at your Windcraft address plus `/mcp`:
+
+```
+https://windcraft.swapniljadhav.com/mcp          (yours: https://your-windcraft-address/mcp)
+```
+
+| Client | How to connect |
+|---|---|
+| **Claude** (claude.ai) | Settings → Connectors → Add custom connector → paste the address → Connect → sign in to Windcraft → Allow. No token. |
+| **Claude Code** | Create an access token on the Connect page (`/connect`), then: `claude mcp add --transport http tailwind-library <address> --header "Authorization: Bearer $TAILWIND_LIBRARY_TOKEN"` |
+| **Cursor** and other clients | Add an HTTP server with the address and the header `Authorization: Bearer <token>`. The [MCP guide](docs/mcp.md) has the JSON. |
+
+Then just ask. Some things to say:
+
+| You say | What happens |
+|---|---|
+| "Read my design guide, then build a settings page that matches." | The AI reads your tokens and conventions first. |
+| "Search my library for a pricing table and use it." | It searches and reuses your components. |
+| "Save this page to my Windcraft library." | The page is saved as a design in your project. |
+| "Save these three screens as pages in a project called Acme website." | One project, one page per screen. |
+| "Make the Contact button in my Pricing page rose-500. Change nothing else." | A small patch to the saved design; the rest of the code is untouched. |
+| "Which project am I working on? Switch to Acme." | Reads or changes your active project. |
+
+The Connect page has a **Run test** button that checks the connection and says what to fix. The full tool list is in the [MCP guide](docs/mcp.md).
+
+### Figma plugin
+
+Install it from the [Figma Community](https://www.figma.com/community/plugin/1697363010304569719). It converts a selection to HTML and Tailwind on your computer: no LLM, no network, no picture fallback.
+
+To build it from source:
+
+```bash
+npm run build -w @windcraft/figma
+```
+
+In **Figma desktop**: *Plugins → Development → Import plugin from manifest…* and choose `packages/figma/dist/manifest.json`. More in [packages/figma](packages/figma/README.md).
+
+### Self-host the full app
+
+Accounts, projects, the gallery, AI and MCP. You need Node.js 18+ and a MongoDB database (local or Atlas).
 
 ```bash
 git clone https://github.com/Tolaj/windcraft.git
 cd windcraft
 npm install
-npm run demo
-```
-
-Open <http://localhost:4000/editor/demo/> (add `?theme` to see a project theme applied).
-
-**Run the full app** (accounts, projects, gallery, AI, MCP). You need Node.js 18+ and a MongoDB database (local or Atlas):
-
-```bash
 cp .env.example .env     # then fill in the values below
 npm run dev              # http://localhost:3000
 ```
@@ -119,29 +198,16 @@ npm run dev              # http://localhost:3000
 
 For production, `npm start`. A `vercel.json` is included for Vercel.
 
-**Put the editor in your own app.** It is on npm as [**`windcraft-editor`**](https://www.npmjs.com/package/windcraft-editor), with no backend and no build step. Save this as `index.html`, run `npx serve` next to it, and open the address it prints:
-
-```html
-<div id="root"></div>
-<script type="module">
-  import { startEditor } from "https://unpkg.com/windcraft-editor/editor/index.js";
-  startEditor(document.getElementById("root"), {
-    html: '<h1 class="p-10 text-4xl font-bold">Hello</h1>',
-  });
-</script>
-```
-
-Designs are saved in the browser. To use npm instead, save to your own server, or put the editor in just one part of a page, see the [full guide](packages/editor/README.md).
-
-**Build the Figma plugin:**
+### Run the editor locally (no database)
 
 ```bash
-npm run build -w @windcraft/figma
+git clone https://github.com/Tolaj/windcraft.git
+cd windcraft
+npm install
+npm run demo
 ```
 
-In **Figma desktop**: *Plugins → Development → Import plugin from manifest…* and choose `packages/figma/dist/manifest.json`. Or install the published plugin from the [Figma Community](https://www.figma.com/community/plugin/1697363010304569719).
-
-**Connect Claude, Claude Code or Cursor:** see the [MCP guide](docs/mcp.md).
+Open <http://localhost:4000/editor/demo/> (add `?theme` to see a project theme applied).
 
 ## How it is built
 
