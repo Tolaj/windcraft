@@ -556,3 +556,30 @@ export const TAILWIND_DEFAULTS = {
     }
   }
 };
+
+const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/** The config as the editor shows it: Tailwind's defaults with the project's own changes laid over them. */
+export function withDefaults(config) {
+    const merge = (base, over) => {
+        const out = { ...base };
+        for (const k of Object.keys(over)) { if (k === "__proto__" || k === "constructor" || k === "prototype") continue; out[k] = isObj(base[k]) && isObj(over[k]) ? merge(base[k], over[k]) : over[k]; }
+        return out;
+    };
+    return merge(TAILWIND_DEFAULTS, isObj(config) ? config : {});
+}
+
+/** What to store: only what differs from the defaults, so the saved config says what the project changed and nothing else. */
+export function onlyChanges(config, defaults = TAILWIND_DEFAULTS) {
+    const out = {};
+    if (!isObj(config)) return out;
+    for (const k of Object.keys(config)) {
+        if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+        const v = config[k], d = defaults[k];
+        if (d === undefined) out[k] = v;
+        else if (isObj(v) && isObj(d)) { const sub = onlyChanges(v, d); if (Object.keys(sub).length) out[k] = sub; }
+        else if (!same(v, d)) out[k] = v;
+    }
+    return out;
+}

@@ -39,3 +39,15 @@ test("tailwindConfig and themeHead", () => {
     assert.match(head, /tailwind\.config = \{/);
     assert.ok(!themeHead({ font: "System" }).includes("<link"));
 });
+
+import { TAILWIND_DEFAULTS, withDefaults, onlyChanges } from "../tailwind-defaults.js";
+test("the editor shows the defaults with the project's changes over them; only the changes are stored", () => {
+    assert.equal(withDefaults({}).screens.md, TAILWIND_DEFAULTS.screens.md);
+    const shown = withDefaults({ screens: { md: "800px" }, colors: { accent: "#f97316" } });
+    assert.equal(shown.screens.md, "800px");
+    assert.equal(shown.screens.lg, TAILWIND_DEFAULTS.screens.lg);
+    assert.equal(shown.colors.accent, "#f97316");
+    assert.deepEqual(onlyChanges(shown), { screens: { md: "800px" }, colors: { accent: "#f97316" } });
+    assert.deepEqual(onlyChanges(withDefaults({})), {}, "untouched defaults store nothing");
+    assert.deepEqual(onlyChanges({ keyframes: { wiggle: { "50%": { opacity: "0.5" } } } }).keyframes.wiggle, { "50%": { opacity: "0.5" } });
+});

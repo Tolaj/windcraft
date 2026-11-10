@@ -1,6 +1,6 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
-import { TAILWIND_DEFAULTS, TAILWIND_VERSION } from "@windcraft/core/tailwind-defaults.js";
+import { TAILWIND_VERSION, withDefaults, onlyChanges } from "@windcraft/core/tailwind-defaults.js";
 import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, configError, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
 import { extractParts } from "@windcraft/core/extract-parts.js";
@@ -411,21 +411,20 @@ function redrawPreviews() {
     });
 }
 let cfgSection = "tailwind";
+// the editor opens with Tailwind's defaults filled in, so they can be edited right away; only what differs from them is saved
+const shownConfig = () => { let c = {}; try { c = theme.config ? JSON.parse(theme.config) : {}; } catch { /* nothing saved */ } return JSON.stringify(withDefaults(c), null, 2); };
 function renderTheme() {
     const strip = (scale) => Object.values(scale).map((c) => `<i style="background:${c}"></i>`).join("");
     $("themePanel").innerHTML = `<style>.sw{display:flex;height:14px;border-radius:4px;overflow:hidden;margin-top:6px}.sw i{flex:1}.chip{cursor:pointer;border:1px solid #e5e5e5;border-radius:6px;padding:4px 8px;background:#fff}.chip.on{border-color:#111;background:#f5f5f5;font-weight:600}</style>
         <p class="px-1 pb-2 text-neutral-500">Settings every preview, the editor and exports use.</p>
-        ${[["tailwind", "Tailwind config", "Extra colors, fonts, keyframes, animation (JSON)"], ["theme", "Theme", "Brand colour, gray, font, corners"]].map(([k, t, d]) => `<button type="button" data-sec="${k}" class="mb-1 block w-full rounded-md border px-2.5 py-2 text-left ${cfgSection === k ? "border-neutral-900 bg-neutral-100" : "border-transparent hover:bg-neutral-50"}"><span class="block text-xs font-semibold text-neutral-900">${t}</span><span class="mt-0.5 block text-[11px] text-neutral-500">${d}</span></button>`).join("")}`;
-    const EXAMPLE = `{\n  "colors": { "accent": "#f97316" },\n  "keyframes": {\n    "wiggle": { "0%,100%": { "transform": "rotate(-3deg)" }, "50%": { "transform": "rotate(3deg)" } }\n  },\n  "animation": { "wiggle": "wiggle 1s ease-in-out infinite" }\n}`;
+        ${[["tailwind", "Tailwind config", "Tailwind's default config, ready to edit"], ["theme", "Theme", "Brand colour, gray, font, corners"]].map(([k, t, d]) => `<button type="button" data-sec="${k}" class="mb-1 block w-full rounded-md border px-2.5 py-2 text-left ${cfgSection === k ? "border-neutral-900 bg-neutral-100" : "border-transparent hover:bg-neutral-50"}"><span class="block text-xs font-semibold text-neutral-900">${t}</span><span class="mt-0.5 block text-[11px] text-neutral-500">${d}</span></button>`).join("")}`;
     $("configSpace").innerHTML = `<div class="flex items-center gap-3 border-b border-neutral-200 px-5 py-3">
             <div class="min-w-0"><p id="cfgTitle" class="text-sm font-semibold text-neutral-900"></p><p id="cfgHint" class="mt-0.5 text-xs text-neutral-500"></p></div>
             <span id="thConfigMsg" class="ml-auto shrink-0 text-xs text-red-700"></span><span id="thMsg" class="shrink-0 text-xs text-neutral-500"></span>
-            <button id="thExample" type="button" class="h-8 shrink-0 rounded-md border border-neutral-200 px-3 text-xs hover:bg-neutral-50">Insert example</button>
+            <button id="thExample" type="button" class="h-8 shrink-0 rounded-md border border-neutral-200 px-3 text-xs hover:bg-neutral-50">Reset to defaults</button>
             <button id="thSave" type="button" class="h-8 shrink-0 rounded-md bg-black px-4 text-xs font-semibold text-white hover:bg-neutral-800">Apply</button></div>
         <div id="secTailwind" class="flex min-h-0 flex-1"><div id="thGutter" class="mono w-12 shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 pr-3 text-right text-[13px] leading-5 text-neutral-400"></div>
-        <textarea id="thConfig" wrap="off" class="mono min-w-0 flex-1 resize-none border-0 bg-white p-4 text-[13px] leading-5 text-neutral-900 outline-none" spellcheck="false">${esc(theme.config || "")}</textarea>
-        <div class="flex w-80 shrink-0 flex-col border-l border-neutral-200 bg-neutral-50"><div class="border-b border-neutral-200 px-3 py-2.5"><p class="text-xs font-semibold text-neutral-900">Tailwind defaults <span class="font-normal text-neutral-500">v${TAILWIND_VERSION}</span></p><p class="mt-0.5 text-[11px] text-neutral-500">What Tailwind uses when you set nothing. Add a section to your config, then edit the values.</p></div>
-        <div id="twDefaults" class="min-h-0 flex-1 overflow-auto p-2 text-[11px]">${Object.entries(TAILWIND_DEFAULTS).map(([k, v]) => `<details class="mb-1 rounded-md border border-neutral-200 bg-white"><summary class="flex cursor-pointer items-center gap-2 px-2.5 py-1.5"><span class="font-medium text-neutral-900">${k}</span><span class="text-neutral-400">${Object.keys(v).length}</span><button type="button" data-add="${k}" class="ml-auto rounded border border-neutral-200 px-1.5 py-0.5 hover:bg-neutral-50">Add</button></summary><pre class="mono max-h-56 overflow-auto border-t border-neutral-100 p-2 text-[10.5px] leading-4 text-neutral-700">${esc(JSON.stringify(v, null, 2))}</pre></details>`).join("")}</div></div></div>
+        <textarea id="thConfig" wrap="off" class="mono min-w-0 flex-1 resize-none border-0 bg-white p-4 text-[13px] leading-5 text-neutral-900 outline-none" spellcheck="false">${esc(shownConfig())}</textarea></div>
         <div id="secTheme" class="hidden min-h-0 flex-1 overflow-auto p-8 text-xs"><div class="mx-auto max-w-md space-y-6">
         <label class="block font-semibold text-neutral-900">Brand colour</label>
         <div class="mt-1 flex items-center gap-2"><input id="thBrand" type="color" value="${theme.brand}" class="h-7 w-9 cursor-pointer rounded border border-neutral-200 p-0.5"><input id="thBrandHex" class="fi" value="${theme.brand}" maxlength="7" spellcheck="false"></div>
@@ -445,27 +444,15 @@ function renderTheme() {
         $("secTheme").classList.toggle("hidden", tw);
         $("thExample").classList.toggle("hidden", !tw);
         $("cfgTitle").textContent = tw ? "Tailwind config" : "Theme";
-        $("cfgHint").innerHTML = tw ? "Extra <code>theme.extend</code> as JSON (colors, fontFamily, spacing, keyframes, animation). Merged over the theme." : "Brand colour, gray, font and corners. They become <code>brand-*</code>, <code>gray-*</code>, <code>font-sans</code> and <code>rounded-*</code>.";
+        $("cfgHint").innerHTML = tw ? "Tailwind's default config (v" + TAILWIND_VERSION + ") as JSON. Edit any value or add your own; only what you change is saved." : "Brand colour, gray, font and corners. They become <code>brand-*</code>, <code>gray-*</code>, <code>font-sans</code> and <code>rounded-*</code>.";
         document.querySelectorAll("[data-sec]").forEach((b) => { const on = b.dataset.sec === cfgSection; b.classList.toggle("border-neutral-900", on); b.classList.toggle("bg-neutral-100", on); b.classList.toggle("border-transparent", !on); });
     };
     $("themePanel").addEventListener("click", (e) => { const b = e.target.closest("[data-sec]"); if (b) { cfgSection = b.dataset.sec; showSection(); } });
     showSection();
-    $("twDefaults").addEventListener("click", (e) => {
-        const b = e.target.closest("[data-add]");
-        if (!b) return;
-        e.preventDefault(); // the button sits in the summary: do not also open or close it
-        const k = b.dataset.add, text = $("thConfig").value.trim();
-        let cur = {};
-        if (text) { try { cur = JSON.parse(text); } catch { $("thConfigMsg").textContent = "Fix the JSON first, then add a section."; return; } }
-        if (!cur || typeof cur !== "object" || Array.isArray(cur)) cur = {};
-        cur[k] = { ...TAILWIND_DEFAULTS[k], ...(cur[k] && typeof cur[k] === "object" ? cur[k] : {}) }; // what you already changed wins
-        $("thConfig").value = JSON.stringify(cur, null, 2); $("thConfigMsg").textContent = ""; gutter();
-        $("thConfig").scrollTop = 0;
-    });
     const gutter = () => { const n = Math.max(30, $("thConfig").value.split("\n").length); $("thGutter").innerHTML = Array.from({ length: n }, (_, i) => i + 1).join("<br>"); $("thGutter").scrollTop = $("thConfig").scrollTop; };
     $("thConfig").addEventListener("scroll", () => { $("thGutter").scrollTop = $("thConfig").scrollTop; });
     $("thConfig").addEventListener("input", gutter);
-    $("thExample").addEventListener("click", () => { $("thConfig").value = EXAMPLE; $("thConfigMsg").textContent = ""; gutter(); });
+    $("thExample").addEventListener("click", () => { if (!confirm("Put every value back to Tailwind's default?")) return; $("thConfig").value = JSON.stringify(withDefaults({}), null, 2); $("thConfigMsg").textContent = ""; gutter(); });
     gutter();
     const refresh = () => {
         $("thBrandScale").innerHTML = strip(brandScale(theme.brand));
@@ -482,8 +469,8 @@ function renderTheme() {
     $("thSave").addEventListener("click", async () => {
         const bad = configError($("thConfig").value);
         if (bad) { $("thConfigMsg").textContent = bad; return; }
-        theme = normalizeTheme({ ...theme, font: $("thFont").value, config: $("thConfig").value });
-        $("thConfig").value = theme.config;
+        theme = normalizeTheme({ ...theme, font: $("thFont").value, config: onlyChanges(JSON.parse($("thConfig").value.trim() || "{}")) });
+        $("thConfig").value = shownConfig(); gutter();
         $("thMsg").textContent = "Saving…";
         try {
             const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) });
