@@ -227,10 +227,10 @@ function TailwindTab({ tw, actions }) {
         setNote(res.ok ? { text: "Applied to this page." } : { text: res.message, bad: true });
     };
     const bad = configError(text);
-    return html`<div class="sec"><div class="secb nopad">
+    return html`<div class="sec" style="display:flex;flex-direction:column;height:calc(100% - 44px);min-height:360px"><div class="secb nopad" style="display:flex;flex-direction:column;flex:1;min-height:0">
         <p class="sub first">Tailwind config <span class="muted">v${tw.version}</span></p>
         <p class="muted">Only this page uses these changes. It starts from the project's config${tw.projectLink ? html` (<a href=${tw.projectLink} class="underline">edit the project's</a>)` : ""}; ${tw.changed.length ? html`changed on this page: <b>${tw.changed.join(", ")}</b>.` : "nothing is changed on this page yet."}</p>
-        <textarea class="fi area" rows="22" wrap="off" spellcheck="false" style="font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.4;white-space:pre" value=${text} onInput=${(e) => { setText(e.target.value); setNote(null); }}></textarea>
+        <textarea class="fi area" wrap="off" spellcheck="false" style="flex:1;min-height:0;resize:none;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.4;white-space:pre" value=${text} onInput=${(e) => { setText(e.target.value); setNote(null); }}></textarea>
         <p class="text-[11px] text-red-700">${bad || (note && note.bad ? note.text : "")}</p>
         <button type="button" class="primary" disabled=${busy || Boolean(bad)} onClick=${() => apply(text)}>Apply to this page</button>
         <button type="button" disabled=${busy || !tw.changed.length} onClick=${() => apply("{}")}>Use the project's config</button>
