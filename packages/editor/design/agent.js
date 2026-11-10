@@ -1432,13 +1432,20 @@ export function agentMain() {
         // the drag is shown: the frame's own boxes are redrawn without the selection's handles
         redraw();
     }
+    /** Run `cb` on the next animation frame, or within 48ms if the frame never comes (the editor's frame does not always get them). Returns a cancel. */
+    function onFrame(cb) {
+        let done = false;
+        const run = () => { if (done) return; done = true; clearTimeout(t); cancelAnimationFrame(id); cb(); };
+        const id = requestAnimationFrame(run), t = setTimeout(run, 48);
+        return () => { done = true; clearTimeout(t); cancelAnimationFrame(id); };
+    }
     function intentGesture(g, e) {
         g.iev = e;
         const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
         if (g.igh) Object.assign(g.igh.style, { left: `${g.rect.x + dx}px`, top: `${g.rect.y + dy}px` });
         if (g.iraf) return;
-        g.iraf = requestAnimationFrame(() => {
-            g.iraf = 0;
+        g.iraf = onFrame(() => {
+            g.iraf = null;
             if (gesture !== g || !g.leave) return;
             const ev = g.iev;
             const shown = g.ishown;
@@ -1457,8 +1464,8 @@ export function agentMain() {
         intentShow(g, g.irank[g.ipick]);
     }
     function intentCleanup(g) {
-        if (g.iraf) cancelAnimationFrame(g.iraf);
-        if (g.igh) g.igh.remove();
+        if (g.iraf) { g.iraf(); g.iraf = null; } // (cancelled, and forgotten: the next time in the ghost drag must be able to ask again)
+        if (g.igh) { g.igh.remove(); g.igh = null; }
         landBox.style.display = "none";
         if (g.ih.opacity) g.el.style.setProperty("opacity", g.ih.opacity); else g.el.style.removeProperty("opacity");
         tidyStyle(g.el);
@@ -1860,8 +1867,8 @@ export function agentMain() {
      * neighbours slide apart, guides and distances show. Once the drop would go anywhere else than that box (targetAt), the drag goes
      * on as the ghost drag (above): a copy follows the pointer, the element itself sits where the drop would put it. Back in its box
      * it is the first again. Both ways every frame is read from the page as it was when the drag started, so neither moves a box
-     * out from under the pointer; a switch needs two frames in a row and 90ms since the last, so a pointer on the line between
-     * the two does not flicker.
+     * out from under the pointer; a switch needs the other half to hold for 60ms (and 90ms since the last switch, looked at again by a timer if
+     * the pointer stops), so a pointer on the line between the two does not flicker.
      */
     function enterLeave(g) {
         const el = g.el;
@@ -1895,11 +1902,18 @@ export function agentMain() {
         const cx = Math.min(Math.max(e.clientX, 1), document.documentElement.clientWidth - 2), cy = Math.min(Math.max(e.clientY, 1), innerHeight - 2);
         const t = targetAt(g, cx, cy);
         const par = g.geo.home, leaves = t.container !== par;
+        g.lastE = e;
         if (leaves !== Boolean(g.leave)) {
-            g.flip = (g.flip || 0) + 1;
-            if (g.flip >= 2 && performance.now() - (g.switched || 0) > 90) { g.flip = 0; g.switched = performance.now(); if (leaves) enterLeave(g); else exitLeave(g); }
-            else if (!g.leave) return; // about to leave: the picture is held for the frame or two it takes to be sure
-        } else g.flip = 0;
+            const now = performance.now();
+            if (!g.flipSince) g.flipSince = now;
+            if (now - g.flipSince >= 60 && now - (g.switched || 0) > 90) { g.flipSince = 0; g.switched = now; clearTimeout(g.flipT); if (leaves) enterLeave(g); else exitLeave(g); }
+            else {
+                // not sure yet: look again shortly even if the pointer stops here
+                clearTimeout(g.flipT);
+                g.flipT = setTimeout(() => { if (gesture === g && g.lastE) reorderGesture(g, g.lastE); }, 70);
+                if (!g.leave) return; // about to leave: the picture is held for the moment it takes to be sure
+            }
+        } else { g.flipSince = 0; clearTimeout(g.flipT); }
         if (g.leave) { intentGesture(g, e); return; }
         dropBox.style.opacity = "";
         guideLayer.innerHTML = "";
