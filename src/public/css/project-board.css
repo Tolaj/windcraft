@@ -1,0 +1,31 @@
+/*
+ * The project page: its frames on the board, the outline rows in the sidebar and the small form fields in the side panels.
+ * These rules used to live in the canvas layout; when the editor became a package they moved into the editor's own stylesheet
+ * (packages/editor/styles.css), which the project page does not load. That stylesheet restyles every button and the page's body,
+ * so the project page keeps its own small copy of just what it uses.
+ */
+
+/* frames on the board */
+.fwrap { position: absolute; }
+.flabel { position: absolute; left: 0; bottom: 100%; margin-bottom: 6px; white-space: nowrap; font-size: 12px; color: #555; transform-origin: 0 100%; transform: scale(var(--iz, 1)); pointer-events: none; }
+.flabel span { color: #999; margin-left: 6px; }
+.flabel .fgroup { color: #999; font-style: normal; }
+.frame { position: relative; overflow: hidden; background: #fff; border-radius: 2px; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); cursor: pointer; width: 100%; height: 100%; }
+.fwrap:hover .frame { outline: calc(1px * var(--iz, 1)) solid #c4c4c4; }
+.fwrap.sel .frame { outline: calc(2px * var(--iz, 1)) solid #111; }
+.fwrap.sel .flabel { color: #111; }
+.fwrap.dragging { z-index: 50; cursor: grabbing; }
+.fwrap.dragging .frame { box-shadow: 0 8px 30px rgba(0, 0, 0, .25); cursor: grabbing; }
+
+/* outline rows in the sidebar */
+.group-head { padding: 8px 8px 2px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #999; }
+.layer-row { height: 24px; display: flex; align-items: center; border-radius: 4px; }
+.layer-row:hover { background: #f5f5f5; }
+.layer-row.is-selected { background: #ededed; color: #111; }
+
+/* small form fields (search, category, description, brief, theme) */
+.fi { height: 24px; min-width: 0; width: 100%; border: 1px solid transparent; background: #f5f5f5; border-radius: 4px; padding: 0 6px; font-size: 11px; color: #222; font-family: inherit; }
+.fi:hover { border-color: #e0e0e0; }
+.fi:focus { outline: none; border-color: #111; background: #fff; }
+textarea.fi.area { height: auto; padding: 6px; line-height: 1.4; resize: vertical; }
+select.fi { -webkit-appearance: none; appearance: none; padding-right: 20px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23737373' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 5px center; background-size: 12px; }
