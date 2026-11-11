@@ -40,10 +40,11 @@ export const cleanFile = (t) => (typeof t === "string" && t.length <= MAX_FILE ?
 export function cleanLock(lock) {
     const out = {};
     if (!lock || typeof lock !== "object") return out;
+    let size = 0; // a project can only hold so much inlined CSS: the whole theme travels in one request and every page load
     for (const [spec, v] of Object.entries(lock).slice(0, 40)) {
         if (!/^[@A-Za-z0-9.][\w@./~-]{0,120}$/.test(spec) || !v || typeof v !== "object") continue;
         if (typeof v.url === "string" && /^https:\/\/[A-Za-z0-9.-]+\/[^\s"'<>`\\]{1,300}$/.test(v.url)) out[spec] = { url: v.url };
-        else if (typeof v.css === "string" && v.css.length <= MAX_FILE && !/<\/?style|<script/i.test(v.css)) out[spec] = { css: v.css };
+        else if (typeof v.css === "string" && v.css.length <= MAX_FILE && size + v.css.length <= 200000 && !/<\/?style|<script/i.test(v.css)) { out[spec] = { css: v.css }; size += v.css.length; }
     }
     return out;
 }
@@ -151,4 +152,16 @@ export function toTailwindConfig(theme, themeChoices) {
         if (pageCss) out.push(`\n/* ── This page's additions. Add after the file above. ── */\n${pageCss.trimEnd()}`);
     }
     return out.join("\n") + "\n";
+}
+
+/** One paragraph for an AI that writes designs for the project: which Tailwind, which plugins, which custom names exist, so its classes work here. `theme` is normalized. */
+export function describeSetup(theme) {
+    const t = theme || {}, engine = cleanEngine(t.engine);
+    const file = engine === "4" ? t.configCss || "" : t.configJs || "";
+    const plugins = engine === "3" ? [...new Set(requiresOf(file).filter((r) => kindOf(r.spec) !== "builtin").map((r) => OFFICIAL[r.spec] || r.spec))] : [];
+    const lines = [`Tailwind setup: version ${engine}${engine === "3" ? " (the 3.4 play CDN)" : " (the v4 browser build: use v4 class names, for example shadow-xs, rounded-xs, bg-linear-to-r, and no @plugin)"}.`];
+    lines.push(plugins.length ? `Plugins in the project's config: ${plugins.join(", ")}. Their classes work (for example prose for typography).` : "No plugins are configured, so classes from plugins (prose, form-input, @container) will not work.");
+    lines.push(`Theme classes: brand-50 to brand-950 (brand colour ${t.brand || "#4f46e5"}), gray-* is the ${t.gray || "slate"} palette, font-sans is ${t.font || "Inter"}. Use these instead of hard-coded colours.`);
+    if (file.trim() && file.trim() !== TEMPLATES[engine].text.trim()) lines.push(`The project's ${engine === "4" ? "global.css" : "tailwind.config.js"} (use any names it defines):\n${file.trim().slice(0, 1500)}`);
+    return lines.join("\n");
 }

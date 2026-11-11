@@ -15,8 +15,9 @@ let dlg = null, editor = null;
 function build() {
     dlg = document.createElement("dialog");
     dlg.id = "configDlg";
+    dlg.setAttribute("aria-labelledby", "cfgTitle");
     dlg.className = "m-auto h-[min(88vh,820px)] w-[min(1200px,96vw)] rounded-xl border border-neutral-200 p-0 shadow-[0_16px_48px_rgba(0,0,0,.2)] backdrop:bg-black/40";
-    dlg.innerHTML = `<div class="flex h-full min-h-0 flex-col"><div class="flex items-center border-b border-neutral-200 px-5 py-3"><div><h3 class="text-sm font-semibold text-neutral-900">Tailwind config</h3><p class="mt-0.5 text-[11px] text-neutral-500">A file, as in any Tailwind project. This page's file is laid over the project's.</p></div><button type="button" data-x class="ml-auto h-7 w-7 rounded text-neutral-500 hover:bg-neutral-100" aria-label="Close">✕</button></div><div id="cfgBody" class="min-h-0 flex-1"></div></div>`;
+    dlg.innerHTML = `<div class="flex h-full min-h-0 flex-col"><div class="flex items-center border-b border-neutral-200 px-5 py-3"><div><h3 id="cfgTitle" class="text-sm font-semibold text-neutral-900">Tailwind config</h3><p class="mt-0.5 text-[11px] text-neutral-500">A file, as in any Tailwind project. This page's file is laid over the project's.</p></div><button type="button" data-x class="ml-auto h-7 w-7 rounded text-neutral-500 hover:bg-neutral-100" aria-label="Close">✕</button></div><div id="cfgBody" class="min-h-0 flex-1"></div></div>`;
     document.body.appendChild(dlg);
     dlg.addEventListener("click", (e) => { if (e.target === dlg || e.target.closest("[data-x]")) dlg.close(); }); // the backdrop is the dialog itself
     dlg.addEventListener("keydown", (e) => e.stopPropagation()); // typing here is not an editor shortcut

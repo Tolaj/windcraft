@@ -16,7 +16,7 @@ import { themeHead, normalizeTheme } from "../../core/theme.js";
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const get = async (url, kind) => { const r = await fetch(url); if (!r.ok) throw new Error(String(r.status)); return kind === "text" ? r.text() : r.json(); };
 const DOT = { ok: "#16a34a", warn: "#d97706", error: "#dc2626" };
-const STYLE = `.cfe-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:20px}.cfe-gutter div{height:20px;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding-right:10px}.cfe-gutter i{width:7px;height:7px;border-radius:50%;display:inline-block}.cfe-ta{tab-size:2}.cfe-res pre{margin:0;padding:6px 12px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.5;color:#404040;overflow:auto;max-height:340px;white-space:pre}.cfe-res details>summary{cursor:pointer;list-style:none}.cfe-res details>summary::-webkit-details-marker{display:none}`;
+const STYLE = `.cfe-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:20px}.cfe-gutter div{height:20px;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding-right:10px}.cfe-gutter i{width:7px;height:7px;border-radius:50%;display:inline-block}.cfe-ta{tab-size:2}.cfe-res pre{margin:0;padding:6px 12px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.5;color:#404040;overflow:auto;max-height:340px;white-space:pre}.cfe-res details>summary{cursor:pointer;list-style:none}.cfe-res details>summary::-webkit-details-marker{display:none}@media (max-width:760px){.cfe-cols{flex-direction:column}.cfe-cols>*{flex:none!important;min-height:0}.cfe-cols .cfe-left{height:50vh}.cfe-cols .cfe-res{max-height:40vh}}`;
 
 /** Mounts the workspace into `el` (which should have a height). `opts`: { theme (the project's, as stored), tw (this page's { js, css, lock }), scopes: ["project"] or ["page", "project"], scope (the one open first) }. Returns { set(opts), show(scope) }. */
 export function mountConfigFileEditor(el, opts, onApply) {
@@ -33,20 +33,20 @@ export function mountConfigFileEditor(el, opts, onApply) {
     let diag = { project: [], page: [] }, status = { project: "", page: "" }, busy = false, seq = 0, timer = null;
 
     el.innerHTML = `<div class="flex h-full min-h-0 flex-col bg-white text-xs">
-        <div class="flex items-center gap-1 border-b border-neutral-200 px-3 pt-2" data-tabs></div>
-        <div class="flex min-h-0 flex-1">
-            <div class="flex min-w-0 flex-[3] flex-col"><div class="flex min-h-0 flex-1"><div class="cfe-mono cfe-gutter w-14 shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 text-neutral-400" data-gutter></div>
-                <textarea data-ta wrap="off" spellcheck="false" class="cfe-mono cfe-ta min-w-0 flex-1 resize-none border-0 bg-white p-4 text-neutral-900 outline-none"></textarea></div>
-                <div class="max-h-40 shrink-0 overflow-auto border-t border-neutral-200 bg-neutral-50 px-4 py-2" data-diag></div></div>
-            <div class="cfe-res flex min-w-0 flex-[2] flex-col border-l border-neutral-200 bg-neutral-50"><div class="border-b border-neutral-200 px-4 py-2.5"><p class="font-semibold text-neutral-900">Result</p><p class="mt-0.5 text-neutral-500" data-resnote></p></div><div class="min-h-0 flex-1 overflow-auto" data-res></div></div></div>
-        <div class="flex items-center gap-3 border-t border-neutral-200 px-4 py-2.5"><span class="min-w-0 flex-1 truncate text-neutral-500" data-status></span><button type="button" data-reset class="text-neutral-500 underline hover:text-neutral-900">Reset this file</button><button type="button" data-apply class="h-8 rounded-md bg-black px-5 font-semibold text-white hover:bg-neutral-800">Apply</button></div></div>`;
+        <div class="flex items-center gap-1 overflow-x-auto border-b border-neutral-200 px-3 pt-2" role="tablist" aria-label="Config files" data-tabs></div>
+        <div class="cfe-cols flex min-h-0 flex-1 overflow-auto">
+            <div class="cfe-left flex min-w-0 flex-[3] flex-col"><div class="flex min-h-0 flex-1"><div class="cfe-mono cfe-gutter w-14 shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 text-neutral-400" data-gutter></div>
+                <textarea data-ta wrap="off" spellcheck="false" aria-label="Config file" class="cfe-mono cfe-ta min-w-0 flex-1 resize-none border-0 bg-white p-4 text-neutral-900 outline-none"></textarea></div>
+                <div class="max-h-40 shrink-0 overflow-auto border-t border-neutral-200 bg-neutral-50 px-4 py-2" aria-live="polite" aria-label="Checks" data-diag></div></div>
+            <div class="cfe-res flex min-w-0 flex-[2] flex-col border-l border-neutral-200 bg-neutral-50"><div class="border-b border-neutral-200 px-4 py-2.5"><p class="font-semibold text-neutral-900">Result</p><p class="mt-0.5 text-neutral-500" aria-live="polite" data-resnote></p></div><div class="min-h-0 flex-1 overflow-auto" data-res></div></div></div>
+        <div class="flex items-center gap-3 border-t border-neutral-200 px-4 py-2.5"><span class="min-w-0 flex-1 truncate text-neutral-500" role="status" aria-live="polite" data-status></span><button type="button" data-reset class="text-neutral-500 underline hover:text-neutral-900">Reset this file</button><button type="button" data-apply class="h-8 rounded-md bg-black px-5 font-semibold text-white hover:bg-neutral-800">Apply</button></div></div>`;
     const q = (s) => el.querySelector(s), ta = q("[data-ta]");
     const dirty = (sc) => texts[sc][engine] !== saved[sc][engine];
 
     function tabs() {
-        const tab = (sc) => `<button type="button" data-scope="${sc}" class="-mb-px flex items-center gap-2 border-b-2 px-3 py-2 ${scope === sc ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}"><span class="font-mono text-[12px]">${name(sc, engine)}</span><span class="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">${sc === "page" ? "this page" : "whole project"}</span>${dirty(sc) ? `<i class="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" title="Not applied yet"></i>` : ""}</button>`;
+        const tab = (sc) => `<button type="button" role="tab" aria-selected="${scope === sc}" data-scope="${sc}" class="-mb-px flex items-center gap-2 border-b-2 px-3 py-2 ${scope === sc ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}"><span class="font-mono text-[12px]">${name(sc, engine)}</span><span class="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">${sc === "page" ? "this page" : "whole project"}</span>${dirty(sc) ? `<i class="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" title="Not applied yet"></i>` : ""}</button>`;
         const eng = scope === "project"
-            ? `<div class="mb-1 ml-auto inline-flex overflow-hidden rounded-md border border-neutral-300">${["3", "4"].map((e) => `<button type="button" data-engine="${e}" class="px-2.5 py-1 ${engine === e ? "bg-black font-medium text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"}">Tailwind ${e}</button>`).join("")}</div>`
+            ? `<div class="mb-1 ml-auto inline-flex overflow-hidden rounded-md border border-neutral-300">${["3", "4"].map((e) => `<button type="button" aria-pressed="${engine === e}" data-engine="${e}" class="px-2.5 py-1 ${engine === e ? "bg-black font-medium text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"}">Tailwind ${e}</button>`).join("")}</div>`
             : `<span class="mb-1 ml-auto text-neutral-500">Tailwind ${engine}, set in the project's file</span>`;
         q("[data-tabs]").innerHTML = scopes.map(tab).join("") + eng;
     }
@@ -124,7 +124,8 @@ export function mountConfigFileEditor(el, opts, onApply) {
     });
     ta.addEventListener("input", () => { texts[scope][engine] = ta.value; diag[scope] = []; tabs(); gutter(); live(); });
     ta.addEventListener("scroll", () => { q("[data-gutter]").scrollTop = ta.scrollTop; });
-    ta.addEventListener("keydown", (e) => { if (e.key === "Tab") { e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); ta.dispatchEvent(new Event("input")); } if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); apply(); } });
+    ta.addEventListener("keydown", (e) => { if (e.key === "Tab" && !e.shiftKey) { // Shift+Tab leaves the editor, so a keyboard user is never trapped in it
+         e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); ta.dispatchEvent(new Event("input")); } if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); apply(); } });
     load();
     return {
         set(next) { theme = next.theme; tw = next.tw; if (next.scopes) scopes = next.scopes; engine = cleanEngine(theme.engine); texts = initial(); saved = initial(); locks = { project: theme.lock || {}, page: (tw && tw.lock) || {} }; diag = { project: [], page: [] }; status = { project: "", page: "" }; if (next.scope) scope = next.scope; if (!scopes.includes(scope)) scope = scopes[0]; load(); },

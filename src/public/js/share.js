@@ -25,7 +25,7 @@ $("shareList").innerHTML = data.items.map((it) => `
                 <button type="button" data-copy class="h-8 rounded-md bg-black px-3 text-xs font-medium text-white hover:bg-neutral-800">Copy code</button>
             </div>
         </div>
-        <div data-preview class="overflow-hidden rounded-xl border border-gray-200 bg-white"><iframe title="${esc(it.title)}" class="block w-full border-0" style="height:300px" data-frame></iframe></div>
+        <div data-preview class="overflow-hidden rounded-xl border border-gray-200 bg-white"><iframe title="${esc(it.title)}" class="block w-full border-0" style="height:300px" sandbox="allow-scripts allow-forms allow-popups" data-frame></iframe></div>
         <pre data-code class="hidden max-h-[28rem] overflow-auto rounded-xl bg-slate-900 p-5 text-sm leading-relaxed text-slate-300"><code></code></pre>
     </section>`).join("");
 
@@ -35,13 +35,6 @@ const codeOf = (it, fmt) => (fmt === "html" ? it.htmlCode : exportComponent(it.h
 document.querySelectorAll("[data-item]").forEach((sec) => {
     const it = data.items.find((x) => x.id === sec.dataset.item);
     const frame = sec.querySelector("[data-frame]"), pre = sec.querySelector("[data-code]"), prev = sec.querySelector("[data-preview]"), fmt = sec.querySelector("[data-fmt]");
-    frame.onload = () => { // the frame is same-origin: follow its content's height
-        const b = frame.contentDocument && frame.contentDocument.body;
-        if (!b) return;
-        const fit = () => { frame.style.height = `${Math.max(120, b.scrollHeight)}px`; };
-        new ResizeObserver(fit).observe(b);
-        fit();
-    };
     frame.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { theme: themeOf(it) });
     const showCode = () => { pre.querySelector("code").textContent = codeOf(it, fmt.value); };
     sec.addEventListener("click", async (e) => {
@@ -57,4 +50,11 @@ document.querySelectorAll("[data-item]").forEach((sec) => {
         if (copy) { await navigator.clipboard.writeText(codeOf(it, fmt.value)); flash(copy, "Copied"); }
     });
     fmt.addEventListener("change", () => { if (!pre.classList.contains("hidden")) showCode(); });
+});
+
+// The previews are sandboxed (a page's scripts, and the project's config and plugins, run without access to this site), so a frame reports its height by message.
+window.addEventListener("message", (e) => {
+    if (!e.data || e.data.type !== "preview-height") return;
+    const frame = [...document.querySelectorAll("[data-frame]")].find((f) => f.contentWindow === e.source);
+    if (frame) frame.style.height = `${Math.max(120, Math.min(6000, e.data.height))}px`;
 });

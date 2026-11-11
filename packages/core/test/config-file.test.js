@@ -148,3 +148,21 @@ test("exports carry the project's setup: a standalone page keeps its engine, plu
     assert.match(v4, /npm install -D tailwindcss@4 @tailwindcss\/postcss preline/);
     assert.match(v4, /global\.css \(whole project\)/);
 });
+
+import { describeSetup } from "../config-file.js";
+test("the setup an AI is told: version, plugins, theme classes, the project's own names", () => {
+    const d3 = describeSetup(pageTheme({ brand: "#e11d48", configJs: `module.exports = { theme: { extend: { colors: { proj: "#0f766e" } } }, plugins: [require("@tailwindcss/typography"), require("preline/plugin")] }` }, null));
+    assert.match(d3, /version 3/);
+    assert.match(d3, /Plugins in the project's config: typography, preline\/plugin/);
+    assert.match(d3, /brand-50 to brand-950 \(brand colour #e11d48\)/);
+    assert.match(d3, /colors: \{ proj: "#0f766e" \}/);
+    const d4 = describeSetup(pageTheme({ engine: "4" }, null));
+    assert.match(d4, /version 4.*shadow-xs/);
+    assert.match(d4, /No plugins are configured/);
+    assert.ok(!/tailwind\.config\.js \(use any names/.test(describeSetup(pageTheme({}, null))), "a blank file adds nothing");
+});
+
+test("a project's inlined CSS is capped, so a theme stays small", () => {
+    const big = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`pkg/f${i}.css`, { css: "a".repeat(50000) }]));
+    assert.equal(Object.keys(cleanLock(big)).length, 4, "200,000 characters of CSS at most");
+});

@@ -107,6 +107,8 @@ test("the share page, the exports and the prototype carry the config", { skip: s
     const anon = await browser.newContext(); // someone with only the link
     const share = await anon.newPage();
     await share.goto(`${stack.base}/p/${ids.token}`);
+    const sandbox = await share.$eval("[data-frame]", (f) => f.getAttribute("sandbox") || "");
+    assert.ok(/allow-scripts/.test(sandbox) && !/allow-same-origin/.test(sandbox), "shared previews run in a sandbox: the project's scripts cannot reach this site");
     const c = await settle(share, "a", "b", (x) => x.a === "rgb(124, 58, 237)" && x.b === "rgb(15, 118, 110)");
     assert.deepEqual(c, { a: "rgb(124, 58, 237)", b: "rgb(15, 118, 110)" }, "the share page shows the page with the project's and its own config");
     await anon.close();
@@ -125,4 +127,29 @@ test("the share page, the exports and the prototype carry the config", { skip: s
     const frame = await frameWith(proto, "a");
     assert.equal(await colourOf(frame, "a"), "rgb(124, 58, 237)", "the prototype uses the page's own config too");
     await proto.close();
+});
+
+test("the config dialog works on a small screen and by keyboard", { skip: skip || false, timeout: 150000 }, async () => {
+    const small = await browser.newContext({ viewport: { width: 420, height: 800 } });
+    await small.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const page = await small.newPage();
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    await page.waitForSelector("#inspector", { state: "attached" });
+    await page.waitForTimeout(3000);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(page.viewportSize().width - 174, 33);
+    await page.evaluate(() => document.querySelectorAll(".wfbtn")[1].click()); // the Tailwind config row
+    await page.waitForSelector("#configDlg[open]");
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the page does not scroll sideways");
+    const apply = await page.locator("#configDlg [data-apply]").boundingBox();
+    assert.ok(apply && apply.x >= 0 && apply.x + apply.width <= 421, "Apply is on screen");
+    assert.equal(await page.getAttribute('#configDlg [data-scope="page"]', "role"), "tab");
+    assert.equal(await page.getAttribute("#configDlg", "aria-labelledby"), "cfgTitle");
+    await page.focus("#configDlg [data-ta]");
+    await page.keyboard.press("Tab");
+    assert.ok((await page.inputValue("#configDlg [data-ta]")).endsWith("  "), "Tab indents at the caret");
+    await page.keyboard.press("Shift+Tab");
+    assert.notEqual(await page.evaluate(() => document.activeElement && document.activeElement.tagName), "TEXTAREA", "Shift+Tab leaves the editor");
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator("#configDlg[open]").count(), 0, "Escape closes the dialog");
+    await small.close();
 });
