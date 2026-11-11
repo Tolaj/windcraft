@@ -1,13 +1,13 @@
 // A shared project, read-only: every design with a live preview (in the project's theme) and its code to copy.
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
-import { themeHead } from "@windcraft/core/theme.js";
+import { themeHead, pageTheme } from "@windcraft/core/theme.js";
 import { exportComponent } from "@windcraft/core/exporters.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const data = JSON.parse($("shareData").textContent);
 setPreviewTheme(data.project.theme);
-const FORMATS = [["html", "HTML"], ["react", "React"], ["vue", "Vue"], ["svelte", "Svelte"]];
+const FORMATS = [["html", "HTML"], ["standalone", "Standalone page"], ["react", "React"], ["vue", "Vue"], ["svelte", "Svelte"], ["config", "Tailwind config"]];
 
 const flash = (btn, text) => { const was = btn.textContent; btn.textContent = text; setTimeout(() => { btn.textContent = was; }, 1200); };
 $("themeCopy").addEventListener("click", async (e) => { await navigator.clipboard.writeText(themeHead(data.project.theme)); flash(e.currentTarget, "Copied"); });
@@ -29,7 +29,8 @@ $("shareList").innerHTML = data.items.map((it) => `
         <pre data-code class="hidden max-h-[28rem] overflow-auto rounded-xl bg-slate-900 p-5 text-sm leading-relaxed text-slate-300"><code></code></pre>
     </section>`).join("");
 
-const codeOf = (it, fmt) => (fmt === "html" ? it.htmlCode : exportComponent(it.htmlCode, fmt, it.title.replace(/[^A-Za-z0-9]+/g, " ").trim().replace(/ (\w)/g, (_, c) => c.toUpperCase()) || "Design"));
+const themeOf = (it) => pageTheme(data.project.theme, it.twConfig); // the project's theme with this page's own config files
+const codeOf = (it, fmt) => (fmt === "html" ? it.htmlCode : exportComponent(it.htmlCode, fmt, it.title.replace(/[^A-Za-z0-9]+/g, " ").trim().replace(/ (\w)/g, (_, c) => c.toUpperCase()) || "Design", { theme: themeOf(it) }));
 
 document.querySelectorAll("[data-item]").forEach((sec) => {
     const it = data.items.find((x) => x.id === sec.dataset.item);
@@ -41,7 +42,7 @@ document.querySelectorAll("[data-item]").forEach((sec) => {
         new ResizeObserver(fit).observe(b);
         fit();
     };
-    frame.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), {});
+    frame.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { theme: themeOf(it) });
     const showCode = () => { pre.querySelector("code").textContent = codeOf(it, fmt.value); };
     sec.addEventListener("click", async (e) => {
         const tab = e.target.closest("[data-tab]");

@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import FigmaSource from "../models/figmaSource.model.js";
 import { adoptDraftSource } from "../services/figma-update.service.js";
 import Component from "../models/component.model.js";
+import Project from "../models/project.model.js";
+import { pageTheme } from "@windcraft/core/theme.js";
 import { exportComponent, FORMATS } from "@windcraft/core/exporters.js";
 import { normalizeGroup } from "@windcraft/core/pages.js";
 import { cleanTw, hasTw } from "@windcraft/core/config-file.js";
@@ -289,10 +291,12 @@ export const exportComponentCode = async (req, res) => {
         if (!component || (!component.isPublished && !isOwner)) {
             return res.status(404).json({ success: false, message: 'Component not found' });
         }
+        const project = component.project ? await Project.findById(component.project).select("theme").lean() : null;
+        const theme = pageTheme(project && project.theme, component.twConfig); // the project's setup with this page's own config files: standalone pages keep it, `config` hands it over
         res.status(200).json({
             success: true,
             format,
-            code: format === "design" ? JSON.stringify(specOf(component), null, 2) : exportComponent(component.htmlCode, format, component.title),
+            code: format === "design" ? JSON.stringify(specOf(component), null, 2) : exportComponent(component.htmlCode, format, component.title, { theme }),
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

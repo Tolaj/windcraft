@@ -1,6 +1,7 @@
 // The prototype page (/prototype/<link>): a project's pages one at a time, full screen. Anyone with the link can open it; the owner can
 // make (or stop) the link with Share.
 import { setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
+import { pageTheme } from "@windcraft/core/theme.js";
 import { createPresenter, SCALE_NAMES } from "@windcraft/editor/design/presenter.js";
 
 const data = JSON.parse(document.getElementById("protoData").textContent);
@@ -70,7 +71,7 @@ function paint() {
 // ── The viewer ───────────────────────────────────────────────────────────────
 if (data.items.length) createPresenter({
     name: data.project.name,
-    pages: data.items.map((i) => ({ key: i.id, title: i.title, width: i.width, height: i.height, source: i.htmlCode })),
+    pages: data.items.map((i) => ({ key: i.id, title: i.title, width: i.width, height: i.height, source: i.htmlCode, theme: i.twConfig ? pageTheme(data.project.theme, i.twConfig) : null })),
     start,
     scaling,
     share: { label: "Share", open: openShare, close: closePop },

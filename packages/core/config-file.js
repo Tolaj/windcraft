@@ -115,3 +115,40 @@ export function directivesOf(text) {
     });
     return out;
 }
+
+// ── Leaving the editor: the same config as files for a real project ─────────────────────────────────────────────────────────────
+
+const versionIn = (url) => (/@(\d+\.\d+\.\d+)(?:\/|$)/.exec(url || "") || [])[1];
+/** The packages a config names, as install arguments: official plugins by name, others pinned at the version the editor used. */
+export function packagesOf(text, lock) {
+    const l = cleanLock(lock), out = [];
+    for (const { spec } of requiresOf(text)) {
+        const kind = kindOf(spec);
+        if (kind === "official") out.push(spec);
+        else if (kind === "package") { const pkg = spec.split("/").slice(0, spec.startsWith("@") ? 2 : 1).join("/"), v = versionIn(l[spec] && l[spec].url); out.push(v ? `${pkg}@${v}` : pkg); }
+    }
+    return [...new Set(out)];
+}
+/** v4 `@import "./node_modules/pkg/x.css"` lines name packages too. */
+export const packages4Of = (text) => [...new Set(directivesOf(text).filter((d) => d.kind === "import" && /^(\.\/)?node_modules\//.test(d.spec)).map((d) => d.spec.replace(/^(\.\/)?node_modules\//, "").split("/").slice(0, d.spec.replace(/^(\.\/)?node_modules\//, "").startsWith("@") ? 2 : 1).join("/")))];
+
+/** The project's Tailwind config (and, if the theme carries one, the page's) as the files to copy into a real project, with the install command. `theme` is normalized, with `page`. */
+export function toTailwindConfig(theme, themeChoices) {
+    const t = theme || {}, engine = cleanEngine(t.engine), page = t.page || {};
+    const out = [`// Tailwind ${engine} config from Windcraft. Copy these into your project and run the install command.`];
+    if (engine === "3") {
+        const project = t.configJs || TEMPLATES["3"].text, pageJs = page.js || "";
+        const pkgs = [...new Set([...packagesOf(project, t.lock), ...packagesOf(pageJs, page.lock)])];
+        out.push(`\n// npm install -D tailwindcss@3 ${pkgs.join(" ")}`.trimEnd());
+        if (themeChoices) out.push(`\n// ── Theme: brand colours, font and corners from the project's Theme settings. Merge into theme.extend of the file below. ──\n// theme.extend = ${JSON.stringify(themeChoices, null, 2).replace(/\n/g, "\n// ")}`);
+        out.push(`\n// ── tailwind.config.js (whole project) ──\n${project.trimEnd()}`);
+        if (pageJs) out.push(`\n// ── This page's additions. Merge into the file above (its plugins and theme.extend add to the project's). ──\n${pageJs.trimEnd()}`);
+    } else {
+        const project = t.configCss || TEMPLATES["4"].text, pageCss = page.css || "";
+        const pkgs = [...new Set([...packages4Of(project), ...packages4Of(pageCss)])];
+        out.push(`\n/* npm install -D tailwindcss@4 @tailwindcss/postcss ${pkgs.join(" ")} */`.replace(/ \*\/$/, pkgs.length ? " */" : " */"));
+        out.push(`\n/* ── global.css (whole project) ── */\n${project.trimEnd()}`);
+        if (pageCss) out.push(`\n/* ── This page's additions. Add after the file above. ── */\n${pageCss.trimEnd()}`);
+    }
+    return out.join("\n") + "\n";
+}

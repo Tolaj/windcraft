@@ -121,3 +121,30 @@ test("a page's file is laid over the project's: both run, the page after; its pl
     assert.deepEqual(cleanTw({ js: "x", css: 5, lock: { "a/b": { url: "http://x" } } }), { js: "x", css: "", lock: {} });
     assert.ok(hasTw({ js: "x" }) && !hasTw(null) && !hasTw({ js: "", css: "" }));
 });
+
+import { exportComponent, FORMATS } from "../exporters.js";
+import { packagesOf, toTailwindConfig } from "../config-file.js";
+test("exports carry the project's setup: a standalone page keeps its engine, plugins, config and font; `config` hands over the files with the install command", () => {
+    const theme = pageTheme(
+        { brand: "#e11d48", configJs: `module.exports = { plugins: [require("@tailwindcss/typography"), require("preline/plugin")] }`, lock: { "preline/plugin": { url: "https://cdn.jsdelivr.net/npm/preline@2.7.0/plugin.js" } } },
+        { js: `module.exports = { theme: { extend: { colors: { pg: "#7c3aed" } } } }` },
+    );
+    const html = exportComponent(`<div class="prose bg-pg">hi</div>`, "standalone", "Home", { theme });
+    assert.match(html, /cdn\.tailwindcss\.com\?plugins=typography"/);
+    assert.match(html, /preline@2\.7\.0\/plugin\.js/);
+    assert.match(html, /#e11d48/, "the brand colour is in the page's config");
+    assert.match(html, /\(this page\)/, "and the page's own file");
+    assert.ok(html.indexOf("<script src=\"https://cdn.tailwindcss.com") < html.indexOf("tailwind.config=__c"));
+    assert.equal(exportComponent(`<p>x</p>`, "standalone", "X").includes("tailwind.config"), false, "without a theme it is the plain page it always was");
+    assert.ok(FORMATS.includes("config"));
+    const cfg = exportComponent("<p>x</p>", "config", "Home", { theme });
+    assert.match(cfg, /npm install -D tailwindcss@3 @tailwindcss\/typography preline@2\.7\.0/);
+    assert.match(cfg, /\/\/ ── tailwind\.config\.js \(whole project\) ──/);
+    assert.match(cfg, /require\("preline\/plugin"\)/);
+    assert.match(cfg, /This page's additions/);
+    assert.match(cfg, /#e11d48/, "the theme choices are handed over too, or bg-brand-600 would break");
+    assert.deepEqual(packagesOf(`require("@tailwindcss/forms"); require("tailwindcss/colors"); require("./x"); require("daisyui")`, {}), ["@tailwindcss/forms", "daisyui"]);
+    const v4 = toTailwindConfig({ engine: "4", configCss: `@import "tailwindcss";\n@import "./node_modules/preline/variants.css";` });
+    assert.match(v4, /npm install -D tailwindcss@4 @tailwindcss\/postcss preline/);
+    assert.match(v4, /global\.css \(whole project\)/);
+});

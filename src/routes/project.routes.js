@@ -185,10 +185,10 @@ sharePages.get("/:token", async (req, res) => {
     const token = String(req.params.token || "");
     const project = /^[a-f0-9]{32}$/.test(token) ? await Project.findOne({ shareToken: token }).lean() : null;
     if (!project) return res.status(404).render("error", { layout: "main", title: "Not found", message: "This link doesn't work (any more).", user: req.session?.user || null });
-    const items = await Component.find({ project: project._id, kind: { $ne: "section" } }).select("title description kind htmlCode version").sort("order createdAt").lean();
+    const items = await Component.find({ project: project._id, kind: { $ne: "section" } }).select("title description kind htmlCode version twConfig").sort("order createdAt").lean();
     const data = {
         project: { name: project.name, theme: normalizeTheme(project.theme) },
-        items: items.map((c) => ({ id: String(c._id), title: c.title, description: c.description, kind: c.kind, htmlCode: c.htmlCode })),
+        items: items.map((c) => ({ id: String(c._id), title: c.title, description: c.description, kind: c.kind, htmlCode: c.htmlCode, twConfig: c.twConfig || null })),
     };
     res.render("main/share", { layout: "main", title: project.name, user: req.session?.user || null, projectName: project.name, count: items.length, dataJson: JSON.stringify(data).replace(/</g, "\\u003c").replace(/[\u2028\u2029]/g, "") });
 });
@@ -204,10 +204,10 @@ protoPages.get("/:ref", async (req, res) => {
     else if (mongoose.isValidObjectId(ref) && me) { project = await Project.findOne({ _id: ref, owner: me }).lean(); owner = Boolean(project); }
     if (!project) return res.status(404).render("error", { layout: "main", title: "Not found", message: "This link doesn't work (any more).", user: req.session?.user || null });
     owner = owner || Boolean(me && String(project.owner) === String(me));
-    const items = await Component.find({ project: project._id, kind: { $ne: "section" } }).select("title htmlCode kind frameW board").sort("order createdAt").lean();
+    const items = await Component.find({ project: project._id, kind: { $ne: "section" } }).select("title htmlCode kind frameW board twConfig").sort("order createdAt").lean();
     const pages = items.filter((c) => c.kind === "page");
     const shown = (pages.length ? pages : items).map((c) => ({
-        id: String(c._id), title: c.title, htmlCode: c.htmlCode, width: (c.board && Number.isFinite(c.board.w) && c.board.w) || c.frameW || null,
+        id: String(c._id), title: c.title, htmlCode: c.htmlCode, twConfig: c.twConfig || null, width: (c.board && Number.isFinite(c.board.w) && c.board.w) || c.frameW || null,
         height: (c.board && Number.isFinite(c.board.h) && c.board.h) || null,
     }));
     const data = { project: { id: String(project._id), name: project.name, theme: normalizeTheme(project.theme) }, items: shown, owner, token: project.protoToken || "" };

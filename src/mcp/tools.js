@@ -12,6 +12,7 @@ import { withSharedHead } from "@windcraft/core/pages.js";
 import { specOf, patchDesign, tailwindWarning } from "../services/design-spec.service.js";
 import { resolveProject, orderPages, listProjects, projectTree, getActiveProject, setActiveProject, projectContext } from "../services/project.service.js";
 import Project from "../models/project.model.js";
+import { pageTheme } from "@windcraft/core/theme.js";
 import { text, fail } from "@windcraft/mcp";
 
 export const TOOLS = [
@@ -223,7 +224,8 @@ export async function callTool(userId, name, args = {}) {
             if (!/^[a-f0-9]{24}$/i.test(String(args.id))) return fail("Invalid component id");
             const c = await Component.findOne({ _id: args.id, createdBy: userId }).lean();
             if (!c) return fail("Component not found in your library");
-            return text(`${profileToMarkdown(c)}\n\n---\n\n${exportComponent(c.htmlCode, format, c.title)}`);
+            const proj = c.project ? await Project.findById(c.project).select("theme").lean() : null;
+            return text(`${profileToMarkdown(c)}\n\n---\n\n${exportComponent(c.htmlCode, format, c.title, { theme: pageTheme(proj && proj.theme, c.twConfig) })}`);
         }
         case "get_design_spec": {
             if (!/^[a-f0-9]{24}$/i.test(String(args.id))) return fail("Invalid design id");
