@@ -191,3 +191,44 @@ test("double-clicking an icon beside a brand name picks the icon; it does not st
     assert.equal(await editing(), true, "double-clicking the name still edits it");
     await page.close();
 });
+
+test("a new animation is written into the project's config and works after a reload", { skip: skip || false, timeout: 170000 }, async () => {
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    await page.waitForSelector("#inspector", { state: "attached" });
+    await page.waitForTimeout(3500);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
+    const frame = await frameWith(page, "a");
+    const b = await frame.locator("#a").boundingBox();
+    await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2); // into the page
+    await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2); // onto the button
+    await page.click('#inspector [title^="Make a new animation"]');
+    await page.click('[data-preset="zoom-in"]');
+    await page.click("#animCreate");
+    await page.waitForSelector("#animDlg:not([open])", { state: "attached" });
+    assert.equal(await page.textContent("#animErr"), "", "no error");
+    assert.match(await frame.evaluate(() => document.getElementById("a").className), /animate-zoom-in/, "the class is on the selected element");
+    // the file now holds it
+    await page.goto(`${stack.base}/projects/${ids.project}`);
+    await page.click("#tabTheme"); await page.click('[data-engine="3"]');
+    const file = await page.inputValue("[data-ta]");
+    assert.match(file, /"zoom-in": "zoom-in 0\.4s ease-out both"/);
+    assert.match(file, /keyframes: \{\n\s+"zoom-in": \{/);
+    assert.match(file, /module\.exports = \{/, "it is still a normal config file");
+    // after a reload the animation comes from the config itself: Tailwind builds animate-zoom-in
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    const again = await frameWith(page, "a");
+    const names = await again.evaluate(() => Object.keys((window.tailwind.config.theme.extend || {}).animation || {}));
+    assert.ok(names.includes("zoom-in"), "the canvas knows the animation");
+    // pick it from the panel (it is listed under "Your animations"), then preview: the editor shows designs at rest, the preview lets it move
+    await page.waitForTimeout(1500);
+    const b2 = await again.locator("#a").boundingBox();
+    await page.mouse.dblclick(b2.x + b2.width / 2, b2.y + b2.height / 2);
+    await page.mouse.dblclick(b2.x + b2.width / 2, b2.y + b2.height / 2);
+    await page.locator("#inspector select", { has: page.locator('option[value="zoom-in"]') }).selectOption("zoom-in");
+    await page.click("text=Preview the animation");
+    await page.waitForTimeout(800);
+    const name = await again.evaluate(() => getComputedStyle(document.getElementById("a")).animationName);
+    assert.equal(name, "zoom-in", "Tailwind turns the config's animation into the animate-zoom-in class");
+    await page.close();
+});

@@ -155,6 +155,7 @@ export const GROUPS = {
     duration: P("duration", "\\d+"),
     ease: E("ease-(?:linear|in|out|in-out)"),
     delay: P("delay", "\\d+"),
+    animation: { re: /^animate-(?!\[)([a-z][a-z0-9-]*)$/, read: (m) => m[1], build: (v) => `animate-${v}` }, // spin, ping, pulse, bounce, none, or a name from the config's animation section
     cursor: E("cursor-(?:pointer|default|text|move|not-allowed|wait|grab|grabbing|crosshair|help|auto)"),
     pointerEvents: E("pointer-events-(?:none|auto)"),
     userSelect: E("select-(?:none|text|all|auto)"),

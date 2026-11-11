@@ -10,6 +10,7 @@ import { pageTheme } from "../../../core/theme.js";
 import { TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
 import { requiresOf, kindOf, OFFICIAL, TEMPLATES, hasTw } from "../../../core/config-file.js";
 import { openConfig } from "./config-dialog.js";
+import { newAnimation } from "./animation-dialog.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
@@ -88,6 +89,8 @@ const panelActions = {
     setTag: (tag) => { if (S.selected) cmd({ cmd: "setTag", path: S.selected.path, tag }); },
     setTab: (tab) => panelStore.set({ tab }),
     openConfig,
+    newAnimation: () => newAnimation((name) => panelActions.applyValue("animation", name)),
+    previewAnim: () => send({ cmd: "previewAnim", ms: 4000 }),
     closePanel: () => setPanel(false),
     // a breakpoint picked: the frame goes to its width, so what is edited is what is seen; All sizes leaves the frame as it is
     setBreakpoint: (bp) => { panelStore.set({ bp, all: bp === "" }); if (bp) setDevice(BREAKPOINT_WIDTH[bp]); },

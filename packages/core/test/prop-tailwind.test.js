@@ -34,3 +34,15 @@ test("z-index and opacity: values outside Tailwind's own steps are arbitrary val
     assert.equal(twValue("opacity", "0.33", false), "[0.33]");
     assert.equal(twValue("opacity", "75", false), "75");
 });
+
+import { getGroup, setGroup } from "../class-groups.js";
+test("the animation group reads and writes animate-* classes, at a state too", () => {
+    assert.equal(getGroup("p-4 animate-spin", "animation", "").value, "spin");
+    assert.equal(getGroup("p-4 animate-wiggle", "animation", "").value, "wiggle");
+    assert.equal(getGroup("p-4 hover:animate-bounce", "animation", "hover:").value, "bounce");
+    assert.equal(getGroup("p-4 animate-[spin_1s_linear]", "animation", ""), null, "an arbitrary value is not one of the names");
+    assert.match(setGroup("p-4", "animation", "fade-in", ""), /animate-fade-in/);
+    assert.ok(!/animate-spin/.test(setGroup("p-4 animate-spin", "animation", "pulse", "")), "one animation at a time");
+    assert.ok(!/animate-/.test(setGroup("p-4 animate-spin", "animation", "", "")), "empty removes it");
+    assert.match(setGroup("p-4", "animation", "bounce", "hover:"), /hover:animate-bounce/);
+});

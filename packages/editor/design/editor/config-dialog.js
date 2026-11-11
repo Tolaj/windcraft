@@ -23,26 +23,26 @@ function build() {
     dlg.addEventListener("keydown", (e) => e.stopPropagation()); // typing here is not an editor shortcut
 }
 
-async function applyProject(patch) {
+export async function applyProject(patch, { reload = true } = {}) {
     const projectId = data.project && data.project.id;
     try {
         const saved = await host.saveProjectTheme(projectId, { ...(data.projectTheme || {}), ...patch });
         data.projectTheme = saved;
         setPreviewTheme(pageTheme(saved, data.twConfig));
-        loadFrame(); // the canvas takes the new config
+        if (reload) loadFrame(); // the canvas takes the new config
         renderInspector();
         return { ok: true };
     } catch (err) { return { ok: false, message: err.message || "Could not save" }; }
 }
 
-async function applyPage(patch) {
+export async function applyPage(patch, { reload = true } = {}) {
     if (!data.id) return { ok: false, message: "Save the page first." };
     const tw = patch.js || patch.css ? patch : null;
     try { await host.updateComponent(data.id, { twConfig: tw || {} }); } catch (err) { return { ok: false, message: err.message || "Could not save it" }; }
     data.twConfig = tw;
     const d = docs.get(S.curKey); if (d) d.meta.twConfig = tw;
     setPreviewTheme(pageTheme(data.projectTheme, tw));
-    loadFrame();
+    if (reload) loadFrame();
     renderInspector();
     return { ok: true };
 }

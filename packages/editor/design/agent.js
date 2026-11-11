@@ -59,6 +59,7 @@ export function agentMain() {
     // shrinks, the frame follows, the selection box drifts, and on a slow machine it never settles. The Interact tool is a separate,
     // live frame with its transitions. The frame never shows a scrollbar either: it follows its content's height, and a scrollbar that
     // appears for a moment takes width, which can cross a breakpoint (xl at exactly 1280) and change the layout under it.
+    let previewTimer = null;
     const stillStyle = document.createElement("style");
     stillStyle.setAttribute("data-wc-agent-style", "");
     // Animations (animate-spin, animate-pulse...) are off too: editing shows the design at rest, the Interact tool shows it moving.
@@ -85,10 +86,11 @@ export function agentMain() {
         props.forEach((p) => { o[p] = cs.getPropertyValue(p); });
         const motion = props.filter((p) => p.startsWith("transition") || p.startsWith("animation"));
         if (motion.length) {
+            const was = stillStyle.disabled; // a running animation preview has it off already: put it back as it was, not on
             stillStyle.disabled = true; // only the motion properties change while it is off, and nothing paints before it is back on
             const live = getComputedStyle(el);
             motion.forEach((p) => { o[p] = live.getPropertyValue(p); });
-            stillStyle.disabled = false;
+            stillStyle.disabled = was;
         }
         return o;
     };
@@ -2826,6 +2828,18 @@ export function agentMain() {
         }
         if (m.cmd === "selectAll") { selectAll(); return; }
         if (m.cmd === "select") { if (Array.isArray(m.paths)) setSelection(m.paths.map(elAt).filter(Boolean)); else select(elAt(m.path)); return; } // paths: several at once
+        if (m.cmd === "injectAnim") { // a new animation shows at once, without reloading the design: its keyframes and class, in the page's head (not part of the design's markup)
+            let st = document.querySelector("style[data-wc-anim]");
+            if (!st) { st = document.createElement("style"); st.dataset.wcAnim = ""; document.head.appendChild(st); }
+            st.textContent += String(m.css || "").replace(/<\/style/gi, "");
+            return;
+        }
+        if (m.cmd === "previewAnim") { // the canvas shows a design at rest (see stillStyle); for a few seconds it moves, so an animation can be seen
+            stillStyle.disabled = true;
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(() => { stillStyle.disabled = false; }, Math.min(15000, Math.max(500, Number(m.ms) || 4000)));
+            return;
+        }
         if (m.cmd === "previewState") { shownState = m.state || ""; showState(); redraw(); if (primary() && alive(primary())) post({ type: "info", info: describe(primary()) }); return; }
         if (m.cmd === "deselect") { editing = null; setSelection([], true); post({ type: "body", info: describe(document.body) }); return; } // the page's styling, for the page panel
         if (m.cmd === "hover") { hov = m.path ? elAt(m.path) : null; redraw(); return; }
@@ -2901,6 +2915,15 @@ export function agentMain() {
 
     post({ type: "ready", html: serialize(), tree: tree() });
     // the page panel shows the page's styling from the start: sent again once the styles have loaded, when the values are real
+    // the animations the design's Tailwind config defines (its animation section), so the panel can offer them next to Tailwind's own
+    const BUILTIN_ANIM = ["none", "spin", "ping", "pulse", "bounce"];
+    const postNames = () => {
+        const t = (window.tailwind && window.tailwind.config && window.tailwind.config.theme) || {};
+        const names = Object.keys({ ...(t.animation || {}), ...((t.extend || {}).animation || {}) }).filter((n) => !BUILTIN_ANIM.includes(n));
+        post({ type: "tw-names", animations: names });
+    };
+    postNames();
+    window.addEventListener("load", () => setTimeout(postNames, 300));
     const postBody = () => { if (!primary()) post({ type: "body", info: describe(document.body) }); };
     postBody();
     if (document.readyState === "complete") setTimeout(postBody, 300); else window.addEventListener("load", () => setTimeout(postBody, 100));

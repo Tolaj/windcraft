@@ -283,6 +283,26 @@ export const TransformSection = ({ s, actions }) => html`<${GroupsSection} s=${s
 export const MotionSection = ({ s, actions }) => html`<${GroupsSection} s=${s} actions=${actions} title="Motion" addTitle="Add a transition"
     groups=${[["transition", "Transition", "select"], ["duration", "Time"], ["delay", "Delay"], ["ease", "Easing", "select"]]} />`;
 
+const BUILTIN_ANIMATIONS = [["none", "None"], ["spin", "Spin"], ["ping", "Ping"], ["pulse", "Pulse"], ["bounce", "Bounce"]];
+/** Animation: Tailwind's own (spin, ping, pulse, bounce) and the ones the config defines, as an animate-* class. Written at the panel's breakpoint and state, so hover:animate-bounce is one pick. */
+export function AnimationSection({ s, actions }) {
+    const ui = useUi();
+    const cur = val(s, "animation", ui), custom = ui.animations || [];
+    const known = BUILTIN_ANIMATIONS.some(([v]) => v === cur) || custom.includes(cur);
+    return html`<${FSection} title="Animation" extra=${html`<${IconBtn} icon=${I.plus} title="Make a new animation (keyframes go into your Tailwind config)" onClick=${actions.newAnimation} />`}>
+        <div class="frow"><label class=${`nf ${cur ? "src-tw" : "unset"}`} title="animate-* class">
+            <span class="nfl">Play</span>
+            <select class="nfs wide" onChange=${(e) => actions.applyValue("animation", e.target.value)}>
+                <option value="" selected=${!cur}>–</option>
+                <optgroup label="Tailwind">${BUILTIN_ANIMATIONS.map(([v, l]) => html`<option value=${v} selected=${v === cur}>${l}</option>`)}</optgroup>
+                ${custom.length ? html`<optgroup label="Your animations">${custom.map((v) => html`<option value=${v} selected=${v === cur}>${v}</option>`)}</optgroup>` : null}
+                ${cur && !known ? html`<option value=${cur} selected>${cur}</option>` : null}
+            </select></label>
+            ${cur ? html`<${Remove} title="Remove the animation" onClick=${() => actions.applyValue("animation", "")} />` : null}</div>
+        ${cur ? html`<div class="frow"><button type="button" class="nfs wide" style="cursor:pointer;text-align:center" title="The editor shows designs at rest; this lets the animation run for a few seconds" onClick=${actions.previewAnim}>Preview the animation</button></div>` : null}
+    </${FSection}>`;
+}
+
 const INTERACTION = [
     { p: "cursor", l: "Cursor", t: "select", o: ["auto", "default", "pointer", "text", "move", "not-allowed", "grab", "grabbing", "crosshair", "help", "wait"] },
     { p: "pointer-events", l: "Pointer", t: "select", o: ["auto", "none"] },
