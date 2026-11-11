@@ -65,6 +65,23 @@ test("a page's own file is stored on the page and laid over the project's", { sk
     await page.close();
 });
 
+test("the parts saved from a page are not in the editor's pages list or on its canvas", { skip: skip || false, timeout: 150000 }, async () => {
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    await page.waitForSelector("#designs", { state: "attached" });
+    await page.waitForTimeout(3000);
+    const text = await page.$eval("#designs", (d) => d.innerText);
+    assert.match(text, /Home/);
+    assert.ok(!/Header|section/i.test(text), "no row for the saved section");
+    assert.equal(await page.$$eval("#designs > *", (rows) => rows.filter((r) => /Home/.test(r.innerText)).length) >= 1, true);
+    const frames = await page.$$eval("iframe", (f) => f.map((x) => /id="s"/.test(x.srcdoc || "")));
+    assert.ok(!frames.some(Boolean), "and no frame for it on the canvas");
+    await page.goto(`${stack.base}/projects/${ids.project}`);
+    await page.click("#tabPages");
+    assert.match(await page.textContent("#outline"), /Header/, "the project page still lists the part");
+    await page.close();
+});
+
 test("a config that throws is not saved, and says why", { skip: skip || false, timeout: 150000 }, async () => {
     const page = await ctx.newPage();
     await page.goto(`${stack.base}/projects/${ids.project}`);

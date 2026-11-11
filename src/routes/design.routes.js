@@ -72,8 +72,9 @@ router.get("/:id", async (req, res) => {
         if (!c) { await wait(600); c = await retry(find); } // a design saved a moment ago may not be readable everywhere yet
         if (!c) return notFound(req, res);
         const projects = await optional("the project list", () => projectList(req.session.user.id), []);
-        // Everything in the same project shares one infinite plane with this design.
-        const plane = c.project ? (await retry(() => Component.find({ createdBy: req.session.user.id, project: c.project })
+        // Everything in the same project shares one infinite plane with this design. The parts saved from a page (its sections) are not here: they are listed in the
+        // project's Components tab, not as frames of their own in the editor (unless one of them is the design being opened).
+        const plane = c.project ? (await retry(() => Component.find({ createdBy: req.session.user.id, project: c.project, $or: [{ kind: { $ne: "section" } }, { _id: c._id }] })
             .select("title htmlCode version category description tags isPublished useAsReference kind parent board group frameW twConfig")
             .sort("order createdAt").limit(60).lean())).map((p) => ({
             id: String(p._id), title: p.title, group: p.group || "", frameW: p.frameW || null, version: p.version || 1, kind: p.kind, parent: p.parent ? String(p.parent) : null,

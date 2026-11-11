@@ -54,6 +54,8 @@ export async function seed() {
     const project = await Project.create({ owner: user._id, name: "E2E project", shareToken: "a".repeat(32) });
     const html = '<div class="p-6"><button id="a" class="bg-pg text-white p-2">page colour</button> <button id="b" class="bg-proj text-white p-2">project colour</button></div>';
     const page = await Component.create({ title: "Home", htmlCode: html, category: "landing-page", description: "x", createdBy: user._id, project: project._id, kind: "page", version: 1 });
+    // a part saved from the page: it lives in the project's Components tab, not in the editor
+    await Component.create({ title: "Home: Header", htmlCode: `<header id="s">header</header>`, category: "landing-page", description: "x", createdBy: user._id, project: project._id, kind: "section", parent: page._id, version: 1 });
     return { project: String(project._id), page: String(page._id), token: "a".repeat(32), email: "e2e@example.test", password: "pw-e2e-1234" };
 }
 
