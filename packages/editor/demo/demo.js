@@ -34,7 +34,7 @@ const host = {
 };
 
 // a project theme with two plugins on, to see the plugin chips in the Tailwind config tab
-let DEMO_PROJECT_THEME = { plugins: ["typography", "preline"] };
+let DEMO_PROJECT_THEME = { configJs: "module.exports = { plugins: [require(\"@tailwindcss/typography\")] }" };
 const saved = read()[new URLSearchParams(location.search).get("design") || ""];
 const categories = [{ group: "Demo", items: [{ slug: "demo", name: "Demo" }] }]; // the Details dialog's category list: whatever the app has
 await mountEditor(document.getElementById("root"), {

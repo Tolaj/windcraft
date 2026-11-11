@@ -1,24 +1,18 @@
-// One setting, two levels (like CSS): Tailwind's defaults, then the project's config, then a page's own changes. This is the one place that
-// works out what an editor shows for a level and what it stores from it; the project page (Config tab) and the editor (a page's tab) both use it.
-//   project level   shown: defaults + project's changes    stored: only what differs from Tailwind's defaults
-//   page level      shown: defaults + project + page       stored: only what differs from the project's (defaults + project's changes)
+// A page's own Tailwind changes (`theme.extend`, JSON), over the project's config file. The editor shows Tailwind's defaults with the page's changes laid over them,
+// and stores only what differs from the defaults. (The project's file is real JavaScript or CSS, see config-file.js; it is run in the preview, not read here.)
 import { TAILWIND_DEFAULTS, withDefaults, onlyChanges } from "./tailwind-defaults.js";
-import { configError, cleanConfig, pageTheme } from "./theme.js";
+import { configError } from "./theme.js";
 
 const parse = (text) => { try { const v = typeof text === "string" ? JSON.parse(text || "{}") : text; return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; } };
 
-/** The JSON text a level's editor opens with. `projectConfig` and `pageConfig` are what is stored (JSON text or objects); pass no `pageConfig` for the project level. */
-export function configText(projectConfig, pageConfig) {
-    const base = pageConfig === undefined ? parse(projectConfig) : JSON.parse(pageTheme({ config: cleanConfig(parse(projectConfig)) }, pageConfig).config || "{}");
-    return JSON.stringify(withDefaults(base), null, 2);
-}
+/** The JSON text the page's editor opens with: the defaults, with what the page changes over them. */
+export const configText = (pageConfig) => JSON.stringify(withDefaults(parse(pageConfig)), null, 2);
 
-/** What to store for the text typed in a level's editor: { stored } (JSON text of the changes, "" for none) or { error }. `projectConfig` is given for the page level only. */
-export function configStore(text, projectConfig) {
+/** What to store for the text typed in the page's editor: { stored } (JSON text of the changes, "" for none) or { error }. */
+export function configStore(text) {
     const error = configError(text);
     if (error) return { error };
-    const against = projectConfig === undefined ? TAILWIND_DEFAULTS : withDefaults(parse(projectConfig)); // what the level inherits
-    const changes = onlyChanges(parse(text), against);
+    const changes = onlyChanges(parse(text), TAILWIND_DEFAULTS);
     return { stored: Object.keys(changes).length ? JSON.stringify(changes) : "" };
 }
 

@@ -24,10 +24,8 @@ export function configToV4(extend) {
     return { css: [vars.length ? `@theme {\n  ${vars.join("\n  ")}\n}` : "", ...blocks].filter(Boolean).join("\n"), skipped };
 }
 
-/** The whole v4 CSS for a theme: dark mode by class, then the theme's config (brand and gray scales, font, corners and the project's extras) as variables, then the recipes' own CSS. */
-export function themeCss4(extend, recipeCss = "") {
+/** The whole v4 CSS for a theme: dark mode by class, then the theme's config (brand and gray scales, font, corners and the project's extras) as variables, then the project's own CSS file (its imports already written in). */
+export function themeCss4(extend, userCss = "") {
     const { css, skipped } = configToV4(extend);
-    const imports = recipeCss.match(/@import\s[^;]+;/g) || []; // CSS wants every @import before anything else
-    const rest = imports.reduce((t, i) => t.replace(i, ""), recipeCss).trim();
-    return { css: [...imports, `@custom-variant dark (&:where(.dark, .dark *));`, css, rest].filter(Boolean).join("\n"), skipped };
+    return { css: [`@custom-variant dark (&:where(.dark, .dark *));`, css, userCss.trim()].filter(Boolean).join("\n"), skipped };
 }

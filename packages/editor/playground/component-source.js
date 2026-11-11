@@ -1,5 +1,5 @@
 import { themeHead } from "../../core/theme.js";
-import { tailwindTag } from "../../core/plugins.js";
+import { tailwindTag } from "../../core/config-file.js";
 const TAILWIND_RE = /tailwindcss|@tailwindcss\/browser/i;
 
 const isTailwindScript = (s) => s.src && TAILWIND_RE.test(s.src);

@@ -3,18 +3,19 @@
 //   gray     which of Tailwind's neutral palettes `gray-*` means in this project (slate, gray, zinc, neutral, stone)
 //   font     the sans font (a Google Fonts family, or "System")
 //   radius   how round corners are (none, sm, md, lg, xl): the rounded-* sizes follow it
-//   engine   "3" (Tailwind 3.4 play CDN) or "4" (the v4 browser build); plugins: ids of catalogue recipes switched on; recipes: the project's own (see plugins.js)
-//   config   extra `theme.extend` for Tailwind as JSON text (colors, fontFamily, keyframes, animation, …), merged over the choices above
-// tailwindConfig() is the object for `tailwind.config` (the play CDN, or a project's own tailwind.config.js); themeHead() is the HTML
-// a preview document needs for it (the config, the font link). Pure functions: nothing here touches a page or a database.
+//   engine   "3" (Tailwind 3.4 play CDN) or "4" (the v4 browser build)
+//   configJs the project's tailwind.config.js (engine 3), configCss its global.css (engine 4), lock what their packages resolved to (see config-file.js)
+//   pageExtend  not stored on the project: a page's own `theme.extend` changes as JSON text, set by pageTheme()
+// tailwindConfig() is the settings object the choices above make; themeHead() is the HTML a preview document needs for it and for the project's config file
+// (the config, the font link). Pure functions: nothing here touches a page or a database.
 
-import { cleanPlugins, cleanEngine, cleanRecipes, cleanCustom, linkRecipe, recipeCss4, pluginHead } from "./plugins.js";
+import { cleanEngine, cleanFile, cleanLock, configHead3, css4Of, TEMPLATES } from "./config-file.js";
 import { themeCss4 } from "./theme-v4.js";
 
 export const GRAYS = ["slate", "gray", "zinc", "neutral", "stone"];
 export const RADII = ["none", "sm", "md", "lg", "xl"];
 export const SYSTEM_FONT = "System";
-export const DEFAULT_THEME = Object.freeze({ brand: "#4f46e5", gray: "slate", font: "Inter", radius: "md", config: "", engine: "3", plugins: [], recipes: [] });
+export const DEFAULT_THEME = Object.freeze({ brand: "#4f46e5", gray: "slate", font: "Inter", radius: "md", engine: "3", configJs: "", configCss: "", lock: {}, pageExtend: "" });
 
 const STEPS = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"];
 const PALETTES = {
@@ -58,8 +59,7 @@ const deepMerge = (a, b) => { const out = { ...a }; for (const k of Object.keys(
 export function pageTheme(theme, pageConfig) {
     const t = normalizeTheme(theme);
     const mine = cleanConfig(pageConfig);
-    if (!mine) return t;
-    return normalizeTheme({ ...t, config: JSON.stringify(deepMerge(t.config ? JSON.parse(t.config) : {}, JSON.parse(mine))) });
+    return mine ? normalizeTheme({ ...t, pageExtend: mine }) : t;
 }
 
 /** A theme from anything: every field checked, anything invalid replaced by the default. */
@@ -71,10 +71,11 @@ export function normalizeTheme(input) {
         gray: GRAYS.includes(t.gray) ? t.gray : DEFAULT_THEME.gray,
         font: typeof t.font === "string" && (t.font === SYSTEM_FONT || FONT_NAME.test(t.font.trim())) ? t.font.trim() : DEFAULT_THEME.font,
         radius: RADII.includes(t.radius) ? t.radius : DEFAULT_THEME.radius,
-        config: cleanConfig(t.config),
         engine: cleanEngine(t.engine),
-        plugins: cleanPlugins(t.plugins),
-        recipes: cleanRecipes([...(Array.isArray(t.recipes) ? t.recipes : []), ...cleanCustom(t.customPlugins).map((u) => linkRecipe(u, t.engine))]), // customPlugins: links from the first version, now one-step recipes
+        configJs: cleanFile(t.configJs),
+        configCss: cleanFile(t.configCss),
+        lock: cleanLock(t.lock),
+        pageExtend: cleanConfig(t.pageExtend),
     };
 }
 
@@ -102,7 +103,7 @@ export function radiusScale(radius) {
 /** The `tailwind.config` object for a theme (dark mode follows a `dark` class, so a page can switch it). */
 export function tailwindConfig(theme) {
     const t = normalizeTheme(theme);
-    const extra = t.config ? JSON.parse(t.config) : {};
+    const extra = t.pageExtend ? JSON.parse(t.pageExtend) : {};
     return {
         darkMode: "class",
         theme: {
@@ -121,14 +122,13 @@ export const fontUrl = (theme) => {
     return f === SYSTEM_FONT ? null : `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f).replace(/%20/g, "+")}:wght@400;500;600;700&display=swap`;
 };
 
-/** What a preview document's <head> needs after the Tailwind script: the font and the config. */
+/** What a preview document's <head> needs after the Tailwind script: the font, the theme's settings and the project's config file. */
 export function themeHead(theme) {
-    const url = fontUrl(theme), t = normalizeTheme(theme), plugins = pluginHead(t);
+    const url = fontUrl(theme), t = normalizeTheme(theme);
     const link = url ? `<link rel="stylesheet" href="${url}">\n` : "";
     if (t.engine === "4") { // the v4 browser build reads CSS, not a config object
-        const css = themeCss4(tailwindConfig(t).theme.extend, recipeCss4(t)).css.replace(/<\/(style)/gi, "<\\/$1");
-        return `${link}<style type="text/tailwindcss" data-wc-theme>\n${css}\n</style>${plugins ? `\n${plugins}` : ""}`;
+        const css = themeCss4(tailwindConfig(t).theme.extend, css4Of(t.configCss || TEMPLATES["4"].text, t.lock)).css;
+        return `${link}<style type="text/tailwindcss" data-wc-theme>\n${css}\n</style>`;
     }
-    const config = JSON.stringify(tailwindConfig(t)).replace(/</g, "\\u003c");
-    return `${link}<script data-wc-theme>tailwind.config = ${config};<\/script>${plugins ? `\n${plugins}` : ""}`;
+    return `${link}${configHead3(t, tailwindConfig(t))}`;
 }

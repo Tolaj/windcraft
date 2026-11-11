@@ -1,10 +1,8 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
-import { TAILWIND_VERSION, withDefaults } from "@windcraft/core/tailwind-defaults.js";
-import { mountPluginManager } from "@windcraft/editor/design/plugin-manager.js";
-import { activeRecipes } from "@windcraft/core/plugins.js";
-import { configText, configStore, changedSections } from "@windcraft/core/config-scope.js";
-import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, configError, brandScale, grayScale } from "@windcraft/core/theme.js";
+import { mountConfigFileEditor } from "@windcraft/editor/design/config-file-editor.js";
+import { changedSections } from "@windcraft/core/config-scope.js";
+import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
 import { extractParts } from "@windcraft/core/extract-parts.js";
 import { parseDocument } from "@windcraft/core/split-sections.js";
@@ -416,53 +414,48 @@ function redrawPreviews() {
     });
 }
 let cfgSection = "tailwind";
-const pluginSummary = () => { const n = activeRecipes(theme).length; return `Tailwind ${theme.engine || "3"} · ${n ? `${n} on` : "none on"}`; };
-// the editor opens with Tailwind's defaults filled in, so they can be edited right away; only what differs from them is saved
-const shownConfig = () => configText(theme.config);
+async function saveTheme(next) { // one save for both sections: the theme as stored, the previews drawn again
+    const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme: next }) });
+    const json = await res.json().catch(() => ({}));
+    if (!json.success) throw new Error(json.message || "Could not save the theme");
+    project.theme = next; theme = next;
+    setPreviewTheme(next);
+    redrawPreviews();
+}
 function renderTheme() {
     const strip = (scale) => Object.values(scale).map((c) => `<i style="background:${c}"></i>`).join("");
+    const fileName = () => (theme.engine === "4" ? "global.css" : "tailwind.config.js");
     $("themePanel").innerHTML = `<style>.sw{display:flex;height:14px;border-radius:4px;overflow:hidden;margin-top:6px}.sw i{flex:1}.chip{cursor:pointer;border:1px solid #e5e5e5;border-radius:6px;padding:4px 8px;background:#fff}.chip.on{border-color:#111;background:#f5f5f5;font-weight:600}</style>
-        <p class="px-1 pb-2 text-neutral-500">Settings every preview, the editor and exports use.</p>
-        ${[["tailwind", "Tailwind config", "Tailwind's default config, ready to edit"], ["plugins", "Engine and plugins", pluginSummary()], ["theme", "Theme", "Brand colour, gray, font, corners"]].map(([k, t, d]) => `<button type="button" data-sec="${k}" class="mb-1 block w-full rounded-md border px-2.5 py-2 text-left ${cfgSection === k ? "border-neutral-900 bg-neutral-100" : "border-transparent hover:bg-neutral-50"}"><span class="block text-xs font-semibold text-neutral-900">${t}</span><span data-secdesc="${k}" class="mt-0.5 block text-[11px] text-neutral-500">${d}</span></button>`).join("")}`;
-    $("configSpace").innerHTML = `<div class="flex items-center gap-3 border-b border-neutral-200 px-5 py-3">
-            <div class="min-w-0"><p id="cfgTitle" class="text-sm font-semibold text-neutral-900"></p><p id="cfgHint" class="mt-0.5 text-xs text-neutral-500"></p></div>
-            <span id="thConfigMsg" class="ml-auto shrink-0 text-xs text-red-700"></span><span id="thMsg" class="shrink-0 text-xs text-neutral-500"></span>
-            <button id="thExample" type="button" class="h-8 shrink-0 rounded-md border border-neutral-200 px-3 text-xs hover:bg-neutral-50">Reset to defaults</button>
-            <button id="thSave" type="button" class="h-8 shrink-0 rounded-md bg-black px-4 text-xs font-semibold text-white hover:bg-neutral-800">Apply</button></div>
-        <div id="secTailwind" class="flex min-h-0 flex-1"><div id="thGutter" class="mono w-12 shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 pr-3 text-right text-[13px] leading-5 text-neutral-400"></div>
-        <textarea id="thConfig" wrap="off" class="mono min-w-0 flex-1 resize-none border-0 bg-white p-4 text-[13px] leading-5 text-neutral-900 outline-none" spellcheck="false">${esc(shownConfig())}</textarea></div>
-        <div id="secTheme" class="hidden min-h-0 flex-1 overflow-auto p-8 text-xs"><div class="mx-auto max-w-md space-y-6">
-        <label class="block font-semibold text-neutral-900">Brand colour</label>
-        <div class="mt-1 flex items-center gap-2"><input id="thBrand" type="color" value="${theme.brand}" class="h-7 w-9 cursor-pointer rounded border border-neutral-200 p-0.5"><input id="thBrandHex" class="fi" value="${theme.brand}" maxlength="7" spellcheck="false"></div>
-        <div id="thBrandScale" class="sw">${strip(brandScale(theme.brand))}</div>
-        <label class="mt-4 block font-semibold text-neutral-900">Gray</label>
-        <div id="thGrays" class="mt-1 flex flex-wrap gap-1.5">${GRAYS.map((g) => `<button type="button" class="chip ${theme.gray === g ? "on" : ""}" data-gray="${g}">${g}</button>`).join("")}</div>
-        <div id="thGrayScale" class="sw">${strip(grayScale(theme.gray))}</div>
-        <label class="mt-4 block font-semibold text-neutral-900">Font</label>
-        <input id="thFont" class="fi mt-1" list="thFonts" value="${esc(theme.font)}" placeholder="A Google Fonts family, or System" spellcheck="false">
-        <datalist id="thFonts">${FONTS.map((f) => `<option value="${esc(f)}">`).join("")}</datalist>
-        <label class="mt-4 block font-semibold text-neutral-900">Corners</label>
-        <div id="thRadii" class="mt-1 flex flex-wrap gap-1.5">${RADII.map((r) => `<button type="button" class="chip ${theme.radius === r ? "on" : ""}" data-radius="${r}">${r}</button>`).join("")}</div>
-        </div></div></div>`;
-    $("configSpace").insertAdjacentHTML("beforeend", `<div id="secPlugins" class="hidden min-h-0 flex-1 overflow-auto p-8 text-xs"><div id="plugBody" class="mx-auto max-w-xl"></div></div>`);
-    const pm = mountPluginManager($("plugBody"), theme, (st) => { theme = { ...theme, engine: st.engine, plugins: st.plugins, recipes: st.recipes }; $("themePanel").querySelector('[data-secdesc="plugins"]').textContent = pluginSummary(); showSection(); });
+        <p class="px-1 pb-2 text-neutral-500">Settings every preview and the editor use.</p>
+        ${[["tailwind", "Tailwind config", `The project's ${fileName()}, with plugins`], ["theme", "Theme", "Brand colour, gray, font, corners"]].map(([k, t, d]) => `<button type="button" data-sec="${k}" class="mb-1 block w-full rounded-md border px-2.5 py-2 text-left ${cfgSection === k ? "border-neutral-900 bg-neutral-100" : "border-transparent hover:bg-neutral-50"}"><span class="block text-xs font-semibold text-neutral-900">${t}</span><span data-secdesc="${k}" class="mt-0.5 block text-[11px] text-neutral-500">${d}</span></button>`).join("")}`;
+    $("configSpace").innerHTML = `<div id="secTailwind" class="min-h-0 flex-1"></div>
+        <div id="secTheme" class="hidden min-h-0 flex-1 flex-col">
+            <div class="flex items-center gap-3 border-b border-neutral-200 px-5 py-3"><div class="min-w-0"><p class="text-sm font-semibold text-neutral-900">Theme</p><p class="mt-0.5 text-xs text-neutral-500">Brand colour, gray, font and corners. They become <code>brand-*</code>, <code>gray-*</code>, <code>font-sans</code> and <code>rounded-*</code>.</p></div>
+                <span id="thMsg" class="ml-auto shrink-0 text-xs text-neutral-500"></span><button id="thSave" type="button" class="h-8 shrink-0 rounded-md bg-black px-4 text-xs font-semibold text-white hover:bg-neutral-800">Apply</button></div>
+            <div class="min-h-0 flex-1 overflow-auto p-8 text-xs"><div class="mx-auto max-w-md space-y-6">
+            <label class="block font-semibold text-neutral-900">Brand colour</label>
+            <div class="mt-1 flex items-center gap-2"><input id="thBrand" type="color" value="${theme.brand}" class="h-7 w-9 cursor-pointer rounded border border-neutral-200 p-0.5"><input id="thBrandHex" class="fi" value="${theme.brand}" maxlength="7" spellcheck="false"></div>
+            <div id="thBrandScale" class="sw">${strip(brandScale(theme.brand))}</div>
+            <label class="mt-4 block font-semibold text-neutral-900">Gray</label>
+            <div id="thGrays" class="mt-1 flex flex-wrap gap-1.5">${GRAYS.map((g) => `<button type="button" class="chip ${theme.gray === g ? "on" : ""}" data-gray="${g}">${g}</button>`).join("")}</div>
+            <div id="thGrayScale" class="sw">${strip(grayScale(theme.gray))}</div>
+            <label class="mt-4 block font-semibold text-neutral-900">Font</label>
+            <input id="thFont" class="fi mt-1" list="thFonts" value="${esc(theme.font)}" placeholder="A Google Fonts family, or System" spellcheck="false">
+            <datalist id="thFonts">${FONTS.map((f) => `<option value="${esc(f)}">`).join("")}</datalist>
+            <label class="mt-4 block font-semibold text-neutral-900">Corners</label>
+            <div id="thRadii" class="mt-1 flex flex-wrap gap-1.5">${RADII.map((r) => `<button type="button" class="chip ${theme.radius === r ? "on" : ""}" data-radius="${r}">${r}</button>`).join("")}</div>
+            </div></div></div>`;
+    const editor = mountConfigFileEditor($("secTailwind"), theme, async (patch) => {
+        try { await saveTheme(normalizeTheme({ ...theme, ...patch })); $("themePanel").querySelector('[data-secdesc="tailwind"]').textContent = `The project's ${fileName()}, with plugins`; return { ok: true }; }
+        catch (err) { return { ok: false, message: err.message }; }
+    });
     const showSection = () => {
-        const tw = cfgSection === "tailwind", pl = cfgSection === "plugins";
-        $("secTailwind").classList.toggle("hidden", !tw); $("secTailwind").classList.toggle("flex", tw);
-        $("secTheme").classList.toggle("hidden", cfgSection !== "theme");
-        $("secPlugins").classList.toggle("hidden", !pl);
-        $("thExample").classList.toggle("hidden", !tw);
-        $("cfgTitle").textContent = tw ? "Tailwind config" : pl ? "Engine and plugins" : "Theme";
-        $("cfgHint").innerHTML = tw ? "Tailwind's default config (v" + TAILWIND_VERSION + ") as JSON. Edit any value or add your own; only what you change is saved." + (theme.engine === "4" ? " On Tailwind 4 these become CSS variables: colors, fonts, screens, shadows, spacing, font sizes, keyframes and animation; other sections are ignored." : "") : pl ? "The Tailwind engine and plugins for every page in this project. They load in the previews and the editor; press Apply to use a change." : "Brand colour, gray, font and corners. They become <code>brand-*</code>, <code>gray-*</code>, <code>font-sans</code> and <code>rounded-*</code>.";
+        $("secTailwind").classList.toggle("hidden", cfgSection !== "tailwind");
+        $("secTheme").classList.toggle("hidden", cfgSection !== "theme"); $("secTheme").classList.toggle("flex", cfgSection === "theme");
         document.querySelectorAll("[data-sec]").forEach((b) => { const on = b.dataset.sec === cfgSection; b.classList.toggle("border-neutral-900", on); b.classList.toggle("bg-neutral-100", on); b.classList.toggle("border-transparent", !on); });
     };
     $("themePanel").addEventListener("click", (e) => { const b = e.target.closest("[data-sec]"); if (b) { cfgSection = b.dataset.sec; showSection(); } });
     showSection();
-    const gutter = () => { const n = Math.max(30, $("thConfig").value.split("\n").length); $("thGutter").innerHTML = Array.from({ length: n }, (_, i) => i + 1).join("<br>"); $("thGutter").scrollTop = $("thConfig").scrollTop; };
-    $("thConfig").addEventListener("scroll", () => { $("thGutter").scrollTop = $("thConfig").scrollTop; });
-    $("thConfig").addEventListener("input", gutter);
-    $("thExample").addEventListener("click", () => { if (!confirm("Put every value back to Tailwind's default?")) return; $("thConfig").value = JSON.stringify(withDefaults({}), null, 2); $("thConfigMsg").textContent = ""; gutter(); });
-    gutter();
     const refresh = () => {
         $("thBrandScale").innerHTML = strip(brandScale(theme.brand));
         $("thGrayScale").innerHTML = strip(grayScale(theme.gray));
@@ -474,22 +467,10 @@ function renderTheme() {
     $("thGrays").addEventListener("click", (e) => { const b = e.target.closest("[data-gray]"); if (b) { theme.gray = b.dataset.gray; refresh(); } });
     $("thRadii").addEventListener("click", (e) => { const b = e.target.closest("[data-radius]"); if (b) { theme.radius = b.dataset.radius; refresh(); } });
     $("thFont").addEventListener("input", (e) => { theme = normalizeTheme({ ...theme, font: e.target.value }); });
-    $("thConfig").addEventListener("input", (e) => { $("thConfigMsg").textContent = configError(e.target.value); });
     $("thSave").addEventListener("click", async () => {
-        const bad = configError($("thConfig").value);
-        if (bad) { $("thConfigMsg").textContent = bad; return; }
-        theme = normalizeTheme({ ...theme, font: $("thFont").value, config: configStore($("thConfig").value).stored });
-        $("thConfig").value = shownConfig(); gutter();
         $("thMsg").textContent = "Saving…";
-        try {
-            const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) });
-            const json = await res.json();
-            if (!json.success) throw new Error(json.message || "Could not save the theme");
-            project.theme = theme;
-            setPreviewTheme(theme);
-            redrawPreviews();
-            $("thMsg").textContent = "Applied to every page and component in this project.";
-        } catch (err) { $("thMsg").textContent = err.message; }
+        try { await saveTheme(normalizeTheme({ ...theme, font: $("thFont").value })); editor.set(theme); $("thMsg").textContent = "Applied to every page and component in this project."; }
+        catch (err) { $("thMsg").textContent = err.message; }
     });
 }
 
@@ -656,7 +637,7 @@ renderOutline();
 renderDetails();
 applyView();
 fitAll();
-if (location.hash === "#config" || location.hash === "#plugins") { tab = "theme"; if (location.hash === "#plugins") cfgSection = "plugins"; renderOutline(); renderTheme(); } // the editor links here
+if (location.hash === "#config" || location.hash === "#plugins") { tab = "theme"; renderOutline(); renderTheme(); } // the editor links here
 
 // ── Share link: anyone with it can look at the project and copy its code (no account, nothing editable) ──────────────
 (() => {

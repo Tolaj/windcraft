@@ -9,8 +9,8 @@ import { host } from "../host.js";
 import { pageTheme } from "../../../core/theme.js";
 import { TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
 import { configText, configStore, changedSections } from "../../../core/config-scope.js";
-import { activeRecipes } from "../../../core/plugins.js";
-import { openPlugins } from "./plugins-dialog.js";
+import { requiresOf, kindOf, OFFICIAL, TEMPLATES } from "../../../core/config-file.js";
+import { openProjectConfig } from "./config-dialog.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
@@ -85,11 +85,11 @@ const panelActions = {
     remove: () => { if (S.selected) cmd({ cmd: "remove", path: S.selected.path }); },
     setTag: (tag) => { if (S.selected) cmd({ cmd: "setTag", path: S.selected.path, tag }); },
     setTab: (tab) => panelStore.set({ tab }),
-    openPlugins,
+    openProjectConfig,
     setPageTab: (pageTab) => panelStore.set({ pageTab }),
-    // the Tailwind config tab: this page's own config over the project's (only what differs from the project's is stored on the page)
+    // the Tailwind config tab: this page's own changes over the project's config file (only what differs from Tailwind's defaults is stored on the page)
     twApply: async (text) => {
-        const { stored: tw, error } = configStore(text, data.projectTheme && data.projectTheme.config); // against the project's config, not Tailwind's
+        const { stored: tw, error } = configStore(text);
         if (error) return { ok: false, message: error };
         if (!data.id) return { ok: false, message: "Save the page first." };
         try { await host.updateComponent(data.id, { twConfig: tw }); } catch (err) { return { ok: false, message: err.message || "Could not save it" }; }
@@ -164,14 +164,14 @@ const bodyActions = Object.fromEntries(Object.entries(panelActions).map(([k, f])
     S.selected = S.pageBody;
     try { return f(...a); } finally { S.selected = null; }
 }]));
-/** What the Tailwind config tab shows: this page's effective config (the project's, with Tailwind's defaults under it) and what the page itself changes. */
+/** What the Tailwind config tab shows: this page's own changes over Tailwind's defaults, and a summary of the project's config file with its plugins. */
 function twView() {
-    const text = configText(data.projectTheme && data.projectTheme.config, data.twConfig || "");
-    const projectLink = host.projectUrl && data.project ? `${host.projectUrl(data.project.id)}#config` : "";
-    const pt = data.projectTheme || {};
-    const plugins = [`Tailwind ${pt.engine === "4" ? "4" : "3"}`, ...activeRecipes(pt).map((r) => r.name)];
+    const text = configText(data.twConfig || "");
+    const pt = data.projectTheme || {}, engine = pt.engine === "4" ? "4" : "3";
+    const file = engine === "4" ? pt.configCss || TEMPLATES["4"].text : pt.configJs || TEMPLATES["3"].text;
+    const plugins = engine === "3" ? [...new Set(requiresOf(file).filter((r) => kindOf(r.spec) !== "builtin").map((r) => OFFICIAL[r.spec] || r.spec))] : [];
     const canManage = Boolean(host.saveProjectTheme && data.project);
-    return { plugins, canManage, key: `${data.id}:${data.twConfig || ""}`, text, changed: changedSections(data.twConfig), version: TAILWIND_VERSION, saved: Boolean(data.id), projectLink };
+    return { plugins, fileName: TEMPLATES[engine].name, engine, canManage, key: `${data.id}:${data.twConfig || ""}`, text, changed: changedSections(data.twConfig), version: TAILWIND_VERSION, saved: Boolean(data.id) };
 }
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
 export function renderInspector() {

@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_THEME, normalizeTheme, brandScale, grayScale, radiusScale, tailwindConfig, themeHead, fontUrl } from "../theme.js";
+import { DEFAULT_THEME, normalizeTheme, pageTheme, brandScale, grayScale, radiusScale, tailwindConfig, themeHead, fontUrl } from "../theme.js";
 
 test("normalizeTheme keeps valid choices and replaces anything else with the default", () => {
-    assert.deepEqual(normalizeTheme({ brand: "#E11D48", gray: "zinc", font: "Poppins", radius: "xl" }), { brand: "#e11d48", gray: "zinc", font: "Poppins", radius: "xl", config: "", engine: "3", plugins: [], recipes: [] });
+    assert.deepEqual(normalizeTheme({ brand: "#E11D48", gray: "zinc", font: "Poppins", radius: "xl" }), { brand: "#e11d48", gray: "zinc", font: "Poppins", radius: "xl", engine: "3", configJs: "", configCss: "", lock: {}, pageExtend: "" });
     assert.deepEqual(normalizeTheme(null), DEFAULT_THEME);
     assert.deepEqual(normalizeTheme({ brand: "red", gray: "hot", font: "a;b<script>", radius: "huge" }), DEFAULT_THEME);
     assert.equal(normalizeTheme({ brand: "ff0000" }).brand, "#ff0000");
@@ -36,7 +36,7 @@ test("tailwindConfig and themeHead", () => {
     assert.equal(fontUrl({ font: "Open Sans" }), "https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap");
     const head = themeHead({ font: "Inter" });
     assert.match(head, /fonts\.googleapis\.com/);
-    assert.match(head, /tailwind\.config = \{/);
+    assert.match(head, /tailwind\.config=__wcMerge\(/);
     assert.ok(!themeHead({ font: "System" }).includes("<link"));
 });
 
@@ -52,29 +52,27 @@ test("the editor shows the defaults with the project's changes over them; only t
     assert.deepEqual(onlyChanges({ keyframes: { wiggle: { "50%": { opacity: "0.5" } } } }).keyframes.wiggle, { "50%": { opacity: "0.5" } });
 });
 
-import { pageTheme } from "../theme.js";
-test("a page's theme is the project's with the page's own config laid over it", () => {
-    const proj = { brand: "#0ea5e9", config: JSON.stringify({ colors: { accent: "#111111" }, screens: { md: "800px" } }) };
+test("a page's theme carries its own changes over the choices; the file text is cleaned", () => {
+    const proj = { brand: "#0ea5e9", configJs: "module.exports = {}", lock: { "a/b": { url: "https://x.com/a.js" } } };
     const t = pageTheme(proj, JSON.stringify({ colors: { accent: "#f97316" } }));
-    const c = JSON.parse(t.config);
-    assert.equal(c.colors.accent, "#f97316");
-    assert.equal(c.screens.md, "800px");
+    assert.equal(JSON.parse(t.pageExtend).colors.accent, "#f97316");
+    assert.equal(tailwindConfig(t).theme.extend.colors.accent, "#f97316");
+    assert.ok(tailwindConfig(t).theme.extend.colors.brand["600"], "the brand scale is still there beside the page's colours");
     assert.equal(t.brand, "#0ea5e9");
-    assert.deepEqual(pageTheme(proj, ""), normalizeTheme(proj));
-    assert.deepEqual(pageTheme(proj, "{bad"), normalizeTheme(proj));
+    assert.equal(t.configJs, "module.exports = {}");
+    assert.deepEqual(t.lock, { "a/b": { url: "https://x.com/a.js" } });
+    assert.equal(pageTheme(proj, "").pageExtend, "");
+    assert.equal(pageTheme(proj, "{bad").pageExtend, "");
+    assert.equal(normalizeTheme({ configJs: "x".repeat(70000) }).configJs, "");
+    assert.ok(!themeHead({ pageExtend: '{"content":"</script><b>"}' }).includes("</script><b>"));
 });
 
 import { configText, configStore, changedSections } from "../config-scope.js";
-test("config levels: what an editor shows and what it stores", () => {
-    const project = JSON.stringify({ screens: { md: "800px" } });
-    assert.equal(JSON.parse(configText(project)).screens.md, "800px");
-    assert.equal(JSON.parse(configText(project, "")).screens.md, "800px", "a page with no changes shows the project's");
-    assert.equal(JSON.parse(configText(project, JSON.stringify({ screens: { lg: "1100px" } }))).screens.lg, "1100px");
-    const shown = configText(project, "");
-    assert.deepEqual(configStore(shown, project), { stored: "" }, "nothing changed on the page: nothing stored");
-    const edited = shown.replace('"lg": "1024px"', '"lg": "1100px"');
-    assert.deepEqual(JSON.parse(configStore(edited, project).stored), { screens: { lg: "1100px" } }, "a page stores only its difference from the project");
-    assert.deepEqual(JSON.parse(configStore(shown).stored), { screens: { md: "800px" } }, "the project level stores its difference from Tailwind's defaults");
+test("a page's editor: defaults with its changes; stores only its changes", () => {
+    const shown = configText(JSON.stringify({ screens: { lg: "1100px" } }));
+    assert.equal(JSON.parse(shown).screens.lg, "1100px");
+    assert.deepEqual(configStore(configText("")), { stored: "" });
+    assert.deepEqual(JSON.parse(configStore(shown).stored), { screens: { lg: "1100px" } });
     assert.match(configStore("{bad").error, /Not valid JSON/);
     assert.deepEqual(changedSections(JSON.stringify({ screens: {}, colors: {} })), ["screens", "colors"]);
 });
