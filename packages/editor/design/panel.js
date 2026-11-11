@@ -229,8 +229,8 @@ function TailwindTab({ tw, actions }) {
     };
     const bad = configError(text);
     return html`<div class="sec" style="display:flex;flex-direction:column;height:calc(100% - 44px);min-height:360px"><div class="secb nopad" style="display:flex;flex-direction:column;flex:1;min-height:0">
-        ${tw.canManage ? html`<${WireframeRow} onOpen=${actions.openPlugins} label=${tw.plugins.length ? `Plugins · ${tw.plugins.length} on` : "Plugins"} hint=${tw.plugins.length ? tw.plugins.join(", ") : "Forms, typography, Preline and more"} icon=${PLUG_ICON} />`
-            : tw.plugins.length ? html`<p class="sub first">Plugins</p><p class="muted">${tw.plugins.join(", ")}. They apply to every page.</p>` : null}
+        ${tw.canManage ? html`<${WireframeRow} onOpen=${actions.openPlugins} label=${tw.plugins.length > 1 ? `${tw.plugins[0]} · ${tw.plugins.length - 1} plugin${tw.plugins.length === 2 ? "" : "s"}` : `${tw.plugins[0]} · no plugins`} hint=${tw.plugins.length > 1 ? tw.plugins.slice(1).join(", ") : "Engine, forms, typography, Preline and more"} icon=${PLUG_ICON} />`
+            : html`<p class="sub first">${tw.plugins[0]}</p><p class="muted">${tw.plugins.length > 1 ? tw.plugins.slice(1).join(", ") + ". " : ""}They apply to every page.</p>`}
         <p class="sub">Tailwind config <span class="muted">v${tw.version}</span></p>
         <p class="muted">Only this page uses these changes. It starts from the project's config${tw.projectLink ? html` (<a href=${tw.projectLink} class="underline">edit the project's</a>)` : ""}; ${tw.changed.length ? html`changed on this page: <b>${tw.changed.join(", ")}</b>.` : "nothing is changed on this page yet."}</p>
         <textarea class="fi area" wrap="off" spellcheck="false" style="flex:1;min-height:0;resize:none;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.4;white-space:pre" value=${text} onInput=${(e) => { setText(e.target.value); setNote(null); }}></textarea>

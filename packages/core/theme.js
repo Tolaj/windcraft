@@ -3,17 +3,18 @@
 //   gray     which of Tailwind's neutral palettes `gray-*` means in this project (slate, gray, zinc, neutral, stone)
 //   font     the sans font (a Google Fonts family, or "System")
 //   radius   how round corners are (none, sm, md, lg, xl): the rounded-* sizes follow it
-//   plugins  ids of the Tailwind plugins switched on (see plugins.js); customPlugins: links of the project's own
+//   engine   "3" (Tailwind 3.4 play CDN) or "4" (the v4 browser build); plugins: ids of catalogue recipes switched on; recipes: the project's own (see plugins.js)
 //   config   extra `theme.extend` for Tailwind as JSON text (colors, fontFamily, keyframes, animation, …), merged over the choices above
 // tailwindConfig() is the object for `tailwind.config` (the play CDN, or a project's own tailwind.config.js); themeHead() is the HTML
 // a preview document needs for it (the config, the font link). Pure functions: nothing here touches a page or a database.
 
-import { cleanPlugins, cleanCustom, pluginHead } from "./plugins.js";
+import { cleanPlugins, cleanEngine, cleanRecipes, cleanCustom, linkRecipe, recipeCss4, pluginHead } from "./plugins.js";
+import { themeCss4 } from "./theme-v4.js";
 
 export const GRAYS = ["slate", "gray", "zinc", "neutral", "stone"];
 export const RADII = ["none", "sm", "md", "lg", "xl"];
 export const SYSTEM_FONT = "System";
-export const DEFAULT_THEME = Object.freeze({ brand: "#4f46e5", gray: "slate", font: "Inter", radius: "md", config: "", plugins: [], customPlugins: [] });
+export const DEFAULT_THEME = Object.freeze({ brand: "#4f46e5", gray: "slate", font: "Inter", radius: "md", config: "", engine: "3", plugins: [], recipes: [] });
 
 const STEPS = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"];
 const PALETTES = {
@@ -71,8 +72,9 @@ export function normalizeTheme(input) {
         font: typeof t.font === "string" && (t.font === SYSTEM_FONT || FONT_NAME.test(t.font.trim())) ? t.font.trim() : DEFAULT_THEME.font,
         radius: RADII.includes(t.radius) ? t.radius : DEFAULT_THEME.radius,
         config: cleanConfig(t.config),
+        engine: cleanEngine(t.engine),
         plugins: cleanPlugins(t.plugins),
-        customPlugins: cleanCustom(t.customPlugins),
+        recipes: cleanRecipes([...(Array.isArray(t.recipes) ? t.recipes : []), ...cleanCustom(t.customPlugins).map((u) => linkRecipe(u, t.engine))]), // customPlugins: links from the first version, now one-step recipes
     };
 }
 
@@ -121,8 +123,12 @@ export const fontUrl = (theme) => {
 
 /** What a preview document's <head> needs after the Tailwind script: the font and the config. */
 export function themeHead(theme) {
-    const url = fontUrl(theme);
-    const config = JSON.stringify(tailwindConfig(theme)).replace(/</g, "\\u003c");
-    const plugins = pluginHead(theme);
-    return `${url ? `<link rel="stylesheet" href="${url}">\n` : ""}<script data-wc-theme>tailwind.config = ${config};<\/script>${plugins ? `\n${plugins}` : ""}`;
+    const url = fontUrl(theme), t = normalizeTheme(theme), plugins = pluginHead(t);
+    const link = url ? `<link rel="stylesheet" href="${url}">\n` : "";
+    if (t.engine === "4") { // the v4 browser build reads CSS, not a config object
+        const css = themeCss4(tailwindConfig(t).theme.extend, recipeCss4(t)).css.replace(/<\/(style)/gi, "<\\/$1");
+        return `${link}<style type="text/tailwindcss" data-wc-theme>\n${css}\n</style>${plugins ? `\n${plugins}` : ""}`;
+    }
+    const config = JSON.stringify(tailwindConfig(t)).replace(/</g, "\\u003c");
+    return `${link}<script data-wc-theme>tailwind.config = ${config};<\/script>${plugins ? `\n${plugins}` : ""}`;
 }

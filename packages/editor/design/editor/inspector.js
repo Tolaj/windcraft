@@ -9,7 +9,7 @@ import { host } from "../host.js";
 import { pageTheme } from "../../../core/theme.js";
 import { TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
 import { configText, configStore, changedSections } from "../../../core/config-scope.js";
-import { PLUGINS, cleanPlugins, cleanCustom } from "../../../core/plugins.js";
+import { activeRecipes } from "../../../core/plugins.js";
 import { openPlugins } from "./plugins-dialog.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
@@ -169,8 +169,7 @@ function twView() {
     const text = configText(data.projectTheme && data.projectTheme.config, data.twConfig || "");
     const projectLink = host.projectUrl && data.project ? `${host.projectUrl(data.project.id)}#config` : "";
     const pt = data.projectTheme || {};
-    const hostOf = (u) => { try { return new URL(u).hostname; } catch { return u; } };
-    const plugins = [...cleanPlugins(pt.plugins).map((id) => PLUGINS.find((p) => p.id === id).name), ...cleanCustom(pt.customPlugins).map(hostOf)];
+    const plugins = [`Tailwind ${pt.engine === "4" ? "4" : "3"}`, ...activeRecipes(pt).map((r) => r.name)];
     const canManage = Boolean(host.saveProjectTheme && data.project);
     return { plugins, canManage, key: `${data.id}:${data.twConfig || ""}`, text, changed: changedSections(data.twConfig), version: TAILWIND_VERSION, saved: Boolean(data.id), projectLink };
 }
