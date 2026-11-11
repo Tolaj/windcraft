@@ -121,24 +121,3 @@ test("a page's file is laid over the project's: both run, the page after; its pl
     assert.deepEqual(cleanTw({ js: "x", css: 5, lock: { "a/b": { url: "http://x" } } }), { js: "x", css: "", lock: {} });
     assert.ok(hasTw({ js: "x" }) && !hasTw(null) && !hasTw({ js: "", css: "" }));
 });
-
-import { insertDefault } from "../config-file.js";
-test("inserting Tailwind's defaults goes inside theme.extend, never outside the config", () => {
-    const base = `module.exports = {\n  theme: {\n    extend: {},\n  },\n  plugins: [],\n};\n`;
-    const a = insertDefault(base, "screens", { md: "768px" });
-    assert.equal(a.status, "added");
-    assert.match(a.text, /extend: \{\n      screens: \{\n        "md": "768px"\n      \},\n    \},/);
-    assert.ok(new Function("module", a.text.replace("module.exports", "module.exports") + "return module.exports;")({ exports: {} }).theme.extend.screens.md === "768px", "the result is valid JavaScript with the value in place");
-    const b = insertDefault(a.text, "screens", { md: "1px" });
-    assert.equal(b.status, "exists");
-    const c = insertDefault(`module.exports = {\n  theme: { extend: { colors: { a: "red" } } },\n};\n`, "spacing", { 1: "0.25rem" });
-    assert.equal(c.status, "added");
-    assert.equal(new Function("module", c.text + "return module.exports;")({ exports: {} }).theme.extend.spacing["1"], "0.25rem");
-    assert.equal(new Function("module", c.text + "return module.exports;")({ exports: {} }).theme.extend.colors.a, "red");
-    const d = insertDefault(`module.exports = {\n  plugins: [],\n};\n`, "zIndex", { 10: "10" });
-    assert.equal(new Function("module", d.text + "return module.exports;")({ exports: {} }).theme.extend.zIndex["10"], "10");
-    const e = insertDefault(`module.exports = {\n  theme: {\n    colors: {},\n  },\n};\n`, "opacity", { 5: "0.05" });
-    assert.equal(new Function("module", e.text + "return module.exports;")({ exports: {} }).theme.extend.opacity["5"], "0.05");
-    assert.equal(insertDefault("nothing here", "screens", {}).status, "nowhere");
-    assert.equal(insertDefault(`module.exports = {\n  // screens: x\n};`, "screens", { a: "1" }).status, "added", "a commented-out key does not count");
-});

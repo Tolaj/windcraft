@@ -1,7 +1,7 @@
 import { resolveFile } from "../../core/config-resolve.js";
 import { checkTheme } from "./config-check.js";
-import { TEMPLATES, PAGE_TEMPLATES, cleanEngine, insertDefault } from "../../core/config-file.js";
-import { TAILWIND_DEFAULTS, TAILWIND_VERSION, effectiveConfig } from "../../core/tailwind-defaults.js";
+import { TEMPLATES, PAGE_TEMPLATES, cleanEngine } from "../../core/config-file.js";
+import { TAILWIND_VERSION, effectiveConfig } from "../../core/tailwind-defaults.js";
 import { themeHead, normalizeTheme } from "../../core/theme.js";
 
 // Tailwind config as the real file (tailwind.config.js for Tailwind 3, global.css for Tailwind 4), in two scopes with the same editor and the same rules:
@@ -33,8 +33,6 @@ export function mountConfigFileEditor(el, opts, onApply) {
             <div class="inline-flex overflow-hidden rounded-md border border-neutral-300" data-views></div>
             <span class="font-mono text-[12px] text-neutral-700" data-name></span>
             <span class="min-w-0 flex-1 truncate text-neutral-500" data-status></span>
-            <div class="relative" data-insert><button type="button" data-insertbtn class="h-8 rounded-md border border-neutral-200 bg-white px-3 text-neutral-700 hover:bg-neutral-50">Insert defaults ▾</button>
-                <div data-menu class="absolute right-0 top-9 z-30 hidden max-h-72 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"></div></div>
             <button type="button" data-reset class="h-8 rounded-md border border-neutral-200 px-3 hover:bg-neutral-50">Reset</button>
             <button type="button" data-apply class="h-8 rounded-md bg-black px-4 font-semibold text-white hover:bg-neutral-800">Apply</button></div>
         <div class="flex min-h-0 flex-1 flex-col" data-eff hidden><p class="border-b border-neutral-100 bg-neutral-50 px-4 py-2 text-neutral-500" data-effnote></p>
@@ -58,18 +56,12 @@ export function mountConfigFileEditor(el, opts, onApply) {
         q("[data-seg]").classList.toggle("hidden", page());
         q("[data-seg]").innerHTML = ["3", "4"].map((e) => `<button type="button" data-engine="${e}" class="px-3 py-1.5 ${engine === e ? "bg-black font-medium text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"}">Tailwind ${e}</button>`).join("");
         q("[data-name]").textContent = page() ? `${engine === "4" ? "global.css" : "tailwind.config.js"} · this page` : tmpl(engine).name;
-        q("[data-insert]").classList.toggle("hidden", engine !== "3" || view !== "file");
         q("[data-status]").textContent = status;
         q("[data-apply]").textContent = busy ? "Checking…" : "Apply";
         const rows = diag.map((d) => `<div class="flex gap-2 py-0.5"><span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full" style="background:${DOT[d.level]}"></span><span class="w-14 shrink-0 font-mono text-neutral-500">${d.line ? `line ${d.line}` : "file"}</span><span class="${d.level === "error" ? "text-red-800" : d.level === "warn" ? "text-amber-800" : "text-neutral-600"}">${esc(d.message)}</span></div>`).join("");
         q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${page() ? "Extends the project's config for this page only. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>. Apply checks each package." : "Add what the plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
         gutter();
     }
-    const inFile = (key) => new RegExp(`(^|[\\s{,])${key}\\s*:`).test(ta.value);
-    function drawMenu() {
-        q("[data-menu]").innerHTML = Object.keys(TAILWIND_DEFAULTS).map((k) => `<button type="button" data-ins="${k}" class="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-neutral-50 ${inFile(k) ? "text-neutral-400" : "text-neutral-800"}"><span>${k}</span><span class="text-[10px]">${inFile(k) ? "in file ✓" : ""}</span></button>`).join("");
-    }
-    const closeMenu = () => q("[data-menu]").classList.add("hidden");
     // Read-only: everything Tailwind works with for this scope, worked out by running the files (v3) or the CSS the browser build receives (v4).
     async function showEffective() {
         view = "effective"; q("[data-effnote]").textContent = "Working it out…"; q("[data-effta]").value = ""; draw();
@@ -111,25 +103,9 @@ export function mountConfigFileEditor(el, opts, onApply) {
         busy = false; draw();
     }
 
-    function insert(key) {
-        const r = insertDefault(ta.value, key, TAILWIND_DEFAULTS[key]);
-        if (r.status === "exists") status = `${key} is already in your file.`;
-        else if (r.status === "nowhere") status = "Couldn't find where to put it: the file needs module.exports = { ... }.";
-        else {
-            ta.value = r.text; texts[engine] = r.text; diag = []; verdict = null;
-            const at = r.text.indexOf(`${key}:`), line = r.text.slice(0, at).split("\n").length;
-            ta.focus(); ta.setSelectionRange(at, at + key.length); ta.scrollTop = Math.max(0, (line - 3) * 20); // the new lines are in view, the key selected
-            status = `Added Tailwind ${TAILWIND_VERSION}'s default ${key} to theme.extend. Change any value; Apply when done.`;
-        }
-        draw();
-    }
-    document.addEventListener("click", (e) => { if (!e.target.closest || !e.target.closest("[data-insert]")) closeMenu(); }, true); // a click anywhere else closes it
     el.addEventListener("click", (e) => {
         const vb = e.target.closest("[data-view]");
         if (vb) { if (vb.dataset.view === "effective") showEffective(); else { view = "file"; draw(); } return; }
-        if (e.target.closest("[data-insertbtn]")) { const m = q("[data-menu]"); if (m.classList.contains("hidden")) { drawMenu(); m.classList.remove("hidden"); } else closeMenu(); return; }
-        const ins = e.target.closest("[data-ins]");
-        if (ins) { closeMenu(); return insert(ins.dataset.ins); }
         const t = e.target.closest("[data-engine]");
         if (t) { texts[engine] = ta.value; engine = t.dataset.engine; load(); return; }
         if (e.target.closest("[data-apply]")) return apply();
