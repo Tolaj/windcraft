@@ -64,3 +64,15 @@ test("a page's theme carries its own files over the project's; files are cleaned
     assert.equal(normalizeTheme({ configJs: "x".repeat(70000) }).configJs, "");
     assert.ok(!themeHead(pageTheme({}, { js: "module.exports = { content: ['</script><b>'] }" })).includes("</script><b>"));
 });
+
+import { effectiveConfig } from "../tailwind-defaults.js";
+test("the effective config: defaults, replaced sections, extended sections", () => {
+    const e = effectiveConfig({ darkMode: "class", theme: { screens: { tablet: "600px" }, extend: { colors: { accent: "#f97316" }, spacing: { 13: "3.25rem" } } } });
+    assert.deepEqual(e.theme.screens, { tablet: "600px" }, "a section under theme replaces the default");
+    assert.equal(e.theme.colors.accent, "#f97316");
+    assert.ok(e.theme.colors.red["500"], "extend keeps the default colours");
+    assert.equal(e.theme.spacing["13"], "3.25rem");
+    assert.equal(e.theme.spacing["4"], "1rem", "and the default spacing steps");
+    assert.equal(e.darkMode, "class");
+    assert.equal(effectiveConfig(null).theme.screens.md, "768px");
+});

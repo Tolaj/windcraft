@@ -583,3 +583,19 @@ export function onlyChanges(config, defaults = TAILWIND_DEFAULTS) {
     }
     return out;
 }
+
+/**
+ * The config Tailwind actually works with: its defaults, the user's `theme` sections (which replace a default section) and `theme.extend` (which merges into it).
+ * `cfg` is the resolved `tailwind.config` object. Functions can't be shown, so they are dropped. (The defaults here are the parts people most often change, not every key.)
+ */
+export function effectiveConfig(cfg) {
+    const c = isObj(cfg) ? cfg : {}, theme = isObj(c.theme) ? c.theme : {};
+    const { extend = {}, ...replace } = theme;
+    const merge = (a, b) => { const o = { ...a }; for (const k of Object.keys(b)) { if (k === "__proto__" || k === "constructor" || k === "prototype") continue; o[k] = isObj(a[k]) && isObj(b[k]) ? merge(a[k], b[k]) : b[k]; } return o; };
+    const out = {};
+    for (const k of new Set([...Object.keys(TAILWIND_DEFAULTS), ...Object.keys(replace), ...Object.keys(isObj(extend) ? extend : {})])) {
+        const base = k in replace ? replace[k] : TAILWIND_DEFAULTS[k], ext = isObj(extend) ? extend[k] : undefined;
+        out[k] = isObj(base) && isObj(ext) ? merge(base, ext) : ext !== undefined ? ext : base;
+    }
+    return { ...(c.darkMode ? { darkMode: c.darkMode } : {}), theme: out };
+}
