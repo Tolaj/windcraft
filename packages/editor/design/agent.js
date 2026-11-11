@@ -2293,11 +2293,12 @@ export function agentMain() {
         const el = hitAt(e.clientX, e.clientY);
         if (el === document.body || tool !== "move" || isLocked(el)) return;
         const cur = sels.length === 1 && alive(sels[0]) ? sels[0] : null;
-        if (cur && cur !== el && cur.contains(el) && !(el.closest("svg") === cur) && !isTextual(cur)) {
-            // into the selected box: the one of its children under the pointer is picked (and what sits beside it can be picked next)
-            const c = childOf(cur, el.closest("svg") || el);
+        const inner = cur && cur !== el && cur.contains(el) && el.closest("svg") !== cur ? childOf(cur, el.closest("svg") || el) : null;
+        // into the selected box: the one of its children under the pointer is picked (and what sits beside it can be picked next). A box with words of its own is edited
+        // instead, unless the pointer is on a child with no words (an icon, an image): that child is picked, so an icon beside a brand name can be selected, not the name typed in.
+        if (inner && (!isTextual(cur) || !inner.textContent.trim())) {
             inside = cur;
-            setSelection([c]);
+            setSelection([inner]);
             return;
         }
         if (isField(el)) { setSelection([el]); startEdit(el, true); return; } // a field inside a label: the field's own words, typed in the field

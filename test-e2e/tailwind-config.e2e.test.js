@@ -172,3 +172,22 @@ test("the config dialog works on a small screen and by keyboard", { skip: skip |
     assert.equal(await page.locator("#configDlg[open]").count(), 0, "Escape closes the dialog");
     await small.close();
 });
+
+test("double-clicking an icon beside a brand name picks the icon; it does not start typing in the name", { skip: skip || false, timeout: 150000 }, async () => {
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.brand}`);
+    await page.waitForSelector("#frame", { state: "attached" });
+    await page.waitForTimeout(4000);
+    const frame = await frameWith(page, "ic");
+    const centre = async (sel) => { const b = await frame.locator(sel).boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+    const editing = () => frame.evaluate(() => Boolean(document.querySelector("[contenteditable=true]")));
+    const [ix, iy] = await centre("#ic");
+    await page.mouse.dblclick(ix, iy); // into the page's top level
+    await page.mouse.dblclick(ix, iy); // down to the link that holds the icon and the name
+    await page.mouse.dblclick(ix, iy); // on the icon: this used to type into the name
+    assert.equal(await editing(), false, "no text editing started from the icon");
+    const [tx, ty] = await centre("#brand");
+    await page.mouse.dblclick(tx + 60, ty); // on the name itself
+    assert.equal(await editing(), true, "double-clicking the name still edits it");
+    await page.close();
+});
