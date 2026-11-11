@@ -212,7 +212,7 @@ test("a new animation is written into the project's config and works after a rel
     await page.goto(`${stack.base}/projects/${ids.project}`);
     await page.click("#tabTheme"); await page.click('[data-engine="3"]');
     const file = await page.inputValue("[data-ta]");
-    assert.match(file, /"zoom-in": "zoom-in 0\.4s ease-out both"/);
+    assert.match(file, /"zoom-in": "zoom-in 0\.4s ease-out 0s 1 normal both"/);
     assert.match(file, /keyframes: \{\n\s+"zoom-in": \{/);
     assert.match(file, /module\.exports = \{/, "it is still a normal config file");
     // after a reload the animation comes from the config itself: Tailwind builds animate-zoom-in

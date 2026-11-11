@@ -89,7 +89,10 @@ const panelActions = {
     setTag: (tag) => { if (S.selected) cmd({ cmd: "setTag", path: S.selected.path, tag }); },
     setTab: (tab) => panelStore.set({ tab }),
     openConfig,
-    newAnimation: () => newAnimation((name) => panelActions.applyValue("animation", name)),
+    newAnimation: () => newAnimation(({ name, hover, classes }) => {
+        if (hover) panelActions.addClasses(classes.join(" ")); // a hover effect is a variant class: hover:animate-lift
+        else { panelActions.applyValue("animation", name); if (classes[1]) panelActions.addClasses(classes[1]); } // the animation (one at a time), then motion-reduce
+    }),
     previewAnim: () => send({ cmd: "previewAnim", ms: 4000 }),
     closePanel: () => setPanel(false),
     // a breakpoint picked: the frame goes to its width, so what is edited is what is seen; All sizes leaves the frame as it is
