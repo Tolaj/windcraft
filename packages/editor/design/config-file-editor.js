@@ -1,6 +1,6 @@
 import { resolveFile } from "../../core/config-resolve.js";
 import { checkTheme } from "./config-check.js";
-import { TEMPLATES, PAGE_TEMPLATES, cleanEngine } from "../../core/config-file.js";
+import { TEMPLATES, PAGE_TEMPLATES, cleanEngine, insertDefault } from "../../core/config-file.js";
 import { TAILWIND_DEFAULTS, TAILWIND_VERSION } from "../../core/tailwind-defaults.js";
 
 // Tailwind config as the real file (tailwind.config.js for Tailwind 3, global.css for Tailwind 4), in two scopes with the same editor and the same rules:
@@ -27,16 +27,16 @@ export function mountConfigFileEditor(el, opts, onApply) {
     let diag = [], verdict = null, busy = false, status = "", dirty = false;
 
     el.innerHTML = `<div class="flex h-full min-h-0 flex-col bg-white text-xs">
-        <div class="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-3 py-2 ${page() ? "text-[11px]" : ""}" data-bar>
+        <div class="flex flex-wrap items-center gap-3 border-b border-neutral-200 px-4 py-2.5" data-bar>
             <div class="inline-flex overflow-hidden rounded-md border border-neutral-300" data-seg></div>
             <span class="font-mono text-[12px] text-neutral-700" data-name></span>
             <span class="min-w-0 flex-1 truncate text-neutral-500" data-status></span>
             <select data-insert class="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700"><option value="">Insert default values…</option>${Object.keys(TAILWIND_DEFAULTS).map((k) => `<option value="${k}">${k}</option>`).join("")}</select>
             <button type="button" data-reset class="h-8 rounded-md border border-neutral-200 px-3 hover:bg-neutral-50">Reset</button>
             <button type="button" data-apply class="h-8 rounded-md bg-black px-4 font-semibold text-white hover:bg-neutral-800">Apply</button></div>
-        <div class="flex min-h-0 flex-1"><div class="cfe-gutter ${page() ? "w-10" : "w-16"} shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 text-neutral-400" data-gutter></div>
-            <textarea data-ta wrap="off" spellcheck="false" class="cfe-ta min-w-0 flex-1 resize-none border-0 bg-white ${page() ? "p-2" : "p-4"} text-neutral-900 outline-none"></textarea></div>
-        <div class="max-h-44 shrink-0 overflow-auto border-t border-neutral-200 bg-neutral-50 px-3 py-2" data-diag></div></div>`;
+        <div class="flex min-h-0 flex-1"><div class="cfe-gutter w-16 shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 text-neutral-400" data-gutter></div>
+            <textarea data-ta wrap="off" spellcheck="false" class="cfe-ta min-w-0 flex-1 resize-none border-0 bg-white p-4 text-neutral-900 outline-none"></textarea></div>
+        <div class="max-h-44 shrink-0 overflow-auto border-t border-neutral-200 bg-neutral-50 px-4 py-2" data-diag></div></div>`;
     const q = (s) => el.querySelector(s), ta = q("[data-ta]");
 
     const marks = () => { const m = {}; diag.forEach((d) => { const cur = m[d.line]; if (!cur || (d.level === "error") || (d.level === "warn" && cur !== "error")) m[d.line] = d.level; }); return m; };
@@ -48,8 +48,8 @@ export function mountConfigFileEditor(el, opts, onApply) {
     function draw() {
         q("[data-seg]").classList.toggle("hidden", page());
         q("[data-seg]").innerHTML = ["3", "4"].map((e) => `<button type="button" data-engine="${e}" class="px-3 py-1.5 ${engine === e ? "bg-black font-medium text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"}">Tailwind ${e}</button>`).join("");
-        q("[data-name]").textContent = page() ? `This page · ${engine === "4" ? "global.css" : "tailwind.config.js"}` : tmpl(engine).name;
-        q("[data-insert]").classList.toggle("hidden", engine !== "3" || page());
+        q("[data-name]").textContent = page() ? `${engine === "4" ? "global.css" : "tailwind.config.js"} · this page` : tmpl(engine).name;
+        q("[data-insert]").classList.toggle("hidden", engine !== "3");
         q("[data-status]").textContent = status;
         q("[data-apply]").textContent = busy ? "Checking…" : "Apply";
         const rows = diag.map((d) => `<div class="flex gap-2 py-0.5"><span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full" style="background:${DOT[d.level]}"></span><span class="w-14 shrink-0 font-mono text-neutral-500">${d.line ? `line ${d.line}` : "file"}</span><span class="${d.level === "error" ? "text-red-800" : d.level === "warn" ? "text-amber-800" : "text-neutral-600"}">${esc(d.message)}</span></div>`).join("");
@@ -90,8 +90,17 @@ export function mountConfigFileEditor(el, opts, onApply) {
     el.addEventListener("change", (e) => {
         const sel = e.target.closest("[data-insert]");
         if (!sel || !sel.value) return;
-        const key = sel.value, snippet = `${key}: ${JSON.stringify(TAILWIND_DEFAULTS[key], null, 2).replace(/\n/g, "\n    ")},\n`;
-        const at = ta.selectionStart; ta.setRangeText(snippet, at, at, "end"); sel.value = ""; ta.focus(); diag = []; status = `Inserted Tailwind ${TAILWIND_VERSION}'s default ${key}. Put it inside theme.extend to change it.`; draw();
+        const key = sel.value; sel.value = "";
+        const r = insertDefault(ta.value, key, TAILWIND_DEFAULTS[key]);
+        if (r.status === "exists") status = `${key} is already in your file.`;
+        else if (r.status === "nowhere") status = "Couldn't find where to put it: the file needs module.exports = { ... }.";
+        else {
+            ta.value = r.text; diag = []; verdict = null;
+            const at = r.text.indexOf(`${key}:`), line = r.text.slice(0, at).split("\n").length;
+            ta.focus(); ta.setSelectionRange(at, at + key.length); ta.scrollTop = Math.max(0, (line - 3) * 20); // the new lines are in view, the key selected
+            status = `Added Tailwind ${TAILWIND_VERSION}'s default ${key} to theme.extend. Change any value; Apply when done.`;
+        }
+        draw();
     });
     ta.addEventListener("input", () => { dirty = true; diag = []; verdict = null; gutter(); });
     ta.addEventListener("scroll", () => { q("[data-gutter]").scrollTop = ta.scrollTop; });

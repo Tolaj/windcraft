@@ -215,16 +215,15 @@ const Styles = ({ k, s, actions, page }) => html`<${TypographySection} key=${`t$
 const CLOSE = html`<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>`;
 const TABS = [["design", "Design"], ["classes", "Code"], ["ai", "AI"], ["tw", "Tailwind"]];
 
-/** The Tailwind config tab: a button to the project's config file (a dialog), then this page's own file, the same editor and the same rules, laid over the project's. */
+const FILE_ICON = html`<svg class="wfico" viewBox="0 0 36 26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="0.8" y="0.8" width="34.4" height="24.4" rx="3" /><path d="M10 9h16M10 13h16M10 17h10" /></svg>`;
+/** The Tailwind config tab: two files of the same kind, the page's laid over the project's. Each opens in one wide dialog; the panel is too narrow for a code editor. */
 function TailwindTab({ tw, actions }) {
-    const box = useRef(null);
-    useEffect(() => { if (box.current) actions.mountPageConfig(box.current); }, []); // the editor keeps its own text and checks; the panel only gives it a place
-    return html`<div class="sec" style="display:flex;flex-direction:column;height:calc(100% - 44px);min-height:420px"><div class="secb nopad" style="display:flex;flex-direction:column;flex:1;min-height:0">
-        ${tw.canManage ? html`<${WireframeRow} onOpen=${actions.openProjectConfig} label=${`Project config · Tailwind ${tw.engine}`} hint=${tw.plugins.length ? `${tw.fileName}: ${tw.plugins.join(", ")}` : `${tw.fileName}. Shared by every page.`} icon=${PLUG_ICON} />`
-            : html`<p class="sub first">Project config</p><p class="muted">Tailwind ${tw.engine}, ${tw.fileName}${tw.plugins.length ? `: ${tw.plugins.join(", ")}` : ""}.</p>`}
-        <p class="sub">This page's config</p>
-        <div ref=${box} style="flex:1;min-height:0;border:1px solid #e5e5e5;border-radius:6px;overflow:hidden"></div>
-    </div></div>`;
+    return html`<div class="sec wfsec" style="display:flex;flex-direction:column;gap:8px">
+        <p class="muted" style="margin:0 0 2px">Config is a file, as in any Tailwind project. This page's file is laid over the project's.</p>
+        ${tw.canManage ? html`<${WireframeRow} onOpen=${actions.openPageConfig} label="This page" hint=${tw.hasPage ? "Has its own file" : "Nothing yet: it uses the project's"} icon=${FILE_ICON} />
+            <${WireframeRow} onOpen=${actions.openProjectConfig} label=${`Whole project · Tailwind ${tw.engine}`} hint=${tw.plugins.length ? `${tw.fileName}: ${tw.plugins.join(", ")}` : `${tw.fileName}. Every page uses it.`} icon=${PLUG_ICON} />`
+            : html`<p class="muted">Project: Tailwind ${tw.engine}, ${tw.fileName}${tw.plugins.length ? `: ${tw.plugins.join(", ")}` : ""}. This page: ${tw.hasPage ? "has its own file" : "none"}.</p>`}
+    </div>`;
 }
 
 /** The row at the top: the tabs (or just "Page" when no element is selected) and the close button. */

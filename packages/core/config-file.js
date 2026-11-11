@@ -115,3 +115,21 @@ export function directivesOf(text) {
     });
     return out;
 }
+
+/** Puts Tailwind's default values for `key` into a tailwind.config.js, inside `theme.extend` (created if the file doesn't have one yet), so they can be edited there.
+ *  Returns { text, status: "added" | "exists" | "nowhere" }. */
+export function insertDefault(text, key, value) {
+    const src = String(text);
+    if (new RegExp(`(^|[\\s{,])${key}\\s*:`).test(stripComments(src))) return { text: src, status: "exists" };
+    const lineStart = (i) => src.lastIndexOf("\n", i - 1) + 1;
+    const indentOf = (i) => /^[ \t]*/.exec(src.slice(lineStart(i)))[0];
+    const json = (pad) => JSON.stringify(value, null, 2).replace(/\n/g, `\n${pad}`);
+    const open = (re) => { const m = re.exec(stripComments(src)); return m ? m.index + m[0].length : -1; }; // index just after the "{"
+    let i = open(/\bextend\s*:\s*\{/);
+    if (i >= 0) { const pad = `${indentOf(i)}  `; const body = `${key}: ${json(pad)},`; const next = src.slice(i); const empty = /^\s*\}/.test(next); return { text: `${src.slice(0, i)}\n${pad}${body}${empty ? `\n${indentOf(i)}` : ""}${empty ? next.replace(/^\s*/, "") : next}`, status: "added" }; }
+    i = open(/\btheme\s*:\s*\{/);
+    if (i >= 0) { const pad = `${indentOf(i)}  `; const next = src.slice(i), empty = /^\s*\}/.test(next); return { text: `${src.slice(0, i)}\n${pad}extend: {\n${pad}  ${key}: ${json(`${pad}  `)},\n${pad}},${empty ? `\n${indentOf(i)}` : ""}${empty ? next.replace(/^\s*/, "") : next}`, status: "added" }; }
+    i = open(/(module\.exports\s*=|export\s+default|\bconfig\s*(:\s*[\w.<>]+)?\s*=)\s*\{/);
+    if (i >= 0) { const pad = `${indentOf(i)}  `; const next = src.slice(i), empty = /^\s*\}/.test(next); return { text: `${src.slice(0, i)}\n${pad}theme: {\n${pad}  extend: {\n${pad}    ${key}: ${json(`${pad}    `)},\n${pad}  },\n${pad}},${empty ? `\n${indentOf(i)}` : ""}${empty ? next.replace(/^\s*/, "") : next}`, status: "added" }; }
+    return { text: src, status: "nowhere" };
+}

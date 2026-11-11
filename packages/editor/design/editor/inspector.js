@@ -8,9 +8,8 @@ import { normalizeValue } from "../css-props.js";
 import { host } from "../host.js";
 import { pageTheme } from "../../../core/theme.js";
 import { TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
-import { mountConfigFileEditor } from "../config-file-editor.js";
 import { requiresOf, kindOf, OFFICIAL, TEMPLATES, hasTw } from "../../../core/config-file.js";
-import { openProjectConfig } from "./config-dialog.js";
+import { openConfig } from "./config-dialog.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
@@ -85,18 +84,9 @@ const panelActions = {
     remove: () => { if (S.selected) cmd({ cmd: "remove", path: S.selected.path }); },
     setTag: (tag) => { if (S.selected) cmd({ cmd: "setTag", path: S.selected.path, tag }); },
     setTab: (tab) => panelStore.set({ tab }),
-    openProjectConfig,
+    openProjectConfig: () => openConfig("project"),
+    openPageConfig: () => openConfig("page"),
     setPageTab: (pageTab) => panelStore.set({ pageTab }),
-    // the Tailwind config tab: this page's own file (the same kind as the project's), laid over the project's
-    mountPageConfig: (el) => mountConfigFileEditor(el, { scope: "page", theme: data.projectTheme || {}, tw: data.twConfig }, async (patch) => {
-        if (!data.id) return { ok: false, message: "Save the page first." };
-        const tw = patch.js || patch.css ? patch : null;
-        try { await host.updateComponent(data.id, { twConfig: tw || {} }); } catch (err) { return { ok: false, message: err.message || "Could not save it" }; }
-        data.twConfig = tw; const d = docs.get(S.curKey); if (d) d.meta.twConfig = tw;
-        setPreviewTheme(pageTheme(data.projectTheme, tw));
-        loadFrame(); // the canvas takes the new config
-        return { ok: true };
-    }),
     closePanel: () => setPanel(false),
     // a breakpoint picked: the frame goes to its width, so what is edited is what is seen; All sizes leaves the frame as it is
     setBreakpoint: (bp) => { panelStore.set({ bp, all: bp === "" }); if (bp) setDevice(BREAKPOINT_WIDTH[bp]); },
