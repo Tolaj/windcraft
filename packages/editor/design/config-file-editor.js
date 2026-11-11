@@ -1,119 +1,133 @@
 import { resolveFile } from "../../core/config-resolve.js";
 import { checkTheme } from "./config-check.js";
 import { TEMPLATES, PAGE_TEMPLATES, cleanEngine } from "../../core/config-file.js";
-import { TAILWIND_VERSION, effectiveConfig } from "../../core/tailwind-defaults.js";
+import { TAILWIND_DEFAULTS, TAILWIND_VERSION, effectiveConfig } from "../../core/tailwind-defaults.js";
 import { themeHead, normalizeTheme } from "../../core/theme.js";
 
-// Tailwind config as the real file (tailwind.config.js for Tailwind 3, global.css for Tailwind 4), in two scopes with the same editor and the same rules:
-//   scope "project"  the project's file, for every page: used on the project page (the Config tab) and in the editor (a dialog).
-//                    onApply({ engine, configJs, configCss, lock })
-//   scope "page"     one page's own file, laid over the project's (the editor's Tailwind config tab). The engine is the project's.
-//                    onApply({ js, css, lock })
-// Apply reads the file, looks up every package it names, runs it once in a hidden page and then hands the result to the owner to save: Promise<{ ok, message? }>
-// Each line that names a package gets a dot in the gutter (green: loaded or built in, amber: warning, red: a page can't do this without a build) and a line below.
+// The Tailwind config workspace, used on the project page (the Config tab) and in the editor (a dialog). It looks like any code editor:
+//   file tabs      tailwind.config.js (or global.css on Tailwind 4) for the whole project, and one for this page. A page's file is laid over the project's.
+//   your file      on the left: the file as you write it (only your changes and plugins).
+//   the result     on the right, always: what Tailwind ends up with (its defaults + your theme choices + the files), worked out by running them, live as you type.
+//                  Sections your files change are open and marked; untouched defaults stay folded.
+//   Apply          at the bottom, for the open file: it looks up every package the file names, runs the file once in a hidden page, and only then saves.
+// Packages are marked line by line in the gutter (green: loaded or built in; amber: warning; red: a page can't do this without a build) and listed under the file.
+//   onApply(scope, patch) -> Promise<{ ok, message? }>     scope "project": { engine, configJs, configCss, lock }   scope "page": { js, css, lock }
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const get = async (url, kind) => { const r = await fetch(url); if (!r.ok) throw new Error(String(r.status)); return kind === "text" ? r.text() : r.json(); };
 const DOT = { ok: "#16a34a", warn: "#d97706", error: "#dc2626" };
-const STYLE = `.cfe-gutter{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:20px}.cfe-gutter div{height:20px;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding-right:10px}.cfe-gutter i{width:7px;height:7px;border-radius:50%;display:inline-block}.cfe-ta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:20px;tab-size:2}`;
+const STYLE = `.cfe-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:20px}.cfe-gutter div{height:20px;display:flex;align-items:center;justify-content:flex-end;gap:6px;padding-right:10px}.cfe-gutter i{width:7px;height:7px;border-radius:50%;display:inline-block}.cfe-ta{tab-size:2}.cfe-res pre{margin:0;padding:6px 12px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.5;color:#404040;overflow:auto;max-height:340px;white-space:pre}.cfe-res details>summary{cursor:pointer;list-style:none}.cfe-res details>summary::-webkit-details-marker{display:none}`;
 
-/** Mounts the editor into `el` (which should have a height). `opts`: { scope, theme (the project's, as stored), tw (the page's { js, css, lock }, for scope "page") }. Returns { set(opts) }. */
+/** Mounts the workspace into `el` (which should have a height). `opts`: { theme (the project's, as stored), tw (this page's { js, css, lock }), scopes: ["project"] or ["page", "project"], scope (the one open first) }. Returns { set(opts), show(scope) }. */
 export function mountConfigFileEditor(el, opts, onApply) {
-    let { scope = "project", theme, tw } = opts;
-    const page = () => scope === "page", tmpl = (e) => (page() ? PAGE_TEMPLATES[e] : TEMPLATES[e]);
-    const initial = () => (page() ? { "3": (tw && tw.js) || PAGE_TEMPLATES["3"].text, "4": (tw && tw.css) || PAGE_TEMPLATES["4"].text } : { "3": theme.configJs || TEMPLATES["3"].text, "4": theme.configCss || TEMPLATES["4"].text });
     if (!document.getElementById("cfe-style")) { const st = document.createElement("style"); st.id = "cfe-style"; st.textContent = STYLE; document.head.appendChild(st); }
-    let engine = cleanEngine(theme.engine);
-    let texts = initial();
-    let diag = [], verdict = null, busy = false, status = "", dirty = false, view = "file";
+    let { theme, tw, scopes = ["project"] } = opts;
+    let scope = opts.scope || scopes[0], engine = cleanEngine(theme.engine);
+    const name = (sc, e) => (e === "4" ? "global.css" : "tailwind.config.js");
+    const tmpl = (sc, e) => (sc === "page" ? PAGE_TEMPLATES[e] : TEMPLATES[e]).text;
+    const initial = () => ({
+        project: { "3": theme.configJs || TEMPLATES["3"].text, "4": theme.configCss || TEMPLATES["4"].text },
+        page: { "3": (tw && tw.js) || PAGE_TEMPLATES["3"].text, "4": (tw && tw.css) || PAGE_TEMPLATES["4"].text },
+    });
+    let texts = initial(), saved = initial(), locks = { project: theme.lock || {}, page: (tw && tw.lock) || {} };
+    let diag = { project: [], page: [] }, status = { project: "", page: "" }, busy = false, seq = 0, timer = null;
 
     el.innerHTML = `<div class="flex h-full min-h-0 flex-col bg-white text-xs">
-        <div class="flex flex-wrap items-center gap-3 border-b border-neutral-200 px-4 py-2.5" data-bar>
-            <div class="inline-flex overflow-hidden rounded-md border border-neutral-300" data-seg></div>
-            <div class="inline-flex overflow-hidden rounded-md border border-neutral-300" data-views></div>
-            <span class="font-mono text-[12px] text-neutral-700" data-name></span>
-            <span class="min-w-0 flex-1 truncate text-neutral-500" data-status></span>
-            <button type="button" data-reset class="h-8 rounded-md border border-neutral-200 px-3 hover:bg-neutral-50">Reset</button>
-            <button type="button" data-apply class="h-8 rounded-md bg-black px-4 font-semibold text-white hover:bg-neutral-800">Apply</button></div>
-        <div class="flex min-h-0 flex-1 flex-col" data-eff hidden><p class="border-b border-neutral-100 bg-neutral-50 px-4 py-2 text-neutral-500" data-effnote></p>
-            <textarea readonly wrap="off" spellcheck="false" class="cfe-ta min-h-0 flex-1 resize-none border-0 bg-white p-4 text-neutral-700 outline-none" data-effta></textarea></div>
-        <div class="flex min-h-0 flex-1" data-filepane><div class="cfe-gutter w-16 shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 text-neutral-400" data-gutter></div>
-            <textarea data-ta wrap="off" spellcheck="false" class="cfe-ta min-w-0 flex-1 resize-none border-0 bg-white p-4 text-neutral-900 outline-none"></textarea></div>
-        <div class="max-h-44 shrink-0 overflow-auto border-t border-neutral-200 bg-neutral-50 px-4 py-2" data-diag></div></div>`;
+        <div class="flex items-center gap-1 border-b border-neutral-200 px-3 pt-2" data-tabs></div>
+        <div class="flex min-h-0 flex-1">
+            <div class="flex min-w-0 flex-[3] flex-col"><div class="flex min-h-0 flex-1"><div class="cfe-mono cfe-gutter w-14 shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 text-neutral-400" data-gutter></div>
+                <textarea data-ta wrap="off" spellcheck="false" class="cfe-mono cfe-ta min-w-0 flex-1 resize-none border-0 bg-white p-4 text-neutral-900 outline-none"></textarea></div>
+                <div class="max-h-40 shrink-0 overflow-auto border-t border-neutral-200 bg-neutral-50 px-4 py-2" data-diag></div></div>
+            <div class="cfe-res flex min-w-0 flex-[2] flex-col border-l border-neutral-200 bg-neutral-50"><div class="border-b border-neutral-200 px-4 py-2.5"><p class="font-semibold text-neutral-900">Result</p><p class="mt-0.5 text-neutral-500" data-resnote></p></div><div class="min-h-0 flex-1 overflow-auto" data-res></div></div></div>
+        <div class="flex items-center gap-3 border-t border-neutral-200 px-4 py-2.5"><span class="min-w-0 flex-1 truncate text-neutral-500" data-status></span><button type="button" data-reset class="text-neutral-500 underline hover:text-neutral-900">Reset this file</button><button type="button" data-apply class="h-8 rounded-md bg-black px-5 font-semibold text-white hover:bg-neutral-800">Apply</button></div></div>`;
     const q = (s) => el.querySelector(s), ta = q("[data-ta]");
+    const dirty = (sc) => texts[sc][engine] !== saved[sc][engine];
 
-    const marks = () => { const m = {}; diag.forEach((d) => { const cur = m[d.line]; if (!cur || (d.level === "error") || (d.level === "warn" && cur !== "error")) m[d.line] = d.level; }); return m; };
+    function tabs() {
+        const tab = (sc) => `<button type="button" data-scope="${sc}" class="-mb-px flex items-center gap-2 border-b-2 px-3 py-2 ${scope === sc ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}"><span class="font-mono text-[12px]">${name(sc, engine)}</span><span class="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">${sc === "page" ? "this page" : "whole project"}</span>${dirty(sc) ? `<i class="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" title="Not applied yet"></i>` : ""}</button>`;
+        const eng = scope === "project"
+            ? `<div class="mb-1 ml-auto inline-flex overflow-hidden rounded-md border border-neutral-300">${["3", "4"].map((e) => `<button type="button" data-engine="${e}" class="px-2.5 py-1 ${engine === e ? "bg-black font-medium text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"}">Tailwind ${e}</button>`).join("")}</div>`
+            : `<span class="mb-1 ml-auto text-neutral-500">Tailwind ${engine}, set in the project's file</span>`;
+        q("[data-tabs]").innerHTML = scopes.map(tab).join("") + eng;
+    }
     function gutter() {
-        const n = Math.max(30, ta.value.split("\n").length), m = marks();
-        q("[data-gutter]").innerHTML = Array.from({ length: n }, (_, i) => `<div>${m[i + 1] ? `<i style="background:${DOT[m[i + 1]]}" title="${esc(diag.filter((d) => d.line === i + 1).map((d) => d.message).join("\n"))}"></i>` : ""}${i + 1}</div>`).join("");
+        const n = Math.max(30, ta.value.split("\n").length), m = {};
+        diag[scope].forEach((d) => { const c = m[d.line]; if (!c || d.level === "error" || (d.level === "warn" && c !== "error")) m[d.line] = d.level; });
+        q("[data-gutter]").innerHTML = Array.from({ length: n }, (_, i) => `<div>${m[i + 1] ? `<i style="background:${DOT[m[i + 1]]}" title="${esc(diag[scope].filter((d) => d.line === i + 1).map((d) => d.message).join("\n"))}"></i>` : ""}${i + 1}</div>`).join("");
         q("[data-gutter]").scrollTop = ta.scrollTop;
     }
     function draw() {
-        q("[data-views]").innerHTML = [["file", "Your file"], ["effective", "Effective config"]].map(([k, t]) => `<button type="button" data-view="${k}" class="px-3 py-1.5 ${view === k ? "bg-neutral-900 font-medium text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"}">${t}</button>`).join("");
-        q("[data-filepane]").classList.toggle("hidden", view !== "file"); q("[data-eff]").hidden = view !== "effective"; q("[data-eff]").classList.toggle("flex", view === "effective");
-        q("[data-diag]").classList.toggle("hidden", view !== "file");
-        ["[data-reset]", "[data-apply]"].forEach((x) => q(x).classList.toggle("hidden", view !== "file"));
-        q("[data-seg]").classList.toggle("hidden", page());
-        q("[data-seg]").innerHTML = ["3", "4"].map((e) => `<button type="button" data-engine="${e}" class="px-3 py-1.5 ${engine === e ? "bg-black font-medium text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"}">Tailwind ${e}</button>`).join("");
-        q("[data-name]").textContent = page() ? `${engine === "4" ? "global.css" : "tailwind.config.js"} · this page` : tmpl(engine).name;
-        q("[data-status]").textContent = status;
-        q("[data-apply]").textContent = busy ? "Checking…" : "Apply";
-        const rows = diag.map((d) => `<div class="flex gap-2 py-0.5"><span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full" style="background:${DOT[d.level]}"></span><span class="w-14 shrink-0 font-mono text-neutral-500">${d.line ? `line ${d.line}` : "file"}</span><span class="${d.level === "error" ? "text-red-800" : d.level === "warn" ? "text-amber-800" : "text-neutral-600"}">${esc(d.message)}</span></div>`).join("");
-        q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${page() ? "Extends the project's config for this page only. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>. Apply checks each package." : "Add what the plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
+        tabs();
+        q("[data-status]").textContent = status[scope];
+        q("[data-apply]").textContent = busy ? "Checking…" : scope === "page" ? "Apply to this page" : "Apply to the project";
+        const rows = diag[scope].map((d) => `<div class="flex gap-2 py-0.5"><span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full" style="background:${DOT[d.level]}"></span><span class="w-12 shrink-0 font-mono text-neutral-500">${d.line ? `line ${d.line}` : "file"}</span><span class="${d.level === "error" ? "text-red-800" : d.level === "warn" ? "text-amber-800" : "text-neutral-600"}">${esc(d.message)}</span></div>`).join("");
+        q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${scope === "page" ? "Only this page uses this file, on top of the project's. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>; Apply checks each package." : "Paste what a plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
         gutter();
     }
-    // Read-only: everything Tailwind works with for this scope, worked out by running the files (v3) or the CSS the browser build receives (v4).
-    async function showEffective() {
-        view = "effective"; q("[data-effnote]").textContent = "Working it out…"; q("[data-effta]").value = ""; draw();
-        texts[engine] = ta.value;
-        const candidate = page() ? { ...theme, page: { js: texts["3"], css: texts["4"], lock: (tw && tw.lock) || {} } } : { ...theme, engine, configJs: texts["3"], configCss: texts["4"] };
-        const n = normalizeTheme(candidate);
+    function load() { ta.value = texts[scope][engine]; draw(); live(); }
+
+    // ── the result: what Tailwind ends up with, for the open file's scope, worked out by running the files ────────────────────────
+    const candidate = () => {
+        const proj = { ...theme, engine, configJs: texts.project["3"], configCss: texts.project["4"], lock: locks.project };
+        return normalizeTheme(scope === "page" ? { ...proj, page: { js: texts.page["3"], css: texts.page["4"], lock: locks.page } } : proj);
+    };
+    function live(delay = 700) { clearTimeout(timer); const mine = ++seq; q("[data-resnote]").textContent = "Working it out…"; timer = setTimeout(() => showResult(mine), delay); }
+    async function showResult(mine) {
+        const t = candidate();
         if (engine === "4") {
-            const css = (/<style[^>]*data-wc-theme>([\s\S]*?)<\/style>/.exec(themeHead(n)) || [])[1] || "";
-            q("[data-effta]").value = css.trim(); q("[data-effnote]").textContent = "Read-only. The CSS the Tailwind 4 browser build receives: your theme choices, the project's CSS and this page's, with imports written in. Tailwind's own defaults are built into Tailwind 4.";
+            const css = ((/<style[^>]*data-wc-theme>([\s\S]*?)<\/style>/.exec(themeHead(t)) || [])[1] || "").trim();
+            if (mine !== seq) return;
+            q("[data-res]").innerHTML = `<pre>${esc(css)}</pre>`;
+            q("[data-resnote]").textContent = "The CSS the Tailwind 4 browser build receives: your theme choices and the files, with imports written in.";
             return;
         }
-        const r = await checkTheme(n);
-        if (view !== "effective") return;
-        q("[data-effta]").value = r.config ? JSON.stringify(effectiveConfig(r.config), null, 2) : "Couldn't work it out: " + (r.messages || []).join(" ");
-        q("[data-effnote]").textContent = `Read-only. Everything Tailwind works with: its ${TAILWIND_VERSION} defaults, your theme choices, the project's file${page() ? " and this page's" : ""}, worked out by running them. Change it in your file.`;
+        const r = await checkTheme(t);
+        if (mine !== seq) return; // a newer edit is already being worked out
+        if (!r.config) { q("[data-res]").innerHTML = `<p class="px-4 py-3 text-red-800">${esc((r.messages || ["It couldn't be worked out."]).join(" "))}</p>`; q("[data-resnote]").textContent = "Fix the file to see the result."; return; }
+        const eff = effectiveConfig(r.config).theme, keys = Object.keys(eff);
+        const changed = (k) => JSON.stringify(eff[k]) !== JSON.stringify(TAILWIND_DEFAULTS[k]);
+        const ordered = [...keys.filter(changed), ...keys.filter((k) => !changed(k))];
+        q("[data-res]").innerHTML = ordered.map((k) => `<details ${changed(k) ? "open" : ""} class="border-b border-neutral-200"><summary class="flex items-center gap-2 px-4 py-2 hover:bg-white"><span class="font-medium text-neutral-900">${esc(k)}</span>${changed(k) ? `<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">customised</span>` : `<span class="text-[10px] text-neutral-400">Tailwind default</span>`}<span class="ml-auto text-neutral-400">▾</span></summary><pre>${esc(JSON.stringify(eff[k], null, 2))}</pre></details>`).join("");
+        q("[data-resnote]").textContent = `Tailwind ${TAILWIND_VERSION}'s defaults with your theme choices and ${scope === "page" ? "the project's file and this page's" : "the project's file"}. Customised sections are open.`;
     }
-    function load() { view = "file"; ta.value = texts[engine]; diag = []; verdict = null; status = ""; draw(); }
 
     async function apply() {
         if (busy) return;
-        texts[engine] = ta.value;
-        busy = true; status = "Looking up packages…"; draw();
-        let result;
+        const sc = scope;
+        texts[sc][engine] = ta.value;
+        busy = true; status[sc] = "Looking up packages…"; draw();
         try {
             const { lock, diagnostics } = await resolveFile({ engine, text: ta.value }, get);
-            diag = diagnostics;
-            const candidate = page() ? { ...theme, page: { js: texts["3"], css: texts["4"], lock } } : { ...theme, engine, configJs: texts["3"], configCss: texts["4"], lock };
-            status = "Running it once in a hidden page…"; draw();
-            verdict = await checkTheme(candidate);
-            if (verdict.verdict === "fails") { diag = [...diag, ...verdict.messages.map((m) => ({ line: 0, level: "error", message: m }))]; status = "Not applied: fix the file first."; }
+            diag[sc] = diagnostics;
+            locks[sc] = lock;
+            status[sc] = "Running it once in a hidden page…"; draw();
+            const verdict = await checkTheme(candidate());
+            if (verdict.verdict === "fails") { diag[sc] = [...diag[sc], ...verdict.messages.map((m) => ({ line: 0, level: "error", message: m }))]; status[sc] = "Not applied: fix the file first."; }
             else {
-                if (verdict.verdict !== "works") diag = [...diag, ...verdict.messages.map((m) => ({ line: 0, level: "warn", message: m }))];
-                const keep = (e) => (texts[e] === tmpl(e).text ? "" : texts[e]); // the blank template is stored as nothing
-                result = await onApply(page() ? { js: keep("3"), css: keep("4"), lock } : { engine, configJs: keep("3"), configCss: keep("4"), lock });
-                status = result && result.ok ? (diag.some((d) => d.level === "error") ? "Applied. Lines marked red were left out." : page() ? "Applied to this page." : "Applied to every page in this project.") : `Not saved: ${(result && result.message) || "something went wrong"}`;
-                if (result && result.ok) dirty = false;
+                if (verdict.verdict !== "works") diag[sc] = [...diag[sc], ...verdict.messages.map((m) => ({ line: 0, level: "warn", message: m }))];
+                const keep = (s, e) => (texts[s][e] === tmpl(s, e) ? "" : texts[s][e]); // the blank template is stored as nothing
+                const result = await onApply(sc, sc === "page" ? { js: keep("page", "3"), css: keep("page", "4"), lock } : { engine, configJs: keep("project", "3"), configCss: keep("project", "4"), lock });
+                if (result && result.ok) { saved[sc][engine] = texts[sc][engine]; if (sc === "project") theme = { ...theme, engine }; }
+                status[sc] = result && result.ok ? (diag[sc].some((d) => d.level === "error") ? "Applied. Lines marked red were left out." : sc === "page" ? "Applied to this page." : "Applied to every page in this project.") : `Not saved: ${(result && result.message) || "something went wrong"}`;
             }
-        } catch (e) { status = e.message || "Something went wrong."; }
-        busy = false; draw();
+        } catch (e) { status[sc] = e.message || "Something went wrong."; }
+        busy = false; draw(); live(0);
     }
 
     el.addEventListener("click", (e) => {
-        const vb = e.target.closest("[data-view]");
-        if (vb) { if (vb.dataset.view === "effective") showEffective(); else { view = "file"; draw(); } return; }
-        const t = e.target.closest("[data-engine]");
-        if (t) { texts[engine] = ta.value; engine = t.dataset.engine; load(); return; }
+        const sc = e.target.closest("[data-scope]");
+        if (sc) { texts[scope][engine] = ta.value; scope = sc.dataset.scope; load(); return; }
+        const en = e.target.closest("[data-engine]");
+        if (en) { texts[scope][engine] = ta.value; engine = en.dataset.engine; load(); return; }
         if (e.target.closest("[data-apply]")) return apply();
-        if (e.target.closest("[data-reset]")) { if (!confirm(`Put ${tmpl(engine).name} back to the blank template?`)) return; texts[engine] = tmpl(engine).text; load(); }
+        if (e.target.closest("[data-reset]")) { if (!confirm(`Put ${name(scope, engine)} (${scope === "page" ? "this page" : "whole project"}) back to the blank template?`)) return; texts[scope][engine] = tmpl(scope, engine); diag[scope] = []; load(); }
     });
-    ta.addEventListener("input", () => { dirty = true; diag = []; verdict = null; gutter(); });
+    ta.addEventListener("input", () => { texts[scope][engine] = ta.value; diag[scope] = []; tabs(); gutter(); live(); });
     ta.addEventListener("scroll", () => { q("[data-gutter]").scrollTop = ta.scrollTop; });
-    ta.addEventListener("keydown", (e) => { if (e.key === "Tab") { e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); gutter(); } if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); apply(); } });
+    ta.addEventListener("keydown", (e) => { if (e.key === "Tab") { e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); ta.dispatchEvent(new Event("input")); } if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); apply(); } });
     load();
-    return { set(next) { theme = next.theme; tw = next.tw; engine = cleanEngine(theme.engine); texts = initial(); load(); } };
+    return {
+        set(next) { theme = next.theme; tw = next.tw; if (next.scopes) scopes = next.scopes; engine = cleanEngine(theme.engine); texts = initial(); saved = initial(); locks = { project: theme.lock || {}, page: (tw && tw.lock) || {} }; diag = { project: [], page: [] }; status = { project: "", page: "" }; if (next.scope) scope = next.scope; if (!scopes.includes(scope)) scope = scopes[0]; load(); },
+        show(sc) { if (scopes.includes(sc) && sc !== scope) { texts[scope][engine] = ta.value; scope = sc; load(); } },
+    };
 }

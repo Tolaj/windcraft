@@ -445,7 +445,7 @@ function renderTheme() {
             <label class="mt-4 block font-semibold text-neutral-900">Corners</label>
             <div id="thRadii" class="mt-1 flex flex-wrap gap-1.5">${RADII.map((r) => `<button type="button" class="chip ${theme.radius === r ? "on" : ""}" data-radius="${r}">${r}</button>`).join("")}</div>
             </div></div></div>`;
-    const editor = mountConfigFileEditor($("secTailwind"), { scope: "project", theme }, async (patch) => {
+    const editor = mountConfigFileEditor($("secTailwind"), { scope: "project", scopes: ["project"], theme }, async (scope, patch) => {
         try { await saveTheme(normalizeTheme({ ...theme, ...patch })); $("themePanel").querySelector('[data-secdesc="tailwind"]').textContent = `The project's ${fileName()}, with plugins`; return { ok: true }; }
         catch (err) { return { ok: false, message: err.message }; }
     });
