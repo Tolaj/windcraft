@@ -19,9 +19,19 @@ export const MAX_FILE = 60000;
 export const OFFICIAL = Object.freeze({ "@tailwindcss/typography": "typography", "@tailwindcss/forms": "forms", "@tailwindcss/container-queries": "container-queries" });
 export const BUILT_IN = Object.freeze(["tailwindcss/plugin", "tailwindcss/colors", "tailwindcss/defaultTheme"]);
 
+/** A page's own file, the same kind as the project's, added on top of it: { js, css, lock }. Anything invalid is dropped. */
+export const cleanTw = (t) => ({ js: cleanFile(t && t.js), css: cleanFile(t && t.css), lock: cleanLock(t && t.lock) });
+export const hasTw = (t) => Boolean(t && (t.js || t.css));
+
 export const TEMPLATES = Object.freeze({
     "3": { name: "tailwind.config.js", text: `/** @type {import('tailwindcss').Config} */\nmodule.exports = {\n  theme: {\n    extend: {},\n  },\n  plugins: [],\n};\n` },
     "4": { name: "global.css", text: `@import "tailwindcss";\n` },
+});
+
+/** The same files for one page: they extend the project's. */
+export const PAGE_TEMPLATES = Object.freeze({
+    "3": { name: "tailwind.config.js (this page)", text: `/** Changes for this page only, on top of the project's config. */\nmodule.exports = {\n  theme: {\n    extend: {},\n  },\n  plugins: [],\n};\n` },
+    "4": { name: "global.css (this page)", text: `/* Changes for this page only, on top of the project's CSS. */\n` },
 });
 
 /** The file text kept: a string within the size limit, else "". */
@@ -67,7 +77,7 @@ export const officialsOf = (text) => [...new Set(requiresOf(text).filter((r) => 
 /** The Tailwind script tag: the 3.4 play CDN (with the official plugins the file uses) or the v4 browser build. */
 export function tailwindTag(theme) {
     if (cleanEngine(theme && theme.engine) === "4") return `<script src="${TAILWIND4_SRC}"><\/script>`;
-    const names = officialsOf((theme && theme.configJs) || TEMPLATES["3"].text);
+    const names = [...new Set([...officialsOf((theme && theme.configJs) || TEMPLATES["3"].text), ...officialsOf((theme && theme.page && theme.page.js) || "")])];
     return `<script src="https://cdn.tailwindcss.com${names.length ? `?plugins=${names.join(",")}` : ""}"><\/script>`;
 }
 
@@ -75,13 +85,14 @@ const D = TAILWIND_DEFAULTS;
 const RUNTIME = (needsDefaults) => `<script data-wc-config>window.__wcMods={};${needsDefaults ? `window.__wcDefaults=${JSON.stringify({ colors: D.colors, defaultTheme: { screens: D.screens, fontFamily: D.fontFamily, fontSize: D.fontSize, spacing: D.spacing, borderRadius: D.borderRadius, boxShadow: D.boxShadow } })};` : ""}window.module={exports:{}};window.__wcReq=function(n){if(Object.prototype.hasOwnProperty.call(__wcMods,n))return __wcMods[n];if(n==="tailwindcss/plugin"){var p=function(h,c){return{handler:h,config:c}};p.withOptions=function(f){return function(o){var r=f(o);return{handler:r.handler,config:r.config}}};return p}if(n==="tailwindcss/colors")return(window.__wcDefaults||{}).colors||{};if(n==="tailwindcss/defaultTheme")return(window.__wcDefaults||{}).defaultTheme||{};if(${JSON.stringify(Object.keys(OFFICIAL))}.indexOf(n)>-1)return{handler:function(){}};console.error("The config needs "+n+", which a page can't load without a build.");return{handler:function(){}}};window.require=__wcReq;function __wcMerge(a,b){var o={};for(var k in a)o[k]=a[k];for(var k in b){var x=a[k],y=b[k];o[k]=k==="plugins"&&Array.isArray(x)&&Array.isArray(y)?x.concat(y):x&&y&&typeof x==="object"&&typeof y==="object"&&!Array.isArray(x)&&!Array.isArray(y)?__wcMerge(x,y):y}return o}<\/script>`;
 const safeScript = (s) => String(s).replace(/<\/(script)/gi, "<\\/$1").replace(/<!--/g, "<\\!--");
 
-/** What a Tailwind 3 preview needs after the CDN: the packages the lock holds, then the config file run as written over the theme's own settings (`base`). */
+/** What a Tailwind 3 preview needs after the CDN: the packages the locks hold, then the project's config file and (over it) the page's, each run as written, over the theme's own settings (`base`). */
 export function configHead3(theme, base) {
-    const file = (theme && theme.configJs) || TEMPLATES["3"].text, lock = cleanLock(theme && theme.lock), out = [];
-    const src = safeScript(toCommonJs(file));
-    out.push(RUNTIME(/tailwindcss\/(colors|defaultTheme)/.test(file)));
+    const project = (theme && theme.configJs) || TEMPLATES["3"].text, page = (theme && theme.page && theme.page.js) || "";
+    const lock = { ...cleanLock(theme && theme.lock), ...cleanLock(theme && theme.page && theme.page.lock) }, out = [];
+    out.push(RUNTIME(/tailwindcss\/(colors|defaultTheme)/.test(project + page)));
     for (const [spec, v] of Object.entries(lock)) if (v.url) out.push(`<script src="${v.url}"><\/script><script data-wc-config>__wcMods[${JSON.stringify(spec)}]=module.exports;module.exports={}<\/script>`);
-    out.push(`<script data-wc-theme>(function(){var module={exports:{}},exports=module.exports,require=window.__wcReq;try{\n${src}\n}catch(e){console.error("tailwind.config.js: "+e.message)}var u=module.exports;if(u&&u.__esModule&&u.default)u=u.default;tailwind.config=__wcMerge(${JSON.stringify(base).replace(/</g, "\\u003c")},u||{})})()<\/script>`);
+    const layer = (file, label) => `(function(){var module={exports:{}},exports=module.exports,require=window.__wcReq;try{\n${safeScript(toCommonJs(file))}\n}catch(e){console.error(${JSON.stringify(label)}+e.message)}var u=module.exports;if(u&&u.__esModule&&u.default)u=u.default;__c=__wcMerge(__c,u||{})})();`;
+    out.push(`<script data-wc-theme>(function(){var __c=${JSON.stringify(base).replace(/</g, "\\u003c")};${layer(project, "tailwind.config.js: ")}${page ? layer(page, "tailwind.config.js (this page): ") : ""}tailwind.config=__c})()<\/script>`);
     return out.join("\n");
 }
 

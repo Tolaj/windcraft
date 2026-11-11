@@ -8,7 +8,6 @@
 //   classes-section.js: the Code tab below the element's code; controls.js, group-controls.js: the blocks they are made of
 import { html, render, useState, useEffect, useLayoutEffect, useRef } from "../vendor/preact-htm.js";
 import { UiContext } from "./panel-state.js";
-import { configError } from "../../core/theme.js";
 import { highlight, checkTags } from "./code-view.js";
 import { TextInput, Field } from "./controls.js";
 import { DesignTop } from "./design-tab.js";
@@ -216,28 +215,15 @@ const Styles = ({ k, s, actions, page }) => html`<${TypographySection} key=${`t$
 const CLOSE = html`<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>`;
 const TABS = [["design", "Design"], ["classes", "Code"], ["ai", "AI"], ["tw", "Tailwind"]];
 
-/** The Tailwind config tab: this page's own config, starting from the project's with Tailwind's defaults under it; Apply stores what differs from the project's. */
+/** The Tailwind config tab: a button to the project's config file (a dialog), then this page's own file, the same editor and the same rules, laid over the project's. */
 function TailwindTab({ tw, actions }) {
-    const [text, setText] = useState(tw.text);
-    const [note, setNote] = useState(null);
-    const [busy, setBusy] = useState(false);
-    const apply = async (value) => {
-        setBusy(true);
-        const res = await actions.twApply(value);
-        setBusy(false);
-        setNote(res.ok ? { text: "Applied to this page." } : { text: res.message, bad: true });
-    };
-    const bad = configError(text);
-    return html`<div class="sec" style="display:flex;flex-direction:column;height:calc(100% - 44px);min-height:360px"><div class="secb nopad" style="display:flex;flex-direction:column;flex:1;min-height:0">
-        ${tw.canManage ? html`<${WireframeRow} onOpen=${actions.openProjectConfig} label=${`Project config · Tailwind ${tw.engine}`} hint=${tw.plugins.length ? `${tw.fileName}: ${tw.plugins.join(", ")}` : `${tw.fileName}. Add plugins the usual way.`} icon=${PLUG_ICON} />`
+    const box = useRef(null);
+    useEffect(() => { if (box.current) actions.mountPageConfig(box.current); }, []); // the editor keeps its own text and checks; the panel only gives it a place
+    return html`<div class="sec" style="display:flex;flex-direction:column;height:calc(100% - 44px);min-height:420px"><div class="secb nopad" style="display:flex;flex-direction:column;flex:1;min-height:0">
+        ${tw.canManage ? html`<${WireframeRow} onOpen=${actions.openProjectConfig} label=${`Project config · Tailwind ${tw.engine}`} hint=${tw.plugins.length ? `${tw.fileName}: ${tw.plugins.join(", ")}` : `${tw.fileName}. Shared by every page.`} icon=${PLUG_ICON} />`
             : html`<p class="sub first">Project config</p><p class="muted">Tailwind ${tw.engine}, ${tw.fileName}${tw.plugins.length ? `: ${tw.plugins.join(", ")}` : ""}.</p>`}
-        <p class="sub">Tailwind config <span class="muted">v${tw.version}</span></p>
-        <p class="muted">Only this page uses these changes, on top of the project's config; ${tw.changed.length ? html`changed on this page: <b>${tw.changed.join(", ")}</b>.` : "nothing is changed on this page yet."}</p>
-        <textarea class="fi area" wrap="off" spellcheck="false" style="flex:1;min-height:0;resize:none;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.4;white-space:pre" value=${text} onInput=${(e) => { setText(e.target.value); setNote(null); }}></textarea>
-        <p class="text-[11px] text-red-700">${bad || (note && note.bad ? note.text : "")}</p>
-        <button type="button" class="primary" disabled=${busy || Boolean(bad)} onClick=${() => apply(text)}>Apply to this page</button>
-        <button type="button" disabled=${busy || !tw.changed.length} onClick=${() => apply("{}")}>Use the project's config</button>
-        ${note && !note.bad && html`<p class="text-[11px] text-neutral-500">${note.text}</p>`}
+        <p class="sub">This page's config</p>
+        <div ref=${box} style="flex:1;min-height:0;border:1px solid #e5e5e5;border-radius:6px;overflow:hidden"></div>
     </div></div>`;
 }
 

@@ -77,12 +77,12 @@ router.get("/:id", async (req, res) => {
             .select("title htmlCode version category description tags isPublished useAsReference kind parent board group frameW twConfig")
             .sort("order createdAt").limit(60).lean())).map((p) => ({
             id: String(p._id), title: p.title, group: p.group || "", frameW: p.frameW || null, version: p.version || 1, kind: p.kind, parent: p.parent ? String(p.parent) : null,
-            board: boardOf(p), category: p.category, description: p.description, tags: p.tags || [], isPublished: p.isPublished, useAsReference: p.useAsReference !== false, twConfig: p.twConfig || "",
+            board: boardOf(p), category: p.category, description: p.description, tags: p.tags || [], isPublished: p.isPublished, useAsReference: p.useAsReference !== false, twConfig: p.twConfig || null,
             htmlCode: String(p._id) === String(c._id) ? "" : p.htmlCode,
         })) : [];
         const proj = c.project ? await optional("the project theme", () => Project.findOne({ _id: c.project, owner: req.session.user.id }).select("theme").lean(), null) : null;
         renderEditor(res, {
-            theme: pageTheme(proj && proj.theme, c.twConfig), projectTheme: normalizeTheme(proj && proj.theme), twConfig: c.twConfig || "",
+            theme: pageTheme(proj && proj.theme, c.twConfig), projectTheme: normalizeTheme(proj && proj.theme), twConfig: c.twConfig || null,
             project: c.project ? projects.find((p) => p.id === String(c.project)) || null : null, projects,
             figmaSource: await optional("the Figma data", () => figmaSourceInfo(c._id), null),
             id: String(c._id), title: c.title, group: c.group || "", frameW: c.frameW || null, version: c.version || 1, htmlCode: c.htmlCode,

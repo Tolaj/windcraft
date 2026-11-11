@@ -37,6 +37,6 @@ async function applyPatch(patch) {
 export function openProjectConfig() {
     if (!dlg) build();
     const pt = data.projectTheme || {};
-    if (editor) editor.set(pt); else editor = mountConfigFileEditor($("cfgBody"), pt, applyPatch);
+    if (editor) editor.set({ theme: pt }); else editor = mountConfigFileEditor($("cfgBody"), { scope: "project", theme: pt }, applyPatch);
     dlg.showModal();
 }

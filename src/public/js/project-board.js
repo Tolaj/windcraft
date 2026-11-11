@@ -1,7 +1,7 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
 import { mountConfigFileEditor } from "@windcraft/editor/design/config-file-editor.js";
-import { changedSections } from "@windcraft/core/config-scope.js";
+import { hasTw } from "@windcraft/core/config-file.js";
 import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
 import { extractParts } from "@windcraft/core/extract-parts.js";
@@ -445,7 +445,7 @@ function renderTheme() {
             <label class="mt-4 block font-semibold text-neutral-900">Corners</label>
             <div id="thRadii" class="mt-1 flex flex-wrap gap-1.5">${RADII.map((r) => `<button type="button" class="chip ${theme.radius === r ? "on" : ""}" data-radius="${r}">${r}</button>`).join("")}</div>
             </div></div></div>`;
-    const editor = mountConfigFileEditor($("secTailwind"), theme, async (patch) => {
+    const editor = mountConfigFileEditor($("secTailwind"), { scope: "project", theme }, async (patch) => {
         try { await saveTheme(normalizeTheme({ ...theme, ...patch })); $("themePanel").querySelector('[data-secdesc="tailwind"]').textContent = `The project's ${fileName()}, with plugins`; return { ok: true }; }
         catch (err) { return { ok: false, message: err.message }; }
     });
@@ -469,7 +469,7 @@ function renderTheme() {
     $("thFont").addEventListener("input", (e) => { theme = normalizeTheme({ ...theme, font: e.target.value }); });
     $("thSave").addEventListener("click", async () => {
         $("thMsg").textContent = "Saving…";
-        try { await saveTheme(normalizeTheme({ ...theme, font: $("thFont").value })); editor.set(theme); $("thMsg").textContent = "Applied to every page and component in this project."; }
+        try { await saveTheme(normalizeTheme({ ...theme, font: $("thFont").value })); editor.set({ theme }); $("thMsg").textContent = "Applied to every page and component in this project."; }
         catch (err) { $("thMsg").textContent = err.message; }
     });
 }
@@ -511,7 +511,7 @@ function renderDetails() {
         ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}
         ${secs.length ? `<p class="mb-1 mt-4 font-semibold text-neutral-700">Sections</p>${secs.map((s) => `<button type="button" data-pick="${s.id}" class="block w-full truncate rounded px-1.5 py-1 text-left hover:bg-neutral-100">${esc(s.title)}</button>`).join("")}` : ""}
         <button type="button" id="focusBtn" class="mt-4 h-8 w-full rounded-md border border-neutral-200 text-xs hover:bg-neutral-50">Zoom to this frame (Shift+2)</button>
-        ${it.kind === "section" ? "" : `<p class="mt-3 text-neutral-500">Tailwind config: ${changedSections(it.twConfig).length ? `<b class="text-neutral-800">${esc(changedSections(it.twConfig).join(", "))}</b> changed on this page` : "same as the project's"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>`}
+        ${it.kind === "section" ? "" : `<p class="mt-3 text-neutral-500">Tailwind config: ${hasTw(it.twConfig) ? `<b class="text-neutral-800">this page has its own file</b> on top of the project's` : "the project's only"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>`}
         <a href="/design/${it.id}" class="mt-2 flex h-8 items-center justify-center rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Open in editor</a>
         ${it.kind === "section" ? "" : `<label class="mt-3 block text-neutral-500">Category <span class="text-neutral-400">(a pricing page is a page; every other category is a component)</span></label>
         <select id="detCat" class="fi">${(data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((c) => `<option value="${esc(c.slug)}" ${it.category === c.slug ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>

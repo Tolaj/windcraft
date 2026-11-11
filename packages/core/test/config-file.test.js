@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toCommonJs, requiresOf, officialsOf, kindOf, tailwindTag, configHead3, css4Of, directivesOf, cleanLock, cleanFile, TEMPLATES, TAILWIND4_SRC } from "../config-file.js";
+import { toCommonJs, requiresOf, officialsOf, kindOf, tailwindTag, configHead3, css4Of, directivesOf, cleanLock, cleanFile, cleanTw, hasTw, TEMPLATES, TAILWIND4_SRC } from "../config-file.js";
+import { pageTheme, themeHead } from "../theme.js";
 import { resolveFile, splitSpec, inlineCss } from "../config-resolve.js";
 
 const TS = `import typography from "@tailwindcss/typography"
@@ -31,7 +32,7 @@ test("requires are found with their lines, comments ignored; kinds; official plu
 
 test("the v3 head runs the file as written over the theme's own settings, after the lock's packages", () => {
     const head = configHead3({ configJs: `module.exports = { plugins: [require("preline/plugin")] }`, lock: { "preline/plugin": { url: "https://cdn.jsdelivr.net/npm/preline@2.7.0/plugin.js" } } }, { theme: { extend: { colors: { brand: {} } } } });
-    assert.ok(head.indexOf("preline@2.7.0/plugin.js") < head.indexOf("tailwind.config=__wcMerge"), "the plugin file loads before the config runs");
+    assert.ok(head.indexOf("preline@2.7.0/plugin.js") < head.indexOf("var __c="), "the plugin file loads before the config runs");
     assert.match(head, /__wcMods\["preline\/plugin"\]=module\.exports/);
     assert.match(head, /"brand":\{\}/);
     assert.ok(!/<\/script><b>/.test(configHead3({ configJs: `module.exports = { content: ["</script><b>"] }` }, {})), "a script end in the file cannot break out");
@@ -105,4 +106,18 @@ test("spec splitting and css inlining", async () => {
     assert.deepEqual(splitSpec("@scope/pkg/sub/x.css"), { pkg: "@scope/pkg", sub: "sub/x.css" });
     assert.deepEqual(splitSpec("./node_modules/preline/variants.css"), { pkg: "preline", sub: "variants.css" });
     await assert.rejects(inlineCss("https://x.com/big.css", async () => "a".repeat(40000)), /too large/);
+});
+
+test("a page's file is laid over the project's: both run, the page after; its plugins count; v4 CSS is appended", () => {
+    const t = pageTheme({ configJs: `module.exports = { plugins: [require("@tailwindcss/forms")] }` }, { js: `module.exports = { plugins: [require("@tailwindcss/typography"), require("preline/plugin")] }`, lock: { "preline/plugin": { url: "https://cdn.jsdelivr.net/npm/preline@2.7.0/plugin.js" } } });
+    assert.match(tailwindTag(t), /\?plugins=forms,typography"/);
+    const head = themeHead(t);
+    assert.ok(head.indexOf('require("@tailwindcss/forms")') < head.indexOf('require("@tailwindcss/typography")'), "the project's file runs first, then the page's");
+    assert.match(head, /tailwind\.config\.js \(this page\): /);
+    assert.ok(head.indexOf("preline@2.7.0/plugin.js") < head.indexOf("var __c="), "the page's packages load before any config runs");
+    assert.ok(!themeHead(pageTheme({}, null)).includes("(this page)"), "no page file, no page layer");
+    const v4 = themeHead(pageTheme({ engine: "4", configCss: "@theme { --color-a: red; }" }, { css: "@theme { --color-b: blue; }" }));
+    assert.ok(v4.indexOf("--color-a: red") < v4.indexOf("--color-b: blue"));
+    assert.deepEqual(cleanTw({ js: "x", css: 5, lock: { "a/b": { url: "http://x" } } }), { js: "x", css: "", lock: {} });
+    assert.ok(hasTw({ js: "x" }) && !hasTw(null) && !hasTw({ js: "", css: "" }));
 });

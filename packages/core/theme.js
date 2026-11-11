@@ -5,17 +5,17 @@
 //   radius   how round corners are (none, sm, md, lg, xl): the rounded-* sizes follow it
 //   engine   "3" (Tailwind 3.4 play CDN) or "4" (the v4 browser build)
 //   configJs the project's tailwind.config.js (engine 3), configCss its global.css (engine 4), lock what their packages resolved to (see config-file.js)
-//   pageExtend  not stored on the project: a page's own `theme.extend` changes as JSON text, set by pageTheme()
+//   page     not stored on the project: one page's own files { js, css, lock }, laid over the project's by pageTheme()
 // tailwindConfig() is the settings object the choices above make; themeHead() is the HTML a preview document needs for it and for the project's config file
 // (the config, the font link). Pure functions: nothing here touches a page or a database.
 
-import { cleanEngine, cleanFile, cleanLock, configHead3, css4Of, TEMPLATES } from "./config-file.js";
+import { cleanEngine, cleanFile, cleanLock, cleanTw, configHead3, css4Of, TEMPLATES } from "./config-file.js";
 import { themeCss4 } from "./theme-v4.js";
 
 export const GRAYS = ["slate", "gray", "zinc", "neutral", "stone"];
 export const RADII = ["none", "sm", "md", "lg", "xl"];
 export const SYSTEM_FONT = "System";
-export const DEFAULT_THEME = Object.freeze({ brand: "#4f46e5", gray: "slate", font: "Inter", radius: "md", engine: "3", configJs: "", configCss: "", lock: {}, pageExtend: "" });
+export const DEFAULT_THEME = Object.freeze({ brand: "#4f46e5", gray: "slate", font: "Inter", radius: "md", engine: "3", configJs: "", configCss: "", lock: {}, page: { js: "", css: "", lock: {} } });
 
 const STEPS = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"];
 const PALETTES = {
@@ -31,36 +31,8 @@ const SYSTEM_STACK = ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI",
 const HEX = /^#?([0-9a-f]{6})$/i;
 const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 ]{0,39}$/;
 
-const MAX_CONFIG = 60000;
-/** The extra Tailwind config as pretty JSON text: a JSON object of at most 20 KB, anything else becomes "" (nothing is ever evaluated). */
-export function cleanConfig(input) {
-    if (input === undefined || input === null || input === "") return "";
-    try {
-        const v = typeof input === "string" ? JSON.parse(input) : input;
-        if (!v || typeof v !== "object" || Array.isArray(v) || !Object.keys(v).length) return "";
-        const text = JSON.stringify(v, null, 2);
-        return text.length <= MAX_CONFIG ? text : "";
-    } catch { return ""; }
-}
-/** The error to show for config text that cleanConfig would throw away, or "" when it is fine (or empty). */
-export function configError(text) {
-    if (!String(text || "").trim()) return "";
-    try {
-        const v = JSON.parse(text);
-        if (!v || typeof v !== "object" || Array.isArray(v)) return "It must be a JSON object, like {\"colors\": {...}}.";
-        if (JSON.stringify(v).length > MAX_CONFIG) return "It is too long (60 KB at most).";
-        return "";
-    } catch (err) { return `Not valid JSON: ${err.message}`; }
-}
-const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
-const deepMerge = (a, b) => { const out = { ...a }; for (const k of Object.keys(b)) { if (k === "__proto__" || k === "constructor" || k === "prototype") continue; out[k] = isObj(a[k]) && isObj(b[k]) ? deepMerge(a[k], b[k]) : b[k]; } return out; };
-
-/** The theme for one page: the project's theme with the page's own Tailwind config (changes only, as stored) laid over the project's. */
-export function pageTheme(theme, pageConfig) {
-    const t = normalizeTheme(theme);
-    const mine = cleanConfig(pageConfig);
-    return mine ? normalizeTheme({ ...t, pageExtend: mine }) : t;
-}
+/** The theme for one page: the project's theme with the page's own config files (the same kind as the project's) laid over it. */
+export const pageTheme = (theme, tw) => ({ ...normalizeTheme(theme), page: cleanTw(tw) });
 
 /** A theme from anything: every field checked, anything invalid replaced by the default. */
 export function normalizeTheme(input) {
@@ -75,7 +47,7 @@ export function normalizeTheme(input) {
         configJs: cleanFile(t.configJs),
         configCss: cleanFile(t.configCss),
         lock: cleanLock(t.lock),
-        pageExtend: cleanConfig(t.pageExtend),
+        page: cleanTw(t.page),
     };
 }
 
@@ -103,15 +75,14 @@ export function radiusScale(radius) {
 /** The `tailwind.config` object for a theme (dark mode follows a `dark` class, so a page can switch it). */
 export function tailwindConfig(theme) {
     const t = normalizeTheme(theme);
-    const extra = t.pageExtend ? JSON.parse(t.pageExtend) : {};
     return {
         darkMode: "class",
         theme: {
-            extend: deepMerge({
+            extend: {
                 colors: { brand: brandScale(t.brand), gray: grayScale(t.gray) },
                 fontFamily: { sans: t.font === SYSTEM_FONT ? SYSTEM_STACK : [t.font, ...SYSTEM_STACK] },
                 borderRadius: radiusScale(t.radius),
-            }, extra),
+            },
         },
     };
 }
@@ -127,7 +98,7 @@ export function themeHead(theme) {
     const url = fontUrl(theme), t = normalizeTheme(theme);
     const link = url ? `<link rel="stylesheet" href="${url}">\n` : "";
     if (t.engine === "4") { // the v4 browser build reads CSS, not a config object
-        const css = themeCss4(tailwindConfig(t).theme.extend, css4Of(t.configCss || TEMPLATES["4"].text, t.lock)).css;
+        const css = themeCss4(tailwindConfig(t).theme.extend, [css4Of(t.configCss || TEMPLATES["4"].text, t.lock), css4Of(t.page.css, t.page.lock)].join("\n")).css;
         return `${link}<style type="text/tailwindcss" data-wc-theme>\n${css}\n</style>`;
     }
     return `${link}${configHead3(t, tailwindConfig(t))}`;

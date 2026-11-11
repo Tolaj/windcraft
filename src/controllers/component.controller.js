@@ -4,7 +4,7 @@ import { adoptDraftSource } from "../services/figma-update.service.js";
 import Component from "../models/component.model.js";
 import { exportComponent, FORMATS } from "@windcraft/core/exporters.js";
 import { normalizeGroup } from "@windcraft/core/pages.js";
-import { cleanConfig } from "@windcraft/core/theme.js";
+import { cleanTw, hasTw } from "@windcraft/core/config-file.js";
 import { specOf } from "../services/design-spec.service.js";
 import { buildProfile, profileToMarkdown, enrichProfileWithAI } from "../services/profile.service.js";
 import { resolveProject } from "../services/project.service.js";
@@ -174,7 +174,7 @@ export const updateComponent = async (req, res) => {
             codeChanged = true;
         }
         if (group !== undefined) component.group = normalizeGroup(group);
-        if (twConfig !== undefined) component.twConfig = cleanConfig(twConfig); // a JSON object of changes, or "" for none
+        if (twConfig !== undefined) { const tw = cleanTw(twConfig); component.twConfig = hasTw(tw) ? tw : null; } // the page's own config files, or null for none
         if (title) component.title = title;
         if (category) component.category = category;
         if (description) component.description = description;

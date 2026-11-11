@@ -8,8 +8,8 @@ import { normalizeValue } from "../css-props.js";
 import { host } from "../host.js";
 import { pageTheme } from "../../../core/theme.js";
 import { TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
-import { configText, configStore, changedSections } from "../../../core/config-scope.js";
-import { requiresOf, kindOf, OFFICIAL, TEMPLATES } from "../../../core/config-file.js";
+import { mountConfigFileEditor } from "../config-file-editor.js";
+import { requiresOf, kindOf, OFFICIAL, TEMPLATES, hasTw } from "../../../core/config-file.js";
 import { openProjectConfig } from "./config-dialog.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
@@ -87,18 +87,16 @@ const panelActions = {
     setTab: (tab) => panelStore.set({ tab }),
     openProjectConfig,
     setPageTab: (pageTab) => panelStore.set({ pageTab }),
-    // the Tailwind config tab: this page's own changes over the project's config file (only what differs from Tailwind's defaults is stored on the page)
-    twApply: async (text) => {
-        const { stored: tw, error } = configStore(text);
-        if (error) return { ok: false, message: error };
+    // the Tailwind config tab: this page's own file (the same kind as the project's), laid over the project's
+    mountPageConfig: (el) => mountConfigFileEditor(el, { scope: "page", theme: data.projectTheme || {}, tw: data.twConfig }, async (patch) => {
         if (!data.id) return { ok: false, message: "Save the page first." };
-        try { await host.updateComponent(data.id, { twConfig: tw }); } catch (err) { return { ok: false, message: err.message || "Could not save it" }; }
+        const tw = patch.js || patch.css ? patch : null;
+        try { await host.updateComponent(data.id, { twConfig: tw || {} }); } catch (err) { return { ok: false, message: err.message || "Could not save it" }; }
         data.twConfig = tw; const d = docs.get(S.curKey); if (d) d.meta.twConfig = tw;
         setPreviewTheme(pageTheme(data.projectTheme, tw));
         loadFrame(); // the canvas takes the new config
-        renderInspector();
         return { ok: true };
-    },
+    }),
     closePanel: () => setPanel(false),
     // a breakpoint picked: the frame goes to its width, so what is edited is what is seen; All sizes leaves the frame as it is
     setBreakpoint: (bp) => { panelStore.set({ bp, all: bp === "" }); if (bp) setDevice(BREAKPOINT_WIDTH[bp]); },
@@ -164,14 +162,12 @@ const bodyActions = Object.fromEntries(Object.entries(panelActions).map(([k, f])
     S.selected = S.pageBody;
     try { return f(...a); } finally { S.selected = null; }
 }]));
-/** What the Tailwind config tab shows: this page's own changes over Tailwind's defaults, and a summary of the project's config file with its plugins. */
+/** What the Tailwind config tab shows: a summary of the project's config file with its plugins (the page's own file is the editor in the tab). */
 function twView() {
-    const text = configText(data.twConfig || "");
     const pt = data.projectTheme || {}, engine = pt.engine === "4" ? "4" : "3";
     const file = engine === "4" ? pt.configCss || TEMPLATES["4"].text : pt.configJs || TEMPLATES["3"].text;
     const plugins = engine === "3" ? [...new Set(requiresOf(file).filter((r) => kindOf(r.spec) !== "builtin").map((r) => OFFICIAL[r.spec] || r.spec))] : [];
-    const canManage = Boolean(host.saveProjectTheme && data.project);
-    return { plugins, fileName: TEMPLATES[engine].name, engine, canManage, key: `${data.id}:${data.twConfig || ""}`, text, changed: changedSections(data.twConfig), version: TAILWIND_VERSION, saved: Boolean(data.id) };
+    return { plugins, fileName: TEMPLATES[engine].name, engine, canManage: Boolean(host.saveProjectTheme && data.project), key: `${data.id}:${engine}`, hasPage: hasTw(data.twConfig) };
 }
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
 export function renderInspector() {
