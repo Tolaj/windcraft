@@ -30,7 +30,10 @@ export const insp = $("inspector");
 /** The selected page's own properties, for the panel. */
 function pageInfo() {
     const d = docs.get(S.curKey), p = positions()[S.curKey] || { x: 0, y: 0 };
-    return { name: data.title || "", group: data.group || "", w: widthOf(d), h: heightOfDoc(d), auto: !(d.board && d.board.h), empty: model.markup.trim() === "", x: Math.round(p.x), y: Math.round(p.y), version: data.version, isNew: S.isNew, project: data.project && data.project.name };
+    const pt = data.projectTheme || {}, engine = pt.engine === "4" ? "4" : "3";
+    const file = engine === "4" ? "" : pt.configJs || TEMPLATES["3"].text;
+    const tailwind = { engine, canManage: Boolean(host.saveProjectTheme && data.project), hasPage: hasTw(data.twConfig), plugins: [...new Set(requiresOf(file).filter((r) => kindOf(r.spec) !== "builtin").map((r) => OFFICIAL[r.spec] || r.spec))] };
+    return { tailwind, name: data.title || "", group: data.group || "", w: widthOf(d), h: heightOfDoc(d), auto: !(d.board && d.board.h), empty: model.markup.trim() === "", x: Math.round(p.x), y: Math.round(p.y), version: data.version, isNew: S.isNew, project: data.project && data.project.name };
 }
 /** A page panel field (name, size, position) typed by the user: applied if it makes sense, otherwise the panel shows the old value again. */
 function setPageField(key, text) {
@@ -84,9 +87,7 @@ const panelActions = {
     remove: () => { if (S.selected) cmd({ cmd: "remove", path: S.selected.path }); },
     setTag: (tag) => { if (S.selected) cmd({ cmd: "setTag", path: S.selected.path, tag }); },
     setTab: (tab) => panelStore.set({ tab }),
-    openProjectConfig: () => openConfig("project"),
-    openPageConfig: () => openConfig("page"),
-    setPageTab: (pageTab) => panelStore.set({ pageTab }),
+    openConfig,
     closePanel: () => setPanel(false),
     // a breakpoint picked: the frame goes to its width, so what is edited is what is seen; All sizes leaves the frame as it is
     setBreakpoint: (bp) => { panelStore.set({ bp, all: bp === "" }); if (bp) setDevice(BREAKPOINT_WIDTH[bp]); },
@@ -152,13 +153,6 @@ const bodyActions = Object.fromEntries(Object.entries(panelActions).map(([k, f])
     S.selected = S.pageBody;
     try { return f(...a); } finally { S.selected = null; }
 }]));
-/** What the Tailwind config tab shows: a summary of the project's config file with its plugins (the page's own file is the editor in the tab). */
-function twView() {
-    const pt = data.projectTheme || {}, engine = pt.engine === "4" ? "4" : "3";
-    const file = engine === "4" ? pt.configCss || TEMPLATES["4"].text : pt.configJs || TEMPLATES["3"].text;
-    const plugins = engine === "3" ? [...new Set(requiresOf(file).filter((r) => kindOf(r.spec) !== "builtin").map((r) => OFFICIAL[r.spec] || r.spec))] : [];
-    return { plugins, fileName: TEMPLATES[engine].name, engine, canManage: Boolean(host.saveProjectTheme && data.project), key: `${data.id}:${engine}`, hasPage: hasTw(data.twConfig) };
-}
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
 export function renderInspector() {
     const ui = { ...panelStore.get(), frameW: curWidth() }; // the panel's state, and the frame's width (for the Screen chips)
@@ -171,7 +165,6 @@ export function renderInspector() {
         return;
     }
     const view = inspectorView(sel, sel ? null : pageInfo(), elementCode);
-    if (view.page ? ui.pageTab === "tw" : ui.tab === "tw") view.tw = twView();
     if (view.page && S.pageBody) view.pageBody = { s: S.pageBody, actions: bodyActions };
     renderPanel(insp, view, panelActions, ui);
     insp.scrollTop = top;

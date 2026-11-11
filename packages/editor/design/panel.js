@@ -186,6 +186,8 @@ function PagePanel({ page: pg, actions }) {
             <div class="row"><span class="lbl">Version</span><span class="text-[11px] text-neutral-700">${pg.isNew ? "not saved yet" : `v${pg.version}`}${pg.project ? ` · ${pg.project}` : ""}</span></div>
         </div></div>
         <${WireframeRow} onOpen=${actions.wireframes} label="Add a wireframe" hint="Sections and page layouts" />
+        ${pg.tailwind && pg.tailwind.canManage && html`<${WireframeRow} onOpen=${() => actions.openConfig("page")} label="Tailwind config" icon=${PLUG_ICON}
+            hint=${`Tailwind ${pg.tailwind.engine}${pg.tailwind.plugins.length ? ` · ${pg.tailwind.plugins.join(", ")}` : ""}${pg.tailwind.hasPage ? " · this page has its own file" : ""}`} />`}
         ${pg.empty && actions.canAI && html`<${AskBox} title="Generate with AI" placeholder="e.g. a pricing section with three tiers and a highlighted middle plan" rows=${3}
             button="Generate" help="Or draw with the tools, add blocks from +, or paste code in the code panel." empty="Describe what you want first."
             run=${actions.draftPage} />`}
@@ -213,34 +215,22 @@ const Styles = ({ k, s, actions, page }) => html`<${TypographySection} key=${`t$
     <${AddBox} key=${`c${k}`} actions=${actions} />`;
 
 const CLOSE = html`<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>`;
-const TABS = [["design", "Design"], ["classes", "Code"], ["ai", "AI"], ["tw", "Tailwind"]];
-
-const FILE_ICON = html`<svg class="wfico" viewBox="0 0 36 26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="0.8" y="0.8" width="34.4" height="24.4" rx="3" /><path d="M10 9h16M10 13h16M10 17h10" /></svg>`;
-/** The Tailwind config tab: two files of the same kind, the page's laid over the project's. Each opens in one wide dialog; the panel is too narrow for a code editor. */
-function TailwindTab({ tw, actions }) {
-    return html`<div class="sec wfsec" style="display:flex;flex-direction:column;gap:8px">
-        <p class="muted" style="margin:0 0 2px">Config is a file, as in any Tailwind project. This page's file is laid over the project's.</p>
-        ${tw.canManage ? html`<${WireframeRow} onOpen=${actions.openPageConfig} label="This page" hint=${tw.hasPage ? "Has its own file" : "Nothing yet: it uses the project's"} icon=${FILE_ICON} />
-            <${WireframeRow} onOpen=${actions.openProjectConfig} label=${`Whole project · Tailwind ${tw.engine}`} hint=${tw.plugins.length ? `${tw.fileName}: ${tw.plugins.join(", ")}` : `${tw.fileName}. Every page uses it.`} icon=${PLUG_ICON} />`
-            : html`<p class="muted">Project: Tailwind ${tw.engine}, ${tw.fileName}${tw.plugins.length ? `: ${tw.plugins.join(", ")}` : ""}. This page: ${tw.hasPage ? "has its own file" : "none"}.</p>`}
-    </div>`;
-}
+const TABS = [["design", "Design"], ["classes", "Code"], ["ai", "AI"]];
 
 /** The row at the top: the tabs (or just "Page" when no element is selected) and the close button. */
-function Head({ page, canvas, tab, pageTab, actions }) {
+function Head({ page, canvas, tab, actions }) {
     return html`<div class="itabs">
         ${canvas ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">Canvas</span>`
-        : page ? html`<button type="button" class=${pageTab !== "tw" ? "on" : ""} onClick=${() => actions.setPageTab("page")}>Page</button><button type="button" class=${pageTab === "tw" ? "on" : ""} onClick=${() => actions.setPageTab("tw")}>Tailwind config</button>`
+        : page ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">Page</span>`
         : TABS.filter(([k]) => k !== "ai" || actions.canAI).map(([k, label]) => html`<button type="button" class=${tab === k ? "on" : ""} onClick=${() => actions.setTab(k)}>${label}</button>`)}
         <button type="button" title="Close" style="padding:0" class="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-500 hover:bg-neutral-100" onClick=${actions.closePanel}>${CLOSE}</button>
     </div>`;
 }
 
 /** The panel: its head, then what the view says to show. The Design tab's parts are keyed by the element: another one gets fresh fields, so nothing typed for one can land on the next. */
-function Panel({ view, tab, pageTab, actions }) {
+function Panel({ view, tab, actions }) {
     let body;
-    if (view.tw) body = html`<${TailwindTab} key=${view.tw.key} tw=${view.tw} actions=${actions} />`;
-    else if (view.design) {
+    if (view.design) {
         const { key, s } = view.design;
         body = html`<${DesignTop} key=${key} s=${s} actions=${actions} />
             ${WIREFRAME_TAGS.has(s.tag) && html`<${WireframeRow} key=${`w${key}`} onOpen=${actions.wireframes} label="Add a wireframe" hint=${`Inside this ${s.tag}`} />`}
@@ -254,10 +244,10 @@ function Panel({ view, tab, pageTab, actions }) {
     else if (view.page) body = html`<${PagePanel} page=${view.page} actions=${actions} />${view.pageBody && html`
         <div class="pagehead"><b>Page styling</b><span>Applies to the whole page (its body), not an element. Click an element to style it.</span></div>
         <${LayoutSection} key="page-l" s=${view.pageBody.s} actions=${view.pageBody.actions} /><${SpacingSection} key="page-s" s=${view.pageBody.s} actions=${view.pageBody.actions} /><${Styles} k="page" page s=${view.pageBody.s} actions=${view.pageBody.actions} />`}`;
-    return html`<${Head} page=${view.page} canvas=${view.canvas} tab=${tab} pageTab=${pageTab} actions=${actions} />${body}`;
+    return html`<${Head} page=${view.page} canvas=${view.canvas} tab=${tab} actions=${actions} />${body}`;
 }
 
 /** Draws the panel into its element. `view` comes from inspectorView (panel-model.js), `ui` is the panel's state (panel-state.js) plus what is worked out at the time of drawing. */
 export function renderPanel(container, view, actions, ui) {
-    render(html`<${UiContext.Provider} value=${ui}><${Panel} view=${view} tab=${ui.tab} pageTab=${ui.pageTab} actions=${actions} /></${UiContext.Provider}>`, container);
+    render(html`<${UiContext.Provider} value=${ui}><${Panel} view=${view} tab=${ui.tab} actions=${actions} /></${UiContext.Provider}>`, container);
 }

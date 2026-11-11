@@ -14,7 +14,6 @@ const OPEN_AT_START = ["geom", "css-layout", "css-size", "css-spacing", "css-typ
  */
 export const panelStore = createStore({
     tab: "design",
-    pageTab: "tw", // with nothing picked the panel opens on the page's Tailwind config; "page" is the page's own properties
     bp: "",
     all: false, // the All chip was clicked: edits are plain classes (bp is "" for that and for nothing picked)
     st: "",

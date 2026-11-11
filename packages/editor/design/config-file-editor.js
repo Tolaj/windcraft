@@ -31,7 +31,8 @@ export function mountConfigFileEditor(el, opts, onApply) {
             <div class="inline-flex overflow-hidden rounded-md border border-neutral-300" data-seg></div>
             <span class="font-mono text-[12px] text-neutral-700" data-name></span>
             <span class="min-w-0 flex-1 truncate text-neutral-500" data-status></span>
-            <select data-insert class="h-8 rounded-md border border-neutral-200 bg-white px-2 text-xs text-neutral-700"><option value="">Insert default values…</option>${Object.keys(TAILWIND_DEFAULTS).map((k) => `<option value="${k}">${k}</option>`).join("")}</select>
+            <div class="relative" data-insert><button type="button" data-insertbtn class="h-8 rounded-md border border-neutral-200 bg-white px-3 text-neutral-700 hover:bg-neutral-50">Insert defaults ▾</button>
+                <div data-menu class="absolute right-0 top-9 z-30 hidden max-h-72 w-52 overflow-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"></div></div>
             <button type="button" data-reset class="h-8 rounded-md border border-neutral-200 px-3 hover:bg-neutral-50">Reset</button>
             <button type="button" data-apply class="h-8 rounded-md bg-black px-4 font-semibold text-white hover:bg-neutral-800">Apply</button></div>
         <div class="flex min-h-0 flex-1"><div class="cfe-gutter w-16 shrink-0 select-none overflow-hidden border-r border-neutral-100 bg-neutral-50 py-4 text-neutral-400" data-gutter></div>
@@ -56,6 +57,11 @@ export function mountConfigFileEditor(el, opts, onApply) {
         q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${page() ? "Extends the project's config for this page only. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>. Apply checks each package." : "Add what the plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
         gutter();
     }
+    const inFile = (key) => new RegExp(`(^|[\\s{,])${key}\\s*:`).test(ta.value);
+    function drawMenu() {
+        q("[data-menu]").innerHTML = Object.keys(TAILWIND_DEFAULTS).map((k) => `<button type="button" data-ins="${k}" class="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-neutral-50 ${inFile(k) ? "text-neutral-400" : "text-neutral-800"}"><span>${k}</span><span class="text-[10px]">${inFile(k) ? "in file ✓" : ""}</span></button>`).join("");
+    }
+    const closeMenu = () => q("[data-menu]").classList.add("hidden");
     function load() { ta.value = texts[engine]; diag = []; verdict = null; status = ""; draw(); }
 
     async function apply() {
@@ -81,26 +87,27 @@ export function mountConfigFileEditor(el, opts, onApply) {
         busy = false; draw();
     }
 
-    el.addEventListener("click", (e) => {
-        const t = e.target.closest("[data-engine]");
-        if (t) { texts[engine] = ta.value; engine = t.dataset.engine; load(); return; }
-        if (e.target.closest("[data-apply]")) return apply();
-        if (e.target.closest("[data-reset]")) { if (!confirm(`Put ${tmpl(engine).name} back to the blank template?`)) return; texts[engine] = tmpl(engine).text; load(); }
-    });
-    el.addEventListener("change", (e) => {
-        const sel = e.target.closest("[data-insert]");
-        if (!sel || !sel.value) return;
-        const key = sel.value; sel.value = "";
+    function insert(key) {
         const r = insertDefault(ta.value, key, TAILWIND_DEFAULTS[key]);
         if (r.status === "exists") status = `${key} is already in your file.`;
         else if (r.status === "nowhere") status = "Couldn't find where to put it: the file needs module.exports = { ... }.";
         else {
-            ta.value = r.text; diag = []; verdict = null;
+            ta.value = r.text; texts[engine] = r.text; diag = []; verdict = null;
             const at = r.text.indexOf(`${key}:`), line = r.text.slice(0, at).split("\n").length;
             ta.focus(); ta.setSelectionRange(at, at + key.length); ta.scrollTop = Math.max(0, (line - 3) * 20); // the new lines are in view, the key selected
             status = `Added Tailwind ${TAILWIND_VERSION}'s default ${key} to theme.extend. Change any value; Apply when done.`;
         }
         draw();
+    }
+    document.addEventListener("click", (e) => { if (!e.target.closest || !e.target.closest("[data-insert]")) closeMenu(); }, true); // a click anywhere else closes it
+    el.addEventListener("click", (e) => {
+        if (e.target.closest("[data-insertbtn]")) { const m = q("[data-menu]"); if (m.classList.contains("hidden")) { drawMenu(); m.classList.remove("hidden"); } else closeMenu(); return; }
+        const ins = e.target.closest("[data-ins]");
+        if (ins) { closeMenu(); return insert(ins.dataset.ins); }
+        const t = e.target.closest("[data-engine]");
+        if (t) { texts[engine] = ta.value; engine = t.dataset.engine; load(); return; }
+        if (e.target.closest("[data-apply]")) return apply();
+        if (e.target.closest("[data-reset]")) { if (!confirm(`Put ${tmpl(engine).name} back to the blank template?`)) return; texts[engine] = tmpl(engine).text; load(); }
     });
     ta.addEventListener("input", () => { dirty = true; diag = []; verdict = null; gutter(); });
     ta.addEventListener("scroll", () => { q("[data-gutter]").scrollTop = ta.scrollTop; });
