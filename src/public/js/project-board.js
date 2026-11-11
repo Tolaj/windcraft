@@ -51,7 +51,8 @@ function extractedAll() {
 }
 const extractedById = (id) => String(id).startsWith("x:") && extractedAll().find((x) => x.id === id);
 const partKind = (it) => { const k = (it.tags || [])[(it.tags || []).length - 1]; return PART_KINDS.includes(k) ? k : "section"; };
-const pages = () => items.filter((i) => i.kind !== "section" || !items.some((p) => p.id === i.parent));
+// the parts saved from a page (its sections) are not pages: the Pages tab and the board show pages only; the parts are in the Components tab
+const pages = () => items.filter((i) => i.kind !== "section");
 const sectionsOf = (id) => items.filter((i) => i.kind === "section" && i.parent === id);
 // ── The Components tab's board: each component is its own frame, centred in it (no pages) ───────────────────────────────
 const SIZES = { button: [520, 220], form: [680, 560], nav: [1280, 240], hero: [1280, 720], section: [1280, 560], footer: [1280, 360] };
@@ -69,7 +70,7 @@ function compBoard() {
     compList = all;
     return compList;
 }
-const boardItems = () => (tab === "component" ? compBoard() : items);
+const boardItems = () => (tab === "component" ? compBoard() : pages());
 const frameById = (id) => boardItems().find((i) => i.id === id);
 let builtFor = "page";
 const widthOf = (it) => (it.board && it.board.w) || it.frameW || FRAME_W;
@@ -91,7 +92,7 @@ function computeLayout() {
         });
         return;
     }
-    Object.assign(pos, layoutItems(items, { frameW: FRAME_W, heightOf, widthOf }));
+    Object.assign(pos, layoutItems(boardItems(), { frameW: FRAME_W, heightOf, widthOf }));
 }
 
 // ── View (pan and zoom) ──────────────────────────────────────────────────────
@@ -313,8 +314,8 @@ function renderHeader() {
     document.title = `${project.name} | Windcraft`;
     const pg = pages().filter((i) => i.kind !== "component");
     const comp = items.filter((i) => i.kind === "component").length;
-    const sec = items.filter((i) => i.kind === "section").length;
-    $("projStats").textContent = `${pg.length} page${pg.length === 1 ? "" : "s"} · ${comp} component${comp === 1 ? "" : "s"}${sec ? ` · ${sec} section${sec === 1 ? "" : "s"}` : ""}`;
+    const parts = comp + extractedAll().length; // saved components and the parts the rules find in the pages
+    $("projStats").textContent = `${pg.length} page${pg.length === 1 ? "" : "s"} · ${parts} component${parts === 1 ? "" : "s"}`;
     $("newDesignBtn").href = `/design/new?project=${project.id}&kind=component`; // the same as New project: a blank page, the code below it
     const ab = $("activeBtn");
     ab.textContent = project.active ? "Active project ✓" : "Set as active";
@@ -383,7 +384,7 @@ function renderOutline() {
         const heading = g !== prev && (g || prev) ? `<div class="group-head">${esc(g || "No group")}</div>` : "";
         prev = g;
         const row = (it, depth) => `<div class="layer-row cursor-pointer gap-1 px-1 ${it.id === selectedId ? "is-selected" : ""}" style="padding-left:${depth * 14 + 6}px" data-pick="${it.id}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${it.kind === "section" ? partKind(it) : it.kind === "component" ? "comp" : "page"}</span><span class="truncate" title="${esc(it.title)}">${esc(partName(it))}</span></div>`;
-        return heading + row(p, 0) + sectionsOf(p.id).map((s) => row(s, 1)).join("");
+        return heading + row(p, 0);
     }).join("") || `<div class="p-3 text-neutral-500">${filterOn() ? "Nothing matches." : "No pages yet."}</div>`;
     dimBoard();
 }
@@ -504,12 +505,10 @@ function renderDetails() {
             <p class="mt-4 text-neutral-500">Click a frame to see its details. Drag frames to arrange them. Double-click a frame to open it in the editor.</p>`;
         return;
     }
-    const secs = sectionsOf(it.id);
     el.innerHTML = `<div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${it.kind}</span><span class="font-mono text-[10px] text-neutral-400">v${it.version}</span></div>
         <p class="mt-2 text-sm font-semibold text-neutral-900">${esc(it.title)}</p>
         <p class="mt-1 text-neutral-500">${esc(it.description || "")}</p>
         ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}
-        ${secs.length ? `<p class="mb-1 mt-4 font-semibold text-neutral-700">Sections</p>${secs.map((s) => `<button type="button" data-pick="${s.id}" class="block w-full truncate rounded px-1.5 py-1 text-left hover:bg-neutral-100">${esc(s.title)}</button>`).join("")}` : ""}
         <button type="button" id="focusBtn" class="mt-4 h-8 w-full rounded-md border border-neutral-200 text-xs hover:bg-neutral-50">Zoom to this frame (Shift+2)</button>
         ${it.kind === "section" ? "" : `<p class="mt-3 text-neutral-500">Tailwind config: ${hasTw(it.twConfig) ? `<b class="text-neutral-800">this page has its own file</b> on top of the project's` : "the project's only"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>`}
         <a href="/design/${it.id}" class="mt-2 flex h-8 items-center justify-center rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Open in editor</a>

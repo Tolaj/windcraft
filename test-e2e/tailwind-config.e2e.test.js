@@ -77,8 +77,10 @@ test("the parts saved from a page are not in the editor's pages list or on its c
     const frames = await page.$$eval("iframe", (f) => f.map((x) => /id="s"/.test(x.srcdoc || "")));
     assert.ok(!frames.some(Boolean), "and no frame for it on the canvas");
     await page.goto(`${stack.base}/projects/${ids.project}`);
-    await page.click("#tabPages");
-    assert.match(await page.textContent("#outline"), /Header/, "the project page still lists the part");
+    await page.waitForTimeout(2500);
+    assert.ok(!/Header/.test(await page.textContent("#outline")), "the project's Pages tab lists pages only");
+    assert.equal(await page.$$eval(".fwrap", (w) => w.length), 1, "and its board has one frame: the page");
+    assert.match(await page.textContent("#projStats"), /^1 page ·/);
     await page.close();
 });
 
