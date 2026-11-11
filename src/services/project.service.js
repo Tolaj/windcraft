@@ -1,4 +1,6 @@
 import { placeInOrder } from "@windcraft/core/pages.js";
+import { describeSetup } from "@windcraft/core/config-file.js";
+import { normalizeTheme } from "@windcraft/core/theme.js";
 import mongoose from "mongoose";
 import Project from "../models/project.model.js";
 import Component from "../models/component.model.js";
@@ -115,6 +117,7 @@ export async function projectContext(userId) {
     if (p.description) lines.push(`Description: ${p.description}`);
     if (p.brief) lines.push("", "Brief and notes from the user (follow these):", p.brief.slice(0, 3000));
     if (p.sharedHead) lines.push("", `This project has a shared head (${p.sharedHead.length} characters: fonts, scripts, styles) that save_pages adds to every page: leave \`shared\` out to keep using it. Read it with get_project.`);
+    lines.push("", describeSetup(normalizeTheme(p.theme))); // which Tailwind, which plugins and custom names: so the classes it writes work in this project
     lines.push("", pages.length ? `Pages so far (${pages.length}): ${pages.map((pg) => `${pg.group ? `${pg.group}: ` : ""}${pg.title} (id ${pg.id}, v${pg.version || 1})`).join("; ")}, in this order. Use get_component with an id to read one before designing a matching page. To change one of these pages, save it again under the same title (or its id) with baseVersion set to its version: it becomes the next version, not a copy.` : "No pages yet.");
     return lines.join("\n");
 }

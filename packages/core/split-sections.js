@@ -1,3 +1,5 @@
+import { extractParts } from "./extract-parts.js";
+
 // Pure string logic (no DOM) so the same code runs on the server and in the browser.
 const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"]);
 const RAW = new Set(["script", "style"]);
@@ -49,33 +51,12 @@ function innerHtml(el) {
     return close > open ? el.html.slice(open, close) : "";
 }
 
-/** Splits a page body into its main sections, or [] when it should stay one piece. */
-const SEMANTIC = new Set(["section", "header", "footer", "nav", "article"]);
-const SIDE_BY_SIDE = /\bclass\s*=\s*["'][^"']*\b(?:flex|inline-flex|grid)\b/;
-
 /**
- * Splits a page body into its main sections, or [] when it should stay one piece.
- * Only vertically stacked, semantic sections qualify. App shells (a sidebar next to a main area,
- * flex or grid wrappers) and plain div soup are left whole.
+ * The page's structure as parts ({ name, kind, html }): nav, hero, section, footer. Kept for callers that only want the parts;
+ * extractParts (extract-parts.js) is the strict extractor and also finds forms, buttons and a nav that sits inside a section.
  */
-export function splitSections(markup, maxSections = 20) {
-    let els = topLevelElements(markup).filter((e) => !SKIP_TOP.has(e.tag));
-    for (let i = 0; i < 3 && els.length === 1; i++) {
-        const opening = els[0].html.slice(0, els[0].html.indexOf(">") + 1);
-        if (SIDE_BY_SIDE.test(opening) && !/\bflex-col\b/.test(opening)) return [];
-        const kids = topLevelElements(innerHtml(els[0])).filter((e) => !SKIP_TOP.has(e.tag));
-        if (!kids.length) break;
-        els = kids;
-    }
-    if (els.length < 2) return [];
-    if (els.some((e) => e.tag === "aside")) return [];
-    if (els.filter((e) => SEMANTIC.has(e.tag)).length < 2) return [];
-    return els.slice(0, maxSections).map((e, i) => {
-        const heading = stripTags((e.html.match(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/i) || [])[1] || "");
-        const aria = (e.html.match(/^<[^>]*\baria-label\s*=\s*"([^"]+)"/i) || [])[1];
-        const label = { header: "Header", nav: "Navigation", footer: "Footer", main: "Main", section: `Section ${i + 1}`, article: `Article ${i + 1}`, div: `Block ${i + 1}` }[e.tag] || `Block ${i + 1}`;
-        return { name: (heading || aria || label).slice(0, 60), kind: e.tag, html: e.html };
-    });
+export function splitSections(markup, maxSections = 12) {
+    return extractParts(markup, { maxParts: maxSections }).filter((p) => p.part).map(({ name, kind, html }) => ({ name, kind, html }));
 }
 
 /** Separates a full document into title, assets (styles/links/scripts) and body markup. */

@@ -164,7 +164,7 @@ export function createPresenter(o) {
     function show(i) {
         at = (i + pages.length) % pages.length;
         const p = pages[at];
-        const html = buildPreviewDocument(sourceOf(p), { width: widthFor(p) });
+        const html = buildPreviewDocument(sourceOf(p), { width: widthFor(p), theme: p.theme || null }); // p.theme: the page's own config over the project's
         const cut = html.lastIndexOf("</body>");
         const id = `p${Date.now()}${at}`;
         box.dataset.id = id;

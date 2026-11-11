@@ -41,9 +41,17 @@ Both should pass. If you fix a bug in `packages/core` or the Figma converter, ad
 - Keep pull requests small and about one thing. Describe what you changed and how you checked it.
 - By contributing you agree that your work is released under the [MIT License](LICENSE).
 
+## AI-assisted pull requests
+
+Welcome. You are still the author: run the change yourself, and say in the pull request how you checked it. If you could not run the tests or try it in the editor, say so.
+
+## How pull requests are reviewed
+
+See [Contributing and Reviews](https://github.com/Tolaj/windcraft/wiki/Contributing-and-Reviews) on the wiki: what a maintainer checks, the possible decisions and what happens afterwards.
+
 ## Reporting bugs
 
-Open an issue with the steps, what you expected, what happened, and your browser. A screenshot or a short screen recording helps a lot.
+Open an issue (there is a form for it) with the steps, what you expected, what happened, and your browser. A screenshot or a short screen recording helps a lot.
 
 ## Releasing (maintainers)
 

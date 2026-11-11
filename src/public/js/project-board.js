@@ -1,7 +1,11 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
-import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, brandScale, grayScale } from "@windcraft/core/theme.js";
+import { mountConfigFileEditor } from "@windcraft/editor/design/config-file-editor.js";
+import { hasTw } from "@windcraft/core/config-file.js";
+import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
+import { extractParts } from "@windcraft/core/extract-parts.js";
+import { parseDocument } from "@windcraft/core/split-sections.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -22,12 +26,71 @@ let selectedId = null;
 const wraps = new Map();
 
 const byId = (id) => items.find((i) => i.id === id);
+// what a part of a page is: its last tag when it is one of the extracted kinds (nav, hero, section, footer, form, button)
+const PART_KINDS = ["nav", "hero", "section", "footer", "form", "button"];
+// a part's title is "<page>: <name>"; the row already says which page it is from
+const partName = (it) => { const par = it.kind === "section" && byId(it.parent); return par && it.title.startsWith(`${par.title}: `) ? it.title.slice(par.title.length + 2) : it.title; };
+// ── The Components tab is rule based: every page is run through core/extract-parts.js and what passes is listed ──────────
+// (nav, hero, section, footer, form, button; nothing else). It is worked out here, from the pages as they are now, so the list is
+// never behind the pages. Parts the pages' own sections were saved as are in the Pages tab; this list does not repeat them.
+const KINDS = [["nav", "Navigation"], ["hero", "Hero"], ["section", "Sections"], ["footer", "Footer"], ["form", "Forms"], ["button", "Buttons"]];
+const extractCache = new Map(); // page id -> { key, found }
+function extractedAll() {
+    const out = [];
+    pages().forEach((pg) => {
+        const key = `${pg.version}|${(pg.htmlCode || "").length}`;
+        let hit = extractCache.get(pg.id);
+        if (!hit || hit.key !== key) {
+            const doc = parseDocument(pg.htmlCode || "");
+            hit = { key, found: extractParts(doc.body).map((x, i) => ({ ...x, id: `x:${pg.id}:${i}`, pageId: pg.id, assets: [...doc.links, ...doc.styles].join("\n") })) };
+            extractCache.set(pg.id, hit);
+        }
+        out.push(...hit.found.map((x) => ({ ...x, pageTitle: pg.title })));
+    });
+    return out;
+}
+const extractedById = (id) => String(id).startsWith("x:") && extractedAll().find((x) => x.id === id);
+const partKind = (it) => { const k = (it.tags || [])[(it.tags || []).length - 1]; return PART_KINDS.includes(k) ? k : "section"; };
 const pages = () => items.filter((i) => i.kind !== "section" || !items.some((p) => p.id === i.parent));
 const sectionsOf = (id) => items.filter((i) => i.kind === "section" && i.parent === id);
+// ── The Components tab's board: each component is its own frame, centred in it (no pages) ───────────────────────────────
+const SIZES = { button: [520, 220], form: [680, 560], nav: [1280, 240], hero: [1280, 720], section: [1280, 560], footer: [1280, 360] };
+let compKey = "", compList = [];
+function compBoard() {
+    const found = extractedAll();
+    const key = found.map((x) => x.id).join();
+    if (key === compKey) return compList;
+    compKey = key;
+    const mk = (id, title, kind, html, assets, pageOf) => {
+        const [w, h] = SIZES[kind] || [1280, 560];
+        return { id, title, kind: "frame", chip: kind, pageOf, version: 1, board: { w, h }, htmlCode: `${assets}\n<div style="box-sizing:border-box;min-height:${h}px;display:flex;align-items:center;justify-content:center;padding:24px"><div style="width:100%;max-width:${w - 48}px;${["button", "form"].includes(kind) ? "width:auto" : ""}">${html}</div></div>` };
+    };
+    const all = [...found.map((x) => mk(x.id, x.name.replace(/^(Button|Form): /, ""), x.kind, x.html, x.assets, x.pageId))];
+    compList = all;
+    return compList;
+}
+const boardItems = () => (tab === "component" ? compBoard() : items);
+const frameById = (id) => boardItems().find((i) => i.id === id);
+let builtFor = "page";
 const widthOf = (it) => (it.board && it.board.w) || it.frameW || FRAME_W;
-const heightOf = (it) => (it.board && it.board.h) || heights[it.id] || (it.kind === "section" ? SEC_H : PAGE_H);
+// a page's own Tailwind config sits over the project's; a section or a found part uses its page's
+const themeFor = (it) => { const owner = it.kind === "section" ? byId(it.parent) || it : it.pageOf ? byId(it.pageOf) || it : it; return pageTheme(project.theme, owner.twConfig); };
+const heightOf = (it) => it.kind === "frame" ? Math.max(it.board.h, Math.min(heights[it.id] || 0, 3000)) : (it.board && it.board.h) || heights[it.id] || (it.kind === "section" ? SEC_H : PAGE_H);
 
 function computeLayout() {
+    if (tab === "component") { // rows by kind, left to right, wrapping at 2700px; a frame is as tall as its content needs
+        let y = 0;
+        KINDS.forEach(([k]) => {
+            let x = 0, rowH = 0, any = false;
+            boardItems().filter((f) => f.chip === k).forEach((f) => {
+                const w = widthOf(f), h = heightOf(f);
+                if (x && x + w > 2700) { x = 0; y += rowH + 80; rowH = 0; }
+                pos[f.id] = { x, y }; x += w + 48; rowH = Math.max(rowH, h); any = true;
+            });
+            if (any) y += rowH + 120;
+        });
+        return;
+    }
     Object.assign(pos, layoutItems(items, { frameW: FRAME_W, heightOf, widthOf }));
 }
 
@@ -66,8 +129,8 @@ function fitTo(list, maxZ = 1) {
     applyView();
 }
 
-const fitAll = () => fitTo(items);
-const focusItem = (id) => { const it = byId(id); if (it) fitTo([it], 0.8); };
+const fitAll = () => fitTo(boardItems());
+const focusItem = (id) => { const it = frameById(id); if (it) fitTo([it], 0.8); };
 
 board.addEventListener("wheel", (e) => {
     e.preventDefault();
@@ -93,14 +156,14 @@ const observer = new IntersectionObserver((entries) => {
 
 function mount(id) {
     const entry = wraps.get(id);
-    const it = byId(id);
+    const it = frameById(id);
     if (!entry || !it || entry.iframe) return;
     const f = document.createElement("iframe");
     f.setAttribute("sandbox", "allow-scripts");
     f.setAttribute("tabindex", "-1");
     f.title = it.title;
     f.style.cssText = `position:absolute;left:0;top:0;width:${widthOf(it)}px;height:100%;border:0;pointer-events:none;background:#fff;`;
-    f.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true });
+    f.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true, theme: themeFor(it) });
     entry.frame.appendChild(f);
     entry.iframe = f;
 }
@@ -125,7 +188,7 @@ function scheduleLayout() {
 
 function placeFrames() {
     computeLayout();
-    items.forEach((it) => {
+    boardItems().forEach((it) => {
         const entry = wraps.get(it.id);
         if (!entry) return;
         const p = pos[it.id];
@@ -137,11 +200,12 @@ function buildFrames() {
     observer.disconnect();
     wraps.clear();
     world.innerHTML = "";
-    items.forEach((it) => {
+    builtFor = tab === "component" ? "component" : "page";
+    boardItems().forEach((it) => {
         const wrap = document.createElement("div");
         wrap.className = `fwrap${it.id === selectedId ? " sel" : ""}`;
         wrap.dataset.id = it.id;
-        wrap.innerHTML = `<div class="flabel">${it.group ? `<i class="fgroup">${esc(it.group)} / </i>` : ""}${esc(it.title)}<span>${it.kind === "section" ? "section" : `v${it.version}`}</span></div><div class="frame"></div>`;
+        wrap.innerHTML = `<div class="flabel" style="width:${widthOf(it)}px;box-sizing:border-box;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${it.group ? `<i class="fgroup">${esc(it.group)} / </i>` : ""}${esc(it.title)}<span>${it.chip || (it.kind === "section" ? partKind(it) : `v${it.version}`)}</span></div><div class="frame"></div>`;
         world.appendChild(wrap);
         wraps.set(it.id, { wrap, frame: wrap.querySelector(".frame"), iframe: null });
         observer.observe(wrap);
@@ -162,11 +226,11 @@ let gesture = null;
 board.addEventListener("pointerdown", (e) => {
     const wrap = e.target.closest(".fwrap");
     board.setPointerCapture(e.pointerId);
-    if (wrap && e.button === 0 && !spaceDown) {
+    if (wrap && e.button === 0 && !spaceDown && tab !== "component") {
         const id = wrap.dataset.id;
         gesture = { type: "frame", id, wrap, sx: e.clientX, sy: e.clientY, ox: pos[id].x, oy: pos[id].y, moved: false };
     } else {
-        gesture = { type: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false, onFrame: Boolean(wrap) };
+        gesture = { type: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false, onFrame: Boolean(wrap), pick: tab === "component" && wrap && e.button === 0 ? wrap.dataset.id : null };
         board.style.cursor = "grabbing";
     }
 });
@@ -198,6 +262,8 @@ board.addEventListener("pointerup", () => {
         g.wrap.classList.remove("dragging");
         if (g.moved) { byId(g.id).board = { ...byId(g.id).board, ...pos[g.id] }; queueSave(g.id); }
         else select(g.id);
+    } else if (!g.moved && g.pick) {
+        select(g.pick);
     } else if (!g.moved && !g.onFrame) {
         select(null);
     }
@@ -207,7 +273,7 @@ board.addEventListener("dblclick", (e) => {
     // pointer capture retargets the event to the board, so find the frame under the cursor
     const under = document.elementFromPoint(e.clientX, e.clientY);
     const wrap = under && under.closest(".fwrap");
-    if (wrap) location.href = `/design/${wrap.dataset.id}`;
+    if (wrap && tab !== "component") location.href = `/design/${wrap.dataset.id}`;
 });
 
 // positions are saved a moment after the last drag
@@ -238,6 +304,9 @@ $("tidyBtn").addEventListener("click", () => {
     fitAll();
 });
 
+// the Config editor sits inside the board: the board's pan, zoom and pointer capture must not take its clicks, typing or scrolling
+["pointerdown", "pointerup", "pointermove", "wheel", "dblclick"].forEach((t) => $("configSpace").addEventListener(t, (e) => e.stopPropagation()));
+
 // ── Header, outline, details ─────────────────────────────────────────────────
 function renderHeader() {
     $("projName").textContent = project.name;
@@ -249,13 +318,13 @@ function renderHeader() {
     $("newDesignBtn").href = `/design/new?project=${project.id}&kind=component`; // the same as New project: a blank page, the code below it
     const ab = $("activeBtn");
     ab.textContent = project.active ? "Active project ✓" : "Set as active";
-    ab.className = project.active ? "h-7 rounded-md border border-[#0d99ff] bg-[#e5f4ff] px-2.5 text-xs font-medium text-[#0b6fc2]" : "h-7 rounded-md border border-neutral-200 px-2.5 text-xs hover:bg-neutral-50";
+    ab.className = project.active ? "h-7 rounded-md border border-neutral-900 bg-neutral-100 px-2.5 text-xs font-medium text-neutral-900" : "h-7 rounded-md border border-neutral-200 px-2.5 text-xs hover:bg-neutral-50";
     $("boardEmpty").classList.toggle("hidden", items.length > 0);
     $("boardEmpty").classList.toggle("flex", items.length === 0);
 }
 
 // ── Filters: search, category and tags narrow the list (and dim the other frames on the board) ──────────────────────
-const filter = { q: "", cat: "", tag: "" };
+const filter = { q: "", cat: "", tag: "", kind: "" };
 const filterOn = () => Boolean(filter.q || filter.cat || filter.tag);
 const matchesFilter = (it) => {
     if (filter.cat && (it.kind === "section" ? (byId(it.parent) || {}).category : it.category) !== filter.cat) return false; // a part has its page's category
@@ -266,6 +335,14 @@ const matchesFilter = (it) => {
 };
 const categoryName = (slug) => { for (const g of data.categories || []) for (const c of g.items) if (c.slug === slug) return c.name; return slug; };
 function renderFilters() {
+    if (tab === "component") { // the kinds the rules find, with how many of each
+        const all = extractedAll();
+        const chip = (k, label, n, on) => `<button type="button" data-kind="${k}" class="rounded-full border px-2 py-0.5 ${on ? "border-neutral-900 bg-black text-white" : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"}">${label}${n === null ? "" : ` <span class="${on ? "text-neutral-300" : "text-neutral-400"}">${n}</span>`}</button>`;
+        $("fCat").classList.add("hidden");
+        $("fTags").innerHTML = chip("", "All", all.length, !filter.kind) + KINDS.map(([k, name]) => [k, name, all.filter((x) => x.kind === k).length]).filter(([, , n]) => n).map(([k, name, n]) => chip(k, name, n, filter.kind === k)).join("");
+        return;
+    }
+    $("fCat").classList.remove("hidden");
     const real = items.filter((i) => i.kind !== "section");
     const cats = [...new Set(real.map((i) => i.category).filter(Boolean))].sort((a, b) => categoryName(a).localeCompare(categoryName(b)));
     $("fCat").innerHTML = `<option value="">All categories</option>${cats.map((c) => `<option value="${esc(c)}" ${filter.cat === c ? "selected" : ""}>${esc(categoryName(c))}</option>`).join("")}`;
@@ -277,38 +354,54 @@ function renderFilters() {
 }
 $("fQuery").addEventListener("input", (e) => { filter.q = e.target.value.trim().toLowerCase(); renderOutline(); });
 $("fCat").addEventListener("change", (e) => { filter.cat = e.target.value; renderOutline(); });
-$("fTags").addEventListener("click", (e) => { const b = e.target.closest("[data-tag]"); if (b) { filter.tag = b.dataset.tag; renderFilters(); renderOutline(); } });
+$("fTags").addEventListener("click", (e) => { const k = e.target.closest("[data-kind]"); if (k) { filter.kind = k.dataset.kind; renderFilters(); renderOutline(); return; } const b = e.target.closest("[data-tag]"); if (b) { filter.tag = b.dataset.tag; renderFilters(); renderOutline(); } });
 /** Frames that do not match are dimmed on the board. */
-function dimBoard() { wraps.forEach((entry, id) => { const it = byId(id); entry.wrap.style.opacity = it && filterOn() && it.kind !== "section" && !matchesFilter(it) ? "0.18" : ""; }); }
+function dimBoard() { wraps.forEach((entry, id) => { const it = byId(id); entry.wrap.style.opacity = it && tab !== "component" && filterOn() && it.kind !== "section" && !matchesFilter(it) ? "0.18" : ""; }); }
 
 let tab = "page"; // the sidebar lists the project's pages or its components, or shows its theme
 function renderOutline() {
+    if ((tab === "component" ? "component" : "page") !== builtFor) { buildFrames(); fitAll(); }
     $("outline").classList.toggle("hidden", tab === "theme");
     $("themePanel").classList.toggle("hidden", tab !== "theme");
+    $("detailsAside").classList.toggle("hidden", tab === "theme");
+    $("configSpace").classList.toggle("hidden", tab !== "theme"); $("configSpace").classList.toggle("flex", tab === "theme");
     $("tabTheme").className = `flex-1 whitespace-nowrap border-b-2 px-2 py-2.5 ${tab === "theme" ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}`;
     $("filters").classList.toggle("hidden", tab === "theme");
     if (tab === "theme") { [["tabPages", "page"], ["tabComponents", "component"]].forEach(([id]) => { $(id).className = "flex-1 whitespace-nowrap border-b-2 border-transparent px-2 py-2.5 text-neutral-500 hover:text-neutral-900"; }); return; }
-    // Components lists the components and the parts made from pages (marked "from <page>"); Pages lists the pages, with their parts nested
-    const list = (tab === "component" ? items.filter((i) => i.kind === "component" || (i.kind === "section" && byId(i.parent))) : pages().filter((i) => i.kind !== "component")).filter(matchesFilter);
     $("filters").classList.remove("hidden");
-    const pc = pages().filter((i) => i.kind !== "component").length, cc = items.filter((i) => i.kind === "component" || (i.kind === "section" && byId(i.parent))).length;
+    const pc = pages().filter((i) => i.kind !== "component").length, saved = items.filter((i) => i.kind === "component"), found = extractedAll();
     $("tabPages").title = `${pc} page${pc === 1 ? "" : "s"}`;
-    $("tabComponents").title = `${cc} component${cc === 1 ? "" : "s"}`;
+    $("tabComponents").title = `${found.length + saved.length} component${found.length + saved.length === 1 ? "" : "s"}`;
     [["tabPages", "page"], ["tabComponents", "component"]].forEach(([id, t]) => {
         $(id).className = `flex-1 whitespace-nowrap border-b-2 px-2 py-2.5 ${tab === t ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}`;
     });
+    if (tab === "component") { renderFilters(); renderComponents(saved, found); dimBoard(); return; }
+    const list = pages().filter((i) => i.kind !== "component").filter(matchesFilter);
     let prev = ""; // a heading where the group changes ("Public site", then "Customer area")
     $("outline").innerHTML = list.map((p) => {
-        const g = tab === "component" ? "" : p.group || "";
+        const g = p.group || "";
         const heading = g !== prev && (g || prev) ? `<div class="group-head">${esc(g || "No group")}</div>` : "";
         prev = g;
-        const row = (it, depth) => `<div class="layer-row cursor-pointer gap-1 px-1 ${it.id === selectedId ? "is-selected" : ""}" style="padding-left:${depth * 14 + 6}px" data-pick="${it.id}"><span class="shrink-0 font-mono text-[10px] text-neutral-500">${it.kind === "section" ? "sec" : it.kind === "component" ? "comp" : "page"}</span><span class="truncate">${esc(it.title)}</span>${tab === "component" && it.kind === "section" && byId(it.parent) ? `<span class="ml-auto shrink-0 truncate pl-2 text-[10px] text-neutral-400">from ${esc(byId(it.parent).title)}</span>` : ""}</div>`;
-        return heading + row(p, 0) + (tab === "component" ? "" : sectionsOf(p.id).map((s) => row(s, 1)).join(""));
-    }).join("") || `<div class="p-3 text-neutral-500">${filterOn() ? "Nothing matches." : tab === "component" ? "No components yet. Press + New design, or save a page: its parts appear here." : "No pages yet."}</div>`;
+        const row = (it, depth) => `<div class="layer-row cursor-pointer gap-1 px-1 ${it.id === selectedId ? "is-selected" : ""}" style="padding-left:${depth * 14 + 6}px" data-pick="${it.id}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${it.kind === "section" ? partKind(it) : it.kind === "component" ? "comp" : "page"}</span><span class="truncate" title="${esc(it.title)}">${esc(partName(it))}</span></div>`;
+        return heading + row(p, 0) + sectionsOf(p.id).map((s) => row(s, 1)).join("");
+    }).join("") || `<div class="p-3 text-neutral-500">${filterOn() ? "Nothing matches." : "No pages yet."}</div>`;
     dimBoard();
 }
-$("tabPages").addEventListener("click", () => { tab = "page"; renderOutline(); });
-$("tabComponents").addEventListener("click", () => { tab = "component"; renderOutline(); });
+function renderComponents(saved, found) {
+    const words = filter.q ? filter.q.split(/\s+/) : [];
+    const match = (text) => words.every((w) => text.toLowerCase().includes(w));
+    const mine = filter.kind ? [] : saved.filter((c) => match(`${c.title} ${c.description || ""} ${(c.tags || []).join(" ")}`));
+    const row = (id, tag, name, from) => `<div class="layer-row cursor-pointer gap-1 px-1 ${id === selectedId ? "is-selected" : ""}" style="padding-left:6px" data-pick="${esc(id)}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${tag}</span><span class="truncate" title="${esc(name)}">${esc(name)}</span>${from ? `<span class="ml-auto max-w-[70px] shrink-0 truncate pl-2 text-[10px] text-neutral-400" title="from ${esc(from)}">${esc(from)}</span>` : ""}</div>`;
+    let html = mine.length ? `<div class="group-head">Saved components</div>${mine.map((c) => row(c.id, "comp", c.title, "")).join("")}` : "";
+    KINDS.forEach(([k, name]) => {
+        if (filter.kind && filter.kind !== k) return;
+        const list = found.filter((x) => x.kind === k && match(`${x.name} ${x.pageTitle} ${k}`));
+        if (list.length) html += `<div class="group-head">${name} · ${list.length}</div>${list.map((x) => row(x.id, k, x.kind === "button" ? x.name.replace(/^Button: /, "") : x.name, x.pageTitle)).join("")}`;
+    });
+    $("outline").innerHTML = html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your pages."}</div>`;
+}
+$("tabPages").addEventListener("click", () => { tab = "page"; renderFilters(); renderOutline(); });
+$("tabComponents").addEventListener("click", () => { tab = "component"; renderFilters(); renderOutline(); });
 $("tabTheme").addEventListener("click", () => { tab = "theme"; renderOutline(); renderTheme(); });
 
 // ── Theme: brand colour, gray, font, radius; saved to the project and drawn in every preview ──────────────────────────────────────────
@@ -317,26 +410,52 @@ let theme = normalizeTheme(project.theme);
 function redrawPreviews() {
     wraps.forEach((entry, id) => {
         const it = byId(id);
-        if (entry.iframe && it) entry.iframe.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true });
+        if (entry.iframe && it) entry.iframe.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true, theme: themeFor(it) });
     });
+}
+let cfgSection = "tailwind";
+async function saveTheme(next) { // one save for both sections: the theme as stored, the previews drawn again
+    const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme: next }) });
+    const json = await res.json().catch(() => ({}));
+    if (!json.success) throw new Error(json.message || "Could not save the theme");
+    project.theme = next; theme = next;
+    setPreviewTheme(next);
+    redrawPreviews();
 }
 function renderTheme() {
     const strip = (scale) => Object.values(scale).map((c) => `<i style="background:${c}"></i>`).join("");
+    const fileName = () => (theme.engine === "4" ? "global.css" : "tailwind.config.js");
     $("themePanel").innerHTML = `<style>.sw{display:flex;height:14px;border-radius:4px;overflow:hidden;margin-top:6px}.sw i{flex:1}.chip{cursor:pointer;border:1px solid #e5e5e5;border-radius:6px;padding:4px 8px;background:#fff}.chip.on{border-color:#111;background:#f5f5f5;font-weight:600}</style>
-        <p class="text-neutral-500">One small set of choices. Every preview, the editor and exports use it: <code>bg-brand-600</code>, <code>gray-*</code>, <code>rounded-*</code>, the sans font.</p>
-        <label class="mt-3 block font-semibold text-neutral-900">Brand colour</label>
-        <div class="mt-1 flex items-center gap-2"><input id="thBrand" type="color" value="${theme.brand}" class="h-7 w-9 cursor-pointer rounded border border-neutral-200 p-0.5"><input id="thBrandHex" class="fi" value="${theme.brand}" maxlength="7" spellcheck="false"></div>
-        <div id="thBrandScale" class="sw">${strip(brandScale(theme.brand))}</div>
-        <label class="mt-4 block font-semibold text-neutral-900">Gray</label>
-        <div id="thGrays" class="mt-1 flex flex-wrap gap-1.5">${GRAYS.map((g) => `<button type="button" class="chip ${theme.gray === g ? "on" : ""}" data-gray="${g}">${g}</button>`).join("")}</div>
-        <div id="thGrayScale" class="sw">${strip(grayScale(theme.gray))}</div>
-        <label class="mt-4 block font-semibold text-neutral-900">Font</label>
-        <input id="thFont" class="fi mt-1" list="thFonts" value="${esc(theme.font)}" placeholder="A Google Fonts family, or System" spellcheck="false">
-        <datalist id="thFonts">${FONTS.map((f) => `<option value="${esc(f)}">`).join("")}</datalist>
-        <label class="mt-4 block font-semibold text-neutral-900">Corners</label>
-        <div id="thRadii" class="mt-1 flex flex-wrap gap-1.5">${RADII.map((r) => `<button type="button" class="chip ${theme.radius === r ? "on" : ""}" data-radius="${r}">${r}</button>`).join("")}</div>
-        <button id="thSave" type="button" class="mt-5 h-8 w-full rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Apply theme</button>
-        <p id="thMsg" class="mt-2 text-neutral-500"></p>`;
+        <p class="px-1 pb-2 text-neutral-500">Settings every preview and the editor use.</p>
+        ${[["tailwind", "Tailwind config", `The project's ${fileName()}, with plugins`], ["theme", "Theme", "Brand colour, gray, font, corners"]].map(([k, t, d]) => `<button type="button" data-sec="${k}" class="mb-1 block w-full rounded-md border px-2.5 py-2 text-left ${cfgSection === k ? "border-neutral-900 bg-neutral-100" : "border-transparent hover:bg-neutral-50"}"><span class="block text-xs font-semibold text-neutral-900">${t}</span><span data-secdesc="${k}" class="mt-0.5 block text-[11px] text-neutral-500">${d}</span></button>`).join("")}`;
+    $("configSpace").innerHTML = `<div id="secTailwind" class="min-h-0 flex-1"></div>
+        <div id="secTheme" class="hidden min-h-0 flex-1 flex-col">
+            <div class="flex items-center gap-3 border-b border-neutral-200 px-5 py-3"><div class="min-w-0"><p class="text-sm font-semibold text-neutral-900">Theme</p><p class="mt-0.5 text-xs text-neutral-500">Brand colour, gray, font and corners. They become <code>brand-*</code>, <code>gray-*</code>, <code>font-sans</code> and <code>rounded-*</code>.</p></div>
+                <span id="thMsg" class="ml-auto shrink-0 text-xs text-neutral-500"></span><button id="thSave" type="button" class="h-8 shrink-0 rounded-md bg-black px-4 text-xs font-semibold text-white hover:bg-neutral-800">Apply</button></div>
+            <div class="min-h-0 flex-1 overflow-auto p-8 text-xs"><div class="mx-auto max-w-md space-y-6">
+            <label class="block font-semibold text-neutral-900">Brand colour</label>
+            <div class="mt-1 flex items-center gap-2"><input id="thBrand" type="color" value="${theme.brand}" class="h-7 w-9 cursor-pointer rounded border border-neutral-200 p-0.5"><input id="thBrandHex" class="fi" value="${theme.brand}" maxlength="7" spellcheck="false"></div>
+            <div id="thBrandScale" class="sw">${strip(brandScale(theme.brand))}</div>
+            <label class="mt-4 block font-semibold text-neutral-900">Gray</label>
+            <div id="thGrays" class="mt-1 flex flex-wrap gap-1.5">${GRAYS.map((g) => `<button type="button" class="chip ${theme.gray === g ? "on" : ""}" data-gray="${g}">${g}</button>`).join("")}</div>
+            <div id="thGrayScale" class="sw">${strip(grayScale(theme.gray))}</div>
+            <label class="mt-4 block font-semibold text-neutral-900">Font</label>
+            <input id="thFont" class="fi mt-1" list="thFonts" value="${esc(theme.font)}" placeholder="A Google Fonts family, or System" spellcheck="false">
+            <datalist id="thFonts">${FONTS.map((f) => `<option value="${esc(f)}">`).join("")}</datalist>
+            <label class="mt-4 block font-semibold text-neutral-900">Corners</label>
+            <div id="thRadii" class="mt-1 flex flex-wrap gap-1.5">${RADII.map((r) => `<button type="button" class="chip ${theme.radius === r ? "on" : ""}" data-radius="${r}">${r}</button>`).join("")}</div>
+            </div></div></div>`;
+    const editor = mountConfigFileEditor($("secTailwind"), { scope: "project", scopes: ["project"], theme }, async (scope, patch) => {
+        try { await saveTheme(normalizeTheme({ ...theme, ...patch })); $("themePanel").querySelector('[data-secdesc="tailwind"]').textContent = `The project's ${fileName()}, with plugins`; return { ok: true }; }
+        catch (err) { return { ok: false, message: err.message }; }
+    });
+    const showSection = () => {
+        $("secTailwind").classList.toggle("hidden", cfgSection !== "tailwind");
+        $("secTheme").classList.toggle("hidden", cfgSection !== "theme"); $("secTheme").classList.toggle("flex", cfgSection === "theme");
+        document.querySelectorAll("[data-sec]").forEach((b) => { const on = b.dataset.sec === cfgSection; b.classList.toggle("border-neutral-900", on); b.classList.toggle("bg-neutral-100", on); b.classList.toggle("border-transparent", !on); });
+    };
+    $("themePanel").addEventListener("click", (e) => { const b = e.target.closest("[data-sec]"); if (b) { cfgSection = b.dataset.sec; showSection(); } });
+    showSection();
     const refresh = () => {
         $("thBrandScale").innerHTML = strip(brandScale(theme.brand));
         $("thGrayScale").innerHTML = strip(grayScale(theme.gray));
@@ -349,22 +468,31 @@ function renderTheme() {
     $("thRadii").addEventListener("click", (e) => { const b = e.target.closest("[data-radius]"); if (b) { theme.radius = b.dataset.radius; refresh(); } });
     $("thFont").addEventListener("input", (e) => { theme = normalizeTheme({ ...theme, font: e.target.value }); });
     $("thSave").addEventListener("click", async () => {
-        theme = normalizeTheme({ ...theme, font: $("thFont").value });
         $("thMsg").textContent = "Saving…";
-        try {
-            const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ theme }) });
-            const json = await res.json();
-            if (!json.success) throw new Error(json.message || "Could not save the theme");
-            project.theme = theme;
-            setPreviewTheme(theme);
-            redrawPreviews();
-            $("thMsg").textContent = "Applied to every page and component in this project.";
-        } catch (err) { $("thMsg").textContent = err.message; }
+        try { await saveTheme(normalizeTheme({ ...theme, font: $("thFont").value })); editor.set({ theme }); $("thMsg").textContent = "Applied to every page and component in this project."; }
+        catch (err) { $("thMsg").textContent = err.message; }
     });
+}
+
+/** A part the rules found: what it is, which rule passed it, a small preview and its code. */
+function renderPartDetails(x) {
+    const width = { button: 280, form: 520 }[x.kind] || 1200, h = { button: 90, form: 300 }[x.kind] || 320, k = 262 / width;
+    const doc = buildPreviewDocument(parseComponentSource(`${x.assets}\n${x.html}`), { width });
+    $("details").innerHTML = `<div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${esc(x.kind)}</span><span class="text-[10px] text-neutral-400">found in a page by the rules</span></div>
+        <p class="mt-2 text-sm font-semibold text-neutral-900">${esc(x.name)}</p>
+        <p class="mt-1 text-neutral-500">Rule: ${esc(x.reason)}.</p>
+        <div class="mt-3 overflow-hidden rounded-md border border-neutral-200 bg-white" style="height:${Math.round(h * k)}px"><iframe sandbox="allow-scripts" srcdoc="${esc(doc)}" title="Preview" style="width:${width}px;height:${h}px;border:0;transform:scale(${k});transform-origin:0 0;pointer-events:none"></iframe></div>
+        <p class="mt-3 text-neutral-500">From <button type="button" data-gopage="${esc(x.pageId)}" class="underline">${esc(x.pageTitle)}</button></p>
+        <label class="mt-3 block text-neutral-500">HTML</label>
+        <textarea readonly class="fi area mono" rows="9" spellcheck="false">${esc(x.html)}</textarea>
+        <button type="button" data-copy="${esc(x.id)}" class="mt-2 h-8 w-full rounded-md border border-neutral-200 text-xs hover:bg-neutral-50">Copy HTML</button>
+        <p class="mt-3 text-neutral-400">Found by the rules, so it changes when the page does. To keep one, copy it into a new design.</p>`;
 }
 
 function renderDetails() {
     const el = $("details");
+    const part = selectedId && extractedById(selectedId);
+    if (part) return renderPartDetails(part);
     const it = selectedId && byId(selectedId);
     if (!it) {
         el.innerHTML = `<p class="font-semibold text-neutral-900">${esc(project.name)}</p>
@@ -383,7 +511,8 @@ function renderDetails() {
         ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}
         ${secs.length ? `<p class="mb-1 mt-4 font-semibold text-neutral-700">Sections</p>${secs.map((s) => `<button type="button" data-pick="${s.id}" class="block w-full truncate rounded px-1.5 py-1 text-left hover:bg-neutral-100">${esc(s.title)}</button>`).join("")}` : ""}
         <button type="button" id="focusBtn" class="mt-4 h-8 w-full rounded-md border border-neutral-200 text-xs hover:bg-neutral-50">Zoom to this frame (Shift+2)</button>
-        <a href="/design/${it.id}" class="mt-2 flex h-8 items-center justify-center rounded-md bg-[#0d99ff] text-xs font-semibold text-white hover:bg-[#0a84e0]">Open in editor</a>
+        ${it.kind === "section" ? "" : `<p class="mt-3 text-neutral-500">Tailwind config: ${hasTw(it.twConfig) ? `<b class="text-neutral-800">this page has its own file</b> on top of the project's` : "the project's only"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>`}
+        <a href="/design/${it.id}" class="mt-2 flex h-8 items-center justify-center rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Open in editor</a>
         ${it.kind === "section" ? "" : `<label class="mt-3 block text-neutral-500">Category <span class="text-neutral-400">(a pricing page is a page; every other category is a component)</span></label>
         <select id="detCat" class="fi">${(data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((c) => `<option value="${esc(c.slug)}" ${it.category === c.slug ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>
         <label class="mt-3 block text-neutral-500">Tags <span class="text-neutral-400">(comma separated)</span></label>
@@ -402,7 +531,8 @@ function renderDetails() {
 
 function select(id) {
     selectedId = id;
-    wraps.forEach((entry, key) => entry.wrap.classList.toggle("sel", key === id));
+    const part = extractedById(id); // a part the rules found: its page is the one marked on the board
+    wraps.forEach((entry, key) => entry.wrap.classList.toggle("sel", key === (part && tab !== "component" ? part.pageId : id)));
     renderOutline();
     renderDetails();
 }
@@ -458,7 +588,13 @@ document.addEventListener("change", async (e) => {
 
 document.addEventListener("click", async (e) => {
     const pick = e.target.closest("[data-pick]");
-    if (pick) { select(pick.dataset.pick); focusItem(pick.dataset.pick); return; }
+    if (pick) { const part = extractedById(pick.dataset.pick); select(pick.dataset.pick); focusItem(part && tab !== "component" ? part.pageId : pick.dataset.pick); return; }
+    if (e.target.dataset.gopage) { select(e.target.dataset.gopage); focusItem(e.target.dataset.gopage); return; }
+    if (e.target.dataset.copy) {
+        const x = extractedById(e.target.dataset.copy);
+        if (x) { try { await navigator.clipboard.writeText(x.html); e.target.textContent = "Copied"; } catch { e.target.textContent = "Select the code above and copy it"; } setTimeout(() => (e.target.textContent = "Copy HTML"), 1500); }
+        return;
+    }
     if (e.target.id === "focusBtn" && selectedId) return focusItem(selectedId);
     if (e.target.id === "exportBtn" && selectedId) return openItemDialog(byId(selectedId), "react");
     if (e.target.id === "historyBtn" && selectedId) return openItemDialog(byId(selectedId), "history");
@@ -501,13 +637,14 @@ renderOutline();
 renderDetails();
 applyView();
 fitAll();
+if (location.hash === "#config" || location.hash === "#plugins") { tab = "theme"; renderOutline(); renderTheme(); } // the editor links here
 
 // ── Share link: anyone with it can look at the project and copy its code (no account, nothing editable) ──────────────
 (() => {
     const btn = $("shareBtn");
     let card = null;
     const link = () => `${location.origin}/p/${project.shareToken}`;
-    const paint = () => { btn.textContent = project.shareToken ? "Shared" : "Share"; btn.className = `h-7 rounded-md border px-2.5 text-xs ${project.shareToken ? "border-[#0d99ff] bg-[#e5f4ff] font-medium text-[#0b6fc2]" : "border-neutral-200 hover:bg-neutral-50"}`; };
+    const paint = () => { btn.textContent = project.shareToken ? "Shared" : "Share"; btn.className = `h-7 rounded-md border px-2.5 text-xs ${project.shareToken ? "border-neutral-900 bg-neutral-100 font-medium text-neutral-900" : "border-neutral-200 hover:bg-neutral-50"}`; };
     const set = async (on) => {
         const res = await fetch(`/api/projects/${project.id}/share`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) });
         const json = await res.json();

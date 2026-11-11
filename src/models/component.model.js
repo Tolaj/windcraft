@@ -53,6 +53,8 @@ const componentSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.Mixed,
             default: null
         },
+        // this page's own Tailwind config files, laid over the project's: { js, css, lock } (see core/config-file.js cleanTw); null for none
+        twConfig: { type: mongoose.Schema.Types.Mixed, default: null },
         order: {
             type: Number,
             default: 0

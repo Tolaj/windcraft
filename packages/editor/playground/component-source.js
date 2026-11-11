@@ -1,4 +1,5 @@
 import { themeHead } from "../../core/theme.js";
+import { tailwindTag } from "../../core/config-file.js";
 const TAILWIND_RE = /tailwindcss|@tailwindcss\/browser/i;
 
 const isTailwindScript = (s) => s.src && TAILWIND_RE.test(s.src);
@@ -92,20 +93,22 @@ const HEIGHT_REPORTER = `
 // The theme's Tailwind config is added only where this adds Tailwind itself: a design that brings its own script keeps its own config.
 let previewTheme = null;
 export const setPreviewTheme = (theme) => { previewTheme = theme || null; };
+/** The Tailwind script tag for the open design: the play CDN with the project's official plugins. */
+export const tailwindMarkup = () => tailwindTag(previewTheme);
 /** The head markup for the theme (the font and the config), or nothing without one. */
 export const themeMarkup = () => (previewTheme ? themeHead(previewTheme) : "");
 
 /** Builds a complete, standalone document for an iframe's srcdoc. */
 /** `fixedScreen`: the frame follows its content's height, so screen-sized content gets the device's screen height (screenHeightCss). */
-export function buildPreviewDocument(parsed, { width, fixedScreen = false } = {}) {
+export function buildPreviewDocument(parsed, { width, fixedScreen = false, theme = null } = {}) {
     const head = [
         '<meta charset="utf-8">',
         `<meta name="viewport" content="width=${width || "device-width"}, initial-scale=1">`,
     ];
 
     if (!parsed.hasTailwindScript) {
-        head.push('<script src="https://cdn.tailwindcss.com"><\/script>');
-        if (previewTheme) head.push(themeMarkup());
+        head.push(tailwindTag(theme || previewTheme));
+        if (theme || previewTheme) head.push(theme ? themeHead(theme) : themeMarkup()); // `theme`: this one page's own (the project's with the page's config over it)
     }
     head.push(...parsed.links);
     parsed.styles.forEach((s) => {

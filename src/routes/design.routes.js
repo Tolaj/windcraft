@@ -7,7 +7,7 @@ import FigmaDraft from "../models/figmaDraft.model.js";
 import { figmaSourceInfo, updateFromFigma } from "../services/figma-update.service.js";
 import { publicBase } from "../utils/publicUrl.js";
 import { resolveProject } from "../services/project.service.js";
-import { normalizeTheme } from "@windcraft/core/theme.js";
+import { normalizeTheme, pageTheme } from "@windcraft/core/theme.js";
 
 const router = express.Router();
 
@@ -66,7 +66,7 @@ router.get("/:id", async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return notFound(req, res);
     try {
         const find = () => Component.findOne({ _id: req.params.id, createdBy: req.session.user.id })
-            .select("title htmlCode version category description tags isPublished useAsReference project kind parent board group frameW")
+            .select("title htmlCode version category description tags isPublished useAsReference project kind parent board group frameW twConfig")
             .lean();
         let c = await retry(find);
         if (!c) { await wait(600); c = await retry(find); } // a design saved a moment ago may not be readable everywhere yet
@@ -74,15 +74,15 @@ router.get("/:id", async (req, res) => {
         const projects = await optional("the project list", () => projectList(req.session.user.id), []);
         // Everything in the same project shares one infinite plane with this design.
         const plane = c.project ? (await retry(() => Component.find({ createdBy: req.session.user.id, project: c.project })
-            .select("title htmlCode version category description tags isPublished useAsReference kind parent board group frameW")
+            .select("title htmlCode version category description tags isPublished useAsReference kind parent board group frameW twConfig")
             .sort("order createdAt").limit(60).lean())).map((p) => ({
             id: String(p._id), title: p.title, group: p.group || "", frameW: p.frameW || null, version: p.version || 1, kind: p.kind, parent: p.parent ? String(p.parent) : null,
-            board: boardOf(p), category: p.category, description: p.description, tags: p.tags || [], isPublished: p.isPublished, useAsReference: p.useAsReference !== false,
+            board: boardOf(p), category: p.category, description: p.description, tags: p.tags || [], isPublished: p.isPublished, useAsReference: p.useAsReference !== false, twConfig: p.twConfig || null,
             htmlCode: String(p._id) === String(c._id) ? "" : p.htmlCode,
         })) : [];
         const proj = c.project ? await optional("the project theme", () => Project.findOne({ _id: c.project, owner: req.session.user.id }).select("theme").lean(), null) : null;
         renderEditor(res, {
-            theme: normalizeTheme(proj && proj.theme),
+            theme: pageTheme(proj && proj.theme, c.twConfig), projectTheme: normalizeTheme(proj && proj.theme), twConfig: c.twConfig || null,
             project: c.project ? projects.find((p) => p.id === String(c.project)) || null : null, projects,
             figmaSource: await optional("the Figma data", () => figmaSourceInfo(c._id), null),
             id: String(c._id), title: c.title, group: c.group || "", frameW: c.frameW || null, version: c.version || 1, htmlCode: c.htmlCode,

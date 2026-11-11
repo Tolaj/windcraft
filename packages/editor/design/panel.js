@@ -142,8 +142,9 @@ function AiTab({ path, outer, actions }) {
 const WIREFRAME_TAGS = new Set(["div", "section", "main", "header", "footer", "aside", "nav", "article", "form", "li", "figure"]);
 /** The card that opens the wireframe popup: blank sections and page layouts to put in the page, or inside the selected box. */
 const WF_ICON = html`<svg class="wfico" viewBox="0 0 36 26" fill="currentColor"><rect x="0.5" y="0.5" width="35" height="25" rx="3" fill="none" stroke="currentColor" /><rect x="3" y="3" width="30" height="4" rx="1" /><rect x="3" y="9" width="9" height="14" rx="1" /><rect x="14" y="9" width="19" height="14" rx="1" opacity=".55" /></svg>`;
+const PLUG_ICON = html`<svg class="wfico" viewBox="0 0 36 26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="0.8" y="0.8" width="34.4" height="24.4" rx="3" /><path d="M14 9v3M22 9v3M11 12h14v3a7 7 0 0 1-14 0z" transform="translate(0 -1)" /><path d="M18 21v2" /></svg>`;
 const WF_ARROW = html`<svg class="wfarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6" /></svg>`;
-const WireframeRow = ({ onOpen, label, hint }) => html`<div class="sec wfsec"><button type="button" class="wfbtn" onClick=${onOpen}>${WF_ICON}
+const WireframeRow = ({ onOpen, label, hint, icon }) => html`<div class="sec wfsec"><button type="button" class="wfbtn" onClick=${onOpen}>${icon || WF_ICON}
     <span class="min-w-0"><span class="wft">${label}</span><span class="wfs">${hint}</span></span>${WF_ARROW}</button></div>`;
 
 /** The canvas's own panel (nothing selected, as in Figma): the project, its frames, the canvas background and dot grid. */
@@ -185,6 +186,8 @@ function PagePanel({ page: pg, actions }) {
             <div class="row"><span class="lbl">Version</span><span class="text-[11px] text-neutral-700">${pg.isNew ? "not saved yet" : `v${pg.version}`}${pg.project ? ` · ${pg.project}` : ""}</span></div>
         </div></div>
         <${WireframeRow} onOpen=${actions.wireframes} label="Add a wireframe" hint="Sections and page layouts" />
+        ${pg.tailwind && pg.tailwind.canManage && html`<${WireframeRow} onOpen=${() => actions.openConfig("page")} label="Tailwind config" icon=${PLUG_ICON}
+            hint=${`Tailwind ${pg.tailwind.engine}${pg.tailwind.plugins.length ? ` · ${pg.tailwind.plugins.join(", ")}` : ""}${pg.tailwind.hasPage ? " · this page has its own file" : ""}`} />`}
         ${pg.empty && actions.canAI && html`<${AskBox} title="Generate with AI" placeholder="e.g. a pricing section with three tiers and a highlighted middle plan" rows=${3}
             button="Generate" help="Or draw with the tools, add blocks from +, or paste code in the code panel." empty="Describe what you want first."
             run=${actions.draftPage} />`}
@@ -217,7 +220,8 @@ const TABS = [["design", "Design"], ["classes", "Code"], ["ai", "AI"]];
 /** The row at the top: the tabs (or just "Page" when no element is selected) and the close button. */
 function Head({ page, canvas, tab, actions }) {
     return html`<div class="itabs">
-        ${page || canvas ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">${canvas ? "Canvas" : "Page"}</span>`
+        ${canvas ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">Canvas</span>`
+        : page ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">Page</span>`
         : TABS.filter(([k]) => k !== "ai" || actions.canAI).map(([k, label]) => html`<button type="button" class=${tab === k ? "on" : ""} onClick=${() => actions.setTab(k)}>${label}</button>`)}
         <button type="button" title="Close" style="padding:0" class="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-500 hover:bg-neutral-100" onClick=${actions.closePanel}>${CLOSE}</button>
     </div>`;

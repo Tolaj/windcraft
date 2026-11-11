@@ -213,7 +213,7 @@ export function agentMain() {
     function redraw() {
         sels = sels.filter(alive);
         const el = primary();
-        const dragging = Boolean(gesture && gesture.type === "intent" && gesture.ghost); // the landing outline and label say it all while dragging
+        const dragging = Boolean(gesture && gesture.type === "reorder" && gesture.leave && gesture.igh); // the landing outline and label say it all while dragging
         const items = dragging ? [] : sels.filter((e) => e !== document.body).map(boxOf);
         const handles = Boolean(!dragging && el && sels.length === 1 && el !== document.body && tool === "move" && !editing && !isLocked(el));
         let label = "", at = null;
@@ -221,7 +221,7 @@ export function agentMain() {
             const g = geomOf(el);
             if (gesture.type === "radius") { label = `Radius ${gesture.r}`; at = gesture.at; }
             else if (gesture.type === "rotate") { label = `${gesture.deg === undefined ? "" : gesture.deg + "°"}`; at = gesture.at; }
-            else if (gesture.type !== "gap" && gesture.type !== "intent") label = sels.length > 1 ? `${sels.length} selected` : `${g.w} × ${g.h}`; // a gap or padding drag has its own label
+            else if (gesture.type !== "gap" && gesture.type !== "reorder") label = sels.length > 1 ? `${sels.length} selected` : `${g.w} × ${g.h}`; // a gap or padding drag has its own label
         }
         const bbox = el && el !== document.body && alive(el) ? pageRect(el) : null;
         const data = JSON.stringify({ items, handles, label, bbox, at });
@@ -533,12 +533,16 @@ export function agentMain() {
     /** Turn a box of absolutely placed children into the row, column or grid the host fitted: pixels in, classes out, for every size. */
     function applyLayout(m) {
         const box = elAt(m.container), kids = (m.kids || []).map(elAt), L = m.layout;
+        if (flowPending) { // a child dropped elsewhere in its row, column or grid: the offset the drop wrote gives way to the structure
+            const f = flowPending; clearTimeout(f.timer); flowPending = null;
+            if (box && L) { ["position", "left", "top"].forEach((p) => f.el.style.removeProperty(p)); tidyStyle(f.el); } else askConvert(f.items);
+        }
         if (!box || !L || kids.some((k) => !k)) return;
         const JUSTIFY = { end: "flex-end", center: "center", between: "space-between", around: "space-around", evenly: "space-evenly" }, ITEMS = { start: "flex-start", center: "center", end: "flex-end" };
         const set = (el, p, v) => el.style.setProperty(p, v);
-        const boxProps = L.kind === "grid" ? ["display", "grid-template-columns", "column-gap", "row-gap"] : ["display", "flex-direction", "gap", "justify-content", "align-items"];
+        const boxProps = L.kind === "grid" ? ["display", "grid-template-columns", "column-gap", "row-gap", "justify-content", "align-content"] : ["display", "flex-direction", "gap", "justify-content", "align-items"];
         const pre = sourcesOf(box, boxProps);
-        if (L.kind === "grid") { set(box, "display", "grid"); set(box, "grid-template-columns", `repeat(${L.cols}, minmax(0, 1fr))`); if (L.gapX) set(box, "column-gap", `${L.gapX}px`); if (L.gapY) set(box, "row-gap", `${L.gapY}px`); }
+        if (L.kind === "grid") { set(box, "display", "grid"); set(box, "grid-template-columns", L.fit ? `repeat(${L.cols}, auto)` : `repeat(${L.cols}, minmax(0, 1fr))`); if (L.fit) { set(box, "justify-content", "start"); set(box, "align-content", "start"); } if (L.gapX) set(box, "column-gap", `${L.gapX}px`); if (L.gapY) set(box, "row-gap", `${L.gapY}px`); }
         else {
             set(box, "display", "flex");
             if (L.kind === "col") set(box, "flex-direction", "column");
@@ -547,7 +551,7 @@ export function agentMain() {
             if (JUSTIFY[L.justify]) set(box, "justify-content", JUSTIFY[L.justify]);
             if (ITEMS[L.items]) set(box, "align-items", ITEMS[L.items]);
         }
-        const boxItem = gestureItem(box, pre, boxProps.filter((p) => box.style.getPropertyValue(p)), L.kind === "grid" ? ["flexDir", "flexWrap", "justify", "items"] : ["gridCols"]);
+        const boxItem = gestureItem(box, pre, boxProps.filter((p) => box.style.getPropertyValue(p)), L.kind === "grid" ? (L.fit ? ["flexDir", "flexWrap", "items"] : ["flexDir", "flexWrap", "justify", "items"]) : ["gridCols"]);
         boxItem.structural = true;
         const items = [boxItem];
         kids.forEach((k, i) => {
@@ -1062,7 +1066,7 @@ export function agentMain() {
         if (abs.length) {
             gesture = { type: "move", items: abs.map((el) => ({ el, g: geomOf(el), pre: sourcesOf(el, ["left", "top"]) })), sx: e.clientX, sy: e.clientY, moved: false, container: abs[0].parentElement || document.body };
         } else {
-            gesture = { type: "intent", intent: true, el: items[0], sx: e.clientX, sy: e.clientY, moved: false };
+            gesture = { type: "reorder", el: items[0], rect: pageRect(items[0]), sx: e.clientX, sy: e.clientY, moved: false, before: null };
         }
     }
 
@@ -1113,6 +1117,459 @@ export function agentMain() {
         return "page flow";
     };
     const kidsOf = (c, skip) => Array.prototype.filter.call(c.children, (k) => k !== skip && !["SCRIPT", "STYLE"].includes(k.tagName) && !(k.hasAttribute && k.hasAttribute("data-wc-agent-style")));
+    // tags that are not boxes on the page
+    const NOT_BOXES = new Set(["SCRIPT", "STYLE", "LINK", "META", "TEMPLATE", "BR"]);
+    // ── Where a drop goes: the targeting model ──────────────────────────────────────────────────────────────
+    // Read on the page as it was when the drag started (the boxes do not move under the pointer while the others slide apart), in three
+    // steps that never mix: which box (relation to the element, and what a box can hold), what the drop means, then the slot.
+    //  1. Does the element leave its box? Decided at its own box's level: over its own box, or within the gutter around it, it stays;
+    //     over a direct sibling, in the sibling's outer 30% along the box's direction, it goes beside the sibling; in its middle, into
+    //     it (or into the deepest box there that can hold the element); a sibling that can hold nothing is gone beside. In a grid a
+    //     sibling cell is a place: the element takes it.
+    //  2. Out of its box (past the gutter): into the deepest box under the pointer that can hold the element. A box's edge is not a
+    //     reason to go beside it there: the space between boxes belongs to the box around them, and the slot step puts it in between.
+    //  3. The slot in the chosen box, from its children as they stood (the element left out); the exact middle by reading order.
+    // What a box can hold is read from HTML and layout, not from a list of tags: a list holds only items, a table only rows and cells,
+    // text tags only text-level elements, a link or button no other control; a replaced element nothing; a box of running text is not
+    // dropped into; an empty box only holds what fits in it; a wrapper (its one child fills it and can hold nothing) is passed through.
+    const T_BAND = 0.3, T_GUTTER = 24, T_FILL = 0.9;
+    const T_VOID = /^(img|input|br|hr|meta|link|source|track|wbr|area|col|embed|param|video|audio|canvas|svg|iframe|select|textarea|picture|path|g|circle|rect|line|polyline|polygon|use|ellipse|text)$/;
+    const T_PHRASING = /^(span|a|img|svg|button|strong|em|b|i|u|s|small|label|input|code|abbr|time|mark|sub|sup|kbd|select|textarea|picture|video|audio|canvas|br|wbr|q|cite|dfn|var|samp|data|output|meter|progress)$/;
+    const T_INTERACTIVE = /^(a|button|input|select|textarea|label|details|iframe|video|audio)$/;
+    const T_PHRASING_ONLY = /^(p|h[1-6]|span|button|label|strong|em|b|i|u|s|small|code|abbr|q|cite|sub|sup|mark|time|kbd|samp|var|dfn|legend|summary|pre)$/;
+    const T_BOX = /^(block|flex|inline-flex|grid|inline-grid|flow-root|list-item|table-cell|inline-block)$/;
+    /** The direction a box lays out its children: row, column or grid (text flow reads as a row). */
+    function boxAxis(n) {
+        const cs = getComputedStyle(n);
+        if (cs.display.includes("grid")) return "grid";
+        if (cs.display.includes("flex")) return cs.flexDirection.startsWith("column") ? "column" : "row";
+        if (cs.display === "table-row") return "row";
+        const kids = [...n.children].filter((k) => !NOT_BOXES.has(k.tagName) && getComputedStyle(k).display !== "none");
+        return kids.length && kids.every((k) => /^inline/.test(getComputedStyle(k).display)) ? "row" : "column";
+    }
+    /** HTML and layout allow `n` to hold the element at all. */
+    function canContain(n, el) {
+        const t = n.tagName.toLowerCase(), d = el.tagName.toLowerCase(), disp = getComputedStyle(n).display;
+        if (T_VOID.test(t) || n.closest("svg")) return false;
+        if (disp === "none" || disp === "contents") return false;
+        if (/^(ul|ol|menu)$/.test(t)) return d === "li";
+        if (/^(table|thead|tbody|tfoot)$/.test(t)) return /^(tr|thead|tbody|tfoot|caption|colgroup)$/.test(d);
+        if (t === "tr") return /^(td|th)$/.test(d);
+        if (T_PHRASING_ONLY.test(t) && !T_PHRASING.test(d)) return false;
+        if ((t === "a" || t === "button" || n.closest("a,button")) && (T_INTERACTIVE.test(d) || el.querySelector("a,button,input,select,textarea"))) return false;
+        return true;
+    }
+    /** `n` is a place this drag may put the element (its own box always is). `geo` gives the start-of-drag boxes. */
+    function canReceive(n, el, geo) {
+        if (n === geo.home) return true;
+        if (n === el || el.contains(n) || n === root || !staysInGroup(el, n) || !canContain(n, el)) return false;
+        const kids = [...n.children].filter((k) => k !== el && !NOT_BOXES.has(k.tagName) && !isOverlay(k) && !(k.hasAttribute && k.hasAttribute("data-wc-agent-style")));
+        const ownText = [...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim());
+        if (!kids.length && ownText) return false; // a box of running text
+        if (!T_BOX.test(getComputedStyle(n).display) && n !== document.body) return false;
+        if (!kids.length && !ownText) { const r = geo.rect(n), e0 = geo.el; if (r && (r.w < e0.w || r.h < e0.h)) return false; } // empty: only what fits
+        return true;
+    }
+    const canGoBeside = (n) => !isAbs(n) && !/^(none|contents)$/.test(getComputedStyle(n).display);
+    /** The page as it was when the drag started: every box's rect (the element itself left out), read once. */
+    function startGeometry(el) {
+        const rects = new Map(), order = [];
+        const walk = (n, depth) => { for (const k of n.children) { if (k === el || NOT_BOXES.has(k.tagName) || isOverlay(k) || (k.hasAttribute && k.hasAttribute("data-wc-agent-style"))) continue; const cs = getComputedStyle(k); if (cs.display === "none") continue; const r = pageRect(k); if (r.w > 0 && r.h > 0 && cs.visibility !== "hidden") { rects.set(k, r); order.push({ k, depth }); } if (!(k.closest("svg") && k.tagName.toLowerCase() !== "svg")) walk(k, depth + 1); } };
+        walk(document.body, 1);
+        const er = pageRect(el);
+        return { home: el.parentElement, rects, order, el: er, rect: (n) => rects.get(n) || (n === document.body ? { x: 0, y: 0, w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight } : null) };
+    }
+    /** The boxes under a page point on the start-of-drag page, deepest first, up to the page. */
+    function startChain(geo, x, y) {
+        let hit = null, bd = -1;
+        geo.order.forEach(({ k, depth }) => { const r = geo.rects.get(k); if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h && depth >= bd) { hit = k; bd = depth; } });
+        const out = [];
+        for (let n = hit || document.body; n && n !== document.documentElement; n = n.parentElement) out.push(n);
+        return out;
+    }
+    /** The slot in `c` for a page point, from its children as they stood (the element left out): before which child, or at the end. */
+    function startSlot(geo, el, c, x, y) {
+        const kids = kidsOf(c, el).filter(inFlow).filter((k) => geo.rects.has(k));
+        const ax = boxAxis(c);
+        if (!kids.length) return { container: c, ref: null, horizontal: ax === "row" };
+        const before = kids.find((k) => { const r = geo.rects.get(k), cx = r.x + r.w / 2, cy = r.y + r.h / 2; return ax === "grid" ? r.y > y || (y <= r.y + r.h && cx > x) : ax === "row" ? cx > x : cy > y; });
+        return before ? { container: c, ref: before, before: true, horizontal: ax !== "column" } : { container: c, ref: kids[kids.length - 1], before: false, horizontal: ax !== "column" };
+    }
+    /** Where a drop at client point (cx, cy) goes: { container, ref, before, horizontal, why } (stay: true keeps it where it is). */
+    function targetAt(g, cx, cy) {
+        const el = g.el, geo = g.geo || (g.geo = startGeometry(el)), par = geo.home;
+        const x = cx + window.scrollX, y = cy + window.scrollY;
+        const S = startChain(geo, x, y), e0 = geo.el;
+        const frac = (n) => { const r = geo.rect(n); return r && r.w && r.h ? [(x - r.x) / r.w, (y - r.y) / r.h] : null; };
+        const inside = (f) => f && f[0] >= 0 && f[0] <= 1 && f[1] >= 0 && f[1] <= 1;
+        // reading order of a box against the element (start rects): "after" when it comes later
+        const readsAfter = (n) => { const r = geo.rect(n); if (!r) return true; const ecy = e0.y + e0.h / 2, ncy = r.y + r.h / 2; return Math.abs(ncy - ecy) < Math.min(e0.h, r.h) / 2 ? r.x + r.w / 2 > e0.x + e0.w / 2 : ncy > ecy; };
+        const sideOf = (n, axis) => { const f = frac(n), i = axis === "row" ? 0 : 1, r = geo.rect(n), size = r ? (i ? r.h : r.w) : 100; return Math.abs(f[i] - 0.5) * size < 1 ? readsAfter(n) : f[i] > 0.5; };
+        const stay = (why) => ({ container: par, ref: null, stay: true, why });
+        const beside = (n, c, after, why) => (canGoBeside(n) ? { container: c, ref: n, before: !after, horizontal: boxAxis(c) !== "column", why } : stay(`${why}, but it is out of the flow: stays`));
+        const wrapper = (w, kid) => { if (!kid) return false; const kids = kidsOf(w, el).filter(inFlow), rw = geo.rect(w), rk = geo.rect(kid); return kids.length === 1 && kids[0] === kid && rw && rk && rk.w >= T_FILL * rw.w && rk.h >= T_FILL * rw.h && !canReceive(kid, el, geo); };
+        // the deepest box in a branch (top-down list) under the pointer that can hold the element
+        const deepest = (branch) => { for (let i = branch.length - 1; i >= 0; i--) { const n = branch[i]; if (inside(frac(n)) && canReceive(n, el, geo) && !wrapper(n, branch[i + 1])) return n; } return null; };
+        const into = (n, why) => ({ ...startSlot(geo, el, n, x, y), why });
+        const iOwn = S.indexOf(par);
+        if (iOwn >= 0) {
+            const branch = S.slice(0, iOwn).reverse();
+            if (!branch.length) return { ...into(par, "over its own box: a slot in it"), open: true }; // (open space in its own box: placed freely)
+            const D = branch[0], f = frac(D), axis = boxAxis(par);
+            if (!inside(f)) return stay("the pointer is outside the box under it");
+            if (axis === "grid") {
+                const inner = deepest(branch.slice(1)), mid = Math.min(f[0], f[1], 1 - f[0], 1 - f[1]) >= T_BAND;
+                if (inner && mid && canReceive(D, el, geo)) return into(inner, "middle of a cell, over a box that can hold it: into it");
+                return beside(D, par, readsAfter(D), "over a cell of its grid: takes its place");
+            }
+            const along = axis === "row" ? f[0] : f[1];
+            if (along < T_BAND || along > 1 - T_BAND) return beside(D, par, along > 0.5, "near a sibling's side: beside it");
+            const X = deepest(branch);
+            if (X) return into(X, X === D ? "middle of a sibling: into it" : "middle of a sibling: into the box there that can hold it");
+            return beside(D, par, sideOf(D, axis), "middle of a sibling that holds nothing: beside it");
+        }
+        const pr = geo.rect(par) || pageRect(par);
+        const out = Math.max(pr.x - x, x - pr.x - pr.w, pr.y - y, y - pr.y - pr.h, 0);
+        if (out <= px(T_GUTTER)) return into(par, "just outside its box (gutter): stays in it");
+        const iA = S.findIndex((n) => n.contains(par));
+        if (iA < 0) return stay("no box around it under the pointer");
+        const A = S[iA], branch = S.slice(0, iA).reverse();
+        if (!branch.length) return canReceive(A, el, geo) ? into(A, "over a box around it: into it") : stay("over a box around it that cannot hold it");
+        const X = deepest(branch);
+        if (X) return into(X, "into the deepest box under the pointer that can hold it");
+        const top = branch[0];
+        return canReceive(A, el, geo) && inside(frac(top)) ? beside(top, A, sideOf(top, boxAxis(A) === "column" ? "column" : "row"), "nothing under the pointer can hold it: beside it") : stay("nothing under the pointer can hold it");
+    }
+
+    // ── Leaving the box: the ghost drag ────────────────────────────────────────────────────────────────────────────────
+    // Inside the box it came from, an element is dragged as in reorderGesture (it follows the pointer, the others slide, guides and
+    // distances). Once the drag leaves that box (what targetAt says), it goes on as this: a copy of the element (the ghost) follows
+    // the pointer anywhere, to the pixel, and the editor keeps asking what the drag means in HTML: a short list of real edits (put it at another place among its siblings, into another box, aligned in its box,
+    // pushed to the end), each one tried on the live page and measured by the browser itself. The one that puts the element closest
+    // to the ghost, without needless classes, is shown: the element itself sits there (faded, outlined), its neighbours have made
+    // room, and a label says what it is. Letting go keeps exactly that. Tab tries the next option, Esc puts everything back.
+    // Nothing is a pixel offset. Coming back into its box hands the drag back to reorderGesture.
+    const INTENT_PROPS = ["align-self", "justify-self", "margin-left", "margin-right", "margin-top", "margin-bottom"];
+    const landBox = mk(`position:absolute;display:none;pointer-events:none;box-sizing:border-box;background:rgba(59,130,246,.10);`);
+    overlay.append(landBox);
+    const ORD = (n) => n + (n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th");
+    function intentStart(g) {
+        const el = g.el, par = el.parentElement;
+        const flow = kidsOf(par, null).filter(inFlow);
+        g.ih = { parent: par, next: el.nextSibling, index: flow.indexOf(el), inl: inlineOf(el, INTENT_PROPS), opacity: el.style.getPropertyValue("opacity"), first: flow[0] === el, last: flow[flow.length - 1] === el };
+        g.ipre = sourcesOf(el, INTENT_PROPS);
+        g.icache = new Map();
+        g.ipick = 0;
+        g.irank = [];
+        g.ishown = null;
+        const r = g.rect, cs = getComputedStyle(el);
+        // the ghost: a copy that keeps the element's look (its inherited text style too) and floats above the page
+        const ghost = el.cloneNode(true);
+        ghost.querySelectorAll("[contenteditable]").forEach((n) => n.removeAttribute("contenteditable"));
+        ["color", "font-family", "font-size", "font-weight", "font-style", "line-height", "letter-spacing", "text-align", "text-transform"].forEach((p) => ghost.style.setProperty(p, cs.getPropertyValue(p)));
+        Object.assign(ghost.style, { position: "absolute", left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px`, margin: "0", boxSizing: "border-box", pointerEvents: "none", opacity: "0.92", zIndex: "2", transformOrigin: "center", transform: "rotate(1.2deg)" });
+        ghost.style.setProperty("box-shadow", `0 ${px(14)}px ${px(34)}px rgba(0,0,0,.22), 0 0 0 ${px(1)}px rgba(0,0,0,.08)`);
+        overlay.appendChild(ghost);
+        g.igh = ghost;
+        el.style.setProperty("opacity", "0.35"); // the element itself becomes the landing shadow
+    }
+    /** Put the element back exactly where it was, as it was. */
+    function intentHome(g) {
+        const el = g.el, h = g.ih;
+        if (h.next && h.next.parentElement === h.parent) h.parent.insertBefore(el, h.next); else h.parent.appendChild(el);
+        intentAlign(g, null);
+    }
+    /** The element's own alignment values back as they were, then `align` ({ prop: value }) over them. */
+    function intentAlign(g, align) {
+        INTENT_PROPS.forEach((p) => { if (g.ih.inl[p]) g.el.style.setProperty(p, g.ih.inl[p]); else g.el.style.removeProperty(p); });
+        if (align) Object.entries(align).forEach(([p, v]) => g.el.style.setProperty(p, v));
+    }
+    /**
+     * In another box, the margins the element brought along go where the drop takes them off (dropSmart): a gap already spaces that
+     * box's children, so the preview shows it without them, as it will be.
+     */
+    function marginsFor(g, c) {
+        if (c === g.ih.parent) return null;
+        const lay = layoutOf(c), cs = getComputedStyle(c), f = (v) => parseFloat(v) || 0, out = {};
+        if (lay !== "page flow" && lay !== "flex row" && f(cs.rowGap) > 0) Object.assign(out, { "margin-top": "0px", "margin-bottom": "0px" });
+        if (lay !== "page flow" && lay !== "flex column" && f(cs.columnGap) > 0) Object.assign(out, { "margin-left": "0px", "margin-right": "0px" });
+        return Object.keys(out).length ? out : null;
+    }
+    /** Put the element where a candidate says (the n-th in-flow child of `c`, aligned so). */
+    function intentApply(g, cand) {
+        const el = g.el, sibs = kidsOf(cand.c, el).filter(inFlow), ref = sibs[cand.i] || null;
+        if (ref) cand.c.insertBefore(el, ref);
+        else if (sibs.length) sibs[sibs.length - 1].after(el);
+        else cand.c.insertBefore(el, cand.c.firstChild);
+        const fix = marginsFor(g, cand.c);
+        intentAlign(g, fix || cand.align ? { ...(fix || {}), ...(cand.align || {}) } : null);
+    }
+    const candKey = (c) => `${pathOf(c.c).join(".")}|${c.i}|${c.align ? JSON.stringify(c.align) : ""}`;
+    /** Where the candidate really puts the element: tried on the page and measured (once: the page does not change while dragging). */
+    function intentMeasure(g, cand) {
+        const k = candKey(cand);
+        if (g.icache.has(k)) return g.icache.get(k);
+        intentApply(g, cand);
+        const r = pageRect(g.el);
+        // where it lands, seen from the neighbour it lands beside (or its box), as that neighbour stood before the drag: taking the
+        // element out of its old place shifts what comes after it, and that shift must not count against a place further down the page
+        const sibs = kidsOf(cand.c, g.el).filter(inFlow), anchor = sibs[cand.i - 1] || sibs[cand.i] || cand.c;
+        const a1 = pageRect(anchor), a0 = g.iorig.get(anchor) || a1;
+        const ecs = getComputedStyle(g.el);
+        const m = { x: r.x - a1.x + a0.x, y: r.y - a1.y + a0.y, w: r.w, h: r.h, real: r, ml: parseFloat(ecs.marginLeft) || 0, mt: parseFloat(ecs.marginTop) || 0 };
+        g.icache.set(k, m);
+        return m;
+    }
+    /** The alignments worth trying for an element in `c`: only ones that can move it (it is narrower than its room, the box lays out that way). */
+    function alignsFor(g, c) {
+        const lay = layoutOf(c), out = [];
+        if (lay === "flex row") out.push({ "align-self": "flex-start" }, { "align-self": "center" }, { "align-self": "flex-end" }, { "margin-left": "auto" });
+        else if (lay === "flex column") out.push({ "align-self": "flex-start" }, { "align-self": "center" }, { "align-self": "flex-end" }, { "margin-top": "auto" });
+        else if (lay === "grid") out.push({ "justify-self": "start" }, { "justify-self": "center" }, { "justify-self": "end" }, { "align-self": "start" }, { "align-self": "center" }, { "align-self": "end" });
+        else if (getComputedStyle(g.el).display.startsWith("block")) out.push({ "margin-left": "0px", "margin-right": "0px" }, { "margin-left": "auto", "margin-right": "auto" }, { "margin-left": "auto", "margin-right": "0px" });
+        return out;
+    }
+    /** The boxes the drop could go into, best first: the one targetAt chose, the box around it that can hold the element, where it came from. */
+    function intentBoxes(g, e) {
+        const t = targetAt(g, e.clientX, e.clientY), out = [];
+        const add = (c) => { if (c && c !== root && !out.includes(c)) out.push(c); };
+        add(t.container);
+        for (let up = t.container.parentElement; up && up !== root && out.length < 2; up = up.parentElement) if (canReceive(up, g.el, g.geo)) add(up);
+        add(g.ih.parent);
+        return out.slice(0, 3);
+    }
+    /** The index among `c`'s in-flow children (without the element) the pointer is at, on the page as it stood when the drag began. */
+    function nearestSlot(g, c, x, y) {
+        const sibs = kidsOf(c, g.el).filter(inFlow), s = startSlot(g.geo, g.el, c, x, y);
+        if (!s.ref) return sibs.length ? sibs.length : 0;
+        const i = sibs.indexOf(s.ref);
+        return i < 0 ? sibs.length : s.before ? i : i + 1;
+    }
+    /** Every candidate for this pointer position, measured and scored (lower is better), best first. */
+    function intentRank(g, e) {
+        const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
+        const gx = g.rect.x + dx + g.rect.w / 2, gy = g.rect.y + dy + g.rect.h / 2; // the ghost's centre, in the page
+        const px0 = e.clientX + window.scrollX, py0 = e.clientY + window.scrollY;
+        const score = (r, extra) => Math.hypot(r.x + r.w / 2 - gx, r.y + r.h / 2 - gy) + extra;
+        // What the pointer is over is read on the page as it was before the drag (the element at home), not on the preview: the
+        // preview moves things (a box below the element's old place moves up when it leaves), and reading that would change the preview again.
+        intentHome(g);
+        const places = intentBoxes(g, e).map((c) => ({ c, n: kidsOf(c, g.el).filter(inFlow).length, i0: nearestSlot(g, c, px0, py0) }));
+        // the page as it was, for the boxes and children that could be landed beside (see intentMeasure)
+        g.iorig = g.iorig || new Map();
+        places.forEach(({ c }) => [c, ...kidsOf(c, g.el).filter(inFlow)].forEach((k) => { if (!g.iorig.has(k)) g.iorig.set(k, pageRect(k)); }));
+        const all = [];
+        places.forEach(({ c, n, i0 }, depth) => {
+            // the box is the targeting model's choice (the first); the others are there for Tab, never picked over it
+            const moved = depth ? px(400) : 0;
+            [i0 - 1, i0, i0 + 1].filter((i) => i >= 0 && i <= n).forEach((i) => {
+                const cand = { c, i, align: null };
+                cand.r = intentMeasure(g, cand);
+                // the slot the pointer is in (past a neighbour's middle is after it) is the one: distance only chooses between boxes and alignments
+                cand.s = score(cand.r, moved) + (i === i0 ? 0 : px(400)); // the neighbouring slots: there for Tab, never picked over the pointer's
+                all.push(cand);
+            });
+        });
+        all.sort((p, q) => p.s - q.s);
+        // alignments, for the best two places only (each is a layout to measure)
+        const keeps = (r) => Math.abs(r.w - g.rect.w) <= 1.5 && Math.abs(r.h - g.rect.h) <= 1.5;
+        if (!e.metaKey) all.slice(0, 2).forEach((base) => {
+            // in another box its new row or column may stretch it (a button that was as tall as its text, as tall as the row): it keeps
+            // the size it had unless it was stretched before, and the ghost's height says where in the row it sits (top, middle, bottom)
+            const stretched = base.c !== g.ih.parent && !keeps(base.r);
+            alignsFor(g, base.c).forEach((align) => {
+                const cand = { c: base.c, i: base.i, align };
+                cand.r = intentMeasure(g, cand);
+                if ((align["margin-left"] === "auto" && align["margin-right"] !== "auto" && cand.r.ml < 1) || (align["margin-top"] === "auto" && cand.r.mt < 1)) return; // no room to push into: it would only drop a margin
+                if (stretched) { if (!keeps(cand.r)) return; cand.s = score(cand.r, 0) + (base.s - score(base.r, 0)) - px(3); all.push(cand); return; }
+                if (Math.abs(cand.r.w - base.r.w) > 1 || Math.abs(cand.r.h - base.r.h) > 1) return; // an alignment moves the element, never resizes it (a stretched card stays full width)
+                if (Math.abs(cand.r.x - base.r.x) < 1 && Math.abs(cand.r.y - base.r.y) < 1 && Math.abs(cand.r.w - base.r.w) < 1 && Math.abs(cand.r.h - base.r.h) < 1) return; // changes nothing: the plain place says it
+                cand.s = score(cand.r, base.s - score(base.r, 0) + px(6) * Object.keys(align).length);
+                all.push(cand);
+            });
+        });
+        all.sort((p, q) => p.s - q.s);
+        // one per distinct result: two candidates that land in the same place are one option (the simpler one, found first)
+        const seen = new Set(), out = [];
+        all.forEach((c) => { const k = `${Math.round(c.r.x)},${Math.round(c.r.y)},${Math.round(c.r.w)},${Math.round(c.r.h)}|${c.c === g.ih.parent ? "" : pathOf(c.c).join(".")}`; if (!seen.has(k)) { seen.add(k); out.push(c); } });
+        out.forEach((c) => { c.home = c.c === g.ih.parent && c.i === g.ih.index && !c.align; });
+        return out;
+    }
+    const ALIGN_WORDS = { "flex-start": "start", start: "start", center: "centred", "flex-end": "end", end: "end" };
+    function intentWords(g, c) {
+        if (c.home) return "Back where it was";
+        const lay = layoutOf(c.c), n = kidsOf(c.c, g.el).filter(inFlow).length + 1;
+        const kind = lay === "flex row" ? "Row" : lay === "flex column" ? "Column" : lay === "grid" ? "Grid" : "Stack";
+        const parts = [];
+        if (c.c !== g.ih.parent) parts.push(`Into ${c.c === document.body ? "the page" : c.c.tagName.toLowerCase()}`);
+        parts.push(`${kind} · ${n === 1 ? "only item" : ORD(c.i + 1) + " of " + n}`);
+        if (c.align) {
+            const a = c.align;
+            if (a["margin-left"] === "auto" && a["margin-right"] === "auto") parts.push("centred");
+            else if (a["margin-left"] === "auto") parts.push(lay === "flex row" ? "pushed to the end" : "right");
+            else if (a["margin-top"] === "auto") parts.push("pushed to the bottom");
+            else if (a["margin-left"] === "0px") parts.push("left");
+            else if (a["justify-self"]) parts.push(`${ALIGN_WORDS[a["justify-self"]] === "centred" ? "centred" : ALIGN_WORDS[a["justify-self"]]} in its cell`);
+            else if (a["align-self"]) parts.push(lay === "flex row" || lay === "grid" ? { "flex-start": "top", start: "top", center: "middle", "flex-end": "bottom", end: "bottom" }[a["align-self"]] : { "flex-start": "left", center: "centred", "flex-end": "right" }[a["align-self"]]);
+        }
+        return parts.join(" · ");
+    }
+    /** Show a candidate: the element there (its neighbours make room), outlined, with what it means. */
+    function intentShow(g, c) {
+        intentApply(g, c);
+        g.ishown = c;
+        const r = pageRect(g.el), cr = pageRect(c.c);
+        const one = px(1);
+        Object.assign(landBox.style, { display: "block", left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
+        landBox.style.setProperty("box-shadow", `inset 0 0 0 ${1.5 * one}px rgba(59,130,246,.9)`);
+        Object.assign(dropBox.style, { display: c.c === g.ih.parent ? "none" : "block", left: `${cr.x}px`, top: `${cr.y}px`, width: `${cr.w}px`, height: `${cr.h}px` });
+        const more = g.irank.length > 1 ? "   Tab: other options" : "";
+        dropHint.textContent = intentWords(g, c) + more;
+        Object.assign(dropHint.style, { display: "block", transform: "", left: `${r.x}px`, top: `${Math.max(0, r.y - px(26))}px`, fontSize: `${px(11)}px`, padding: `${px(4)}px ${px(7)}px` });
+        // kept inside the page: near the right edge it goes left, so it is never cut off
+        const room = window.scrollX + document.documentElement.clientWidth - px(4), w = dropHint.offsetWidth;
+        if (r.x + w > room) dropHint.style.left = `${Math.max(window.scrollX + px(4), room - w)}px`;
+        // the drag is shown: the frame's own boxes are redrawn without the selection's handles
+        redraw();
+    }
+    /** Run `cb` on the next animation frame, or within 48ms if the frame never comes (the editor's frame does not always get them). Returns a cancel. */
+    function onFrame(cb) {
+        let done = false;
+        const run = () => { if (done) return; done = true; clearTimeout(t); cancelAnimationFrame(id); cb(); };
+        const id = requestAnimationFrame(run), t = setTimeout(run, 48);
+        return () => { done = true; clearTimeout(t); cancelAnimationFrame(id); };
+    }
+    function intentGesture(g, e) {
+        g.iev = e;
+        const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
+        if (g.igh) Object.assign(g.igh.style, { left: `${g.rect.x + dx}px`, top: `${g.rect.y + dy}px` });
+        if (g.iraf) return;
+        g.iraf = onFrame(() => {
+            g.iraf = null;
+            if (gesture !== g || !g.leave) return;
+            const ev = g.iev;
+            const shown = g.ishown;
+            g.irank = intentRank(g, ev);
+            g.ipick = 0;
+            let best = g.irank[0];
+            // hold on to what is shown until something is clearly better: the preview must not flicker between two close options
+            const same = shown && g.irank.find((c) => candKey(c) === candKey(shown));
+            if (same && best && same !== best && same.s - best.s < px(8)) best = same;
+            if (best) intentShow(g, best);
+        });
+    }
+    function intentCycle(g) {
+        if (!g.irank.length) return;
+        g.ipick = (g.ipick + 1) % Math.min(4, g.irank.length);
+        intentShow(g, g.irank[g.ipick]);
+    }
+    function intentCleanup(g) {
+        if (g.iraf) { g.iraf(); g.iraf = null; } // (cancelled, and forgotten: the next time in the ghost drag must be able to ask again)
+        if (g.igh) { g.igh.remove(); g.igh = null; }
+        landBox.style.display = "none";
+        if (g.ih.opacity) g.el.style.setProperty("opacity", g.ih.opacity); else g.el.style.removeProperty("opacity");
+        tidyStyle(g.el);
+    }
+    function intentCancel(g) {
+        intentCleanup(g);
+        intentHome(g);
+        tidyStyle(g.el);
+        clearGuides();
+        gesture = null;
+        post({ type: "gesture", on: false });
+        redraw();
+    }
+    /** Letting go: keep what is shown, as classes. */
+    function intentDrop(g, e) {
+        intentCleanup(g);
+        const c = g.ishown;
+        if (!c || c.home) { intentHome(g); tidyStyle(g.el); return redraw(); }
+        intentApply(g, c);
+        intentAlign(g, null); // the alignment is written below as a class, from what it was before (not as an inline style)
+        tidyStyle(g.el);
+        setSelection([g.el]);
+        g.ialign = c.align;
+        const items = dropSmart(g, e, g.ih.parent, g.ih.first, g.ih.last);
+        return items.length ? askConvert(items) : changed();
+    }
+
+    // ── Dragging in the layout: slots, as in Figma's auto layout ───────────────────────────────────────────────────
+    // An element in the flow is never moved by pixels. It is dragged to a slot (before or after a sibling, or into another box): the
+    // others slide apart to make room, the place it will take is marked, and on release it settles into it. Across a flex row or column
+    // a drag onto the start, centre or end of the box is written as an alignment (self-*), with a guide that says so.
+    /** A box as the place things are dropped into: its content box, the other children (before: ahead of `skip` in the DOM) and its layout. */
+    function laneOf(c, skip) {
+        const cs = getComputedStyle(c), pr = pageRect(c);
+        const f = (v) => parseFloat(v) || 0;
+        const bx = f(cs.borderLeftWidth) + f(cs.paddingLeft), bt = f(cs.borderTopWidth) + f(cs.paddingTop);
+        const box = { x: pr.x + bx, y: pr.y + bt, w: pr.w - bx - f(cs.borderRightWidth) - f(cs.paddingRight), h: pr.h - bt - f(cs.borderBottomWidth) - f(cs.paddingBottom) };
+        const idx = skip ? Array.prototype.indexOf.call(c.children, skip) : -1;
+        const others = kidsOf(c, skip).filter((k) => !isAbs(k) && getComputedStyle(k).display !== "none").map((k) => ({ el: k, r: pageRect(k), before: idx >= 0 && Array.prototype.indexOf.call(c.children, k) < idx }));
+        return { box, outer: pr, lay: layoutOf(c), others };
+    }
+    /** Is this axis one that the element's own margin moves its siblings along (block flow down, a flex box along its direction)? */
+    const mainAxis = (lay, a) => (lay === "page flow" || lay === "flex column" ? a === "y" : lay === "flex row" ? a === "x" : false);
+    /** The line, among the container's edges and centre, its neighbours' edges and the spacing used between them, that `start` .. `start + size` is close to. */
+    function containerLine(n, a, start, size, reach) {
+        const S = a, Z = a === "x" ? "w" : "h", main = mainAxis(n.lay, a);
+        const lines = [{ at: n.box[S], e: "s", k: "start" }, { at: n.box[S] + n.box[Z] / 2, e: "c", k: "centre" }, { at: n.box[S] + n.box[Z], e: "e", k: "end" }];
+        n.others.forEach((o) => lines.push({ at: o.r[S], e: "s", k: "sib" }, { at: o.r[S] + o.r[Z] / 2, e: "c", k: "sib" }, { at: o.r[S] + o.r[Z], e: "e", k: "sib" }));
+        const gaps = [];
+        if (main) {
+            const before = n.others.filter((o) => o.before).sort((p, q) => p.r[S] - q.r[S]);
+            const all = n.others.slice().sort((p, q) => p.r[S] - q.r[S]);
+            for (let i = 1; i < all.length; i++) { const d = all[i].r[S] - (all[i - 1].r[S] + all[i - 1].r[Z]); if (d >= 0) gaps.push(Math.round(d)); }
+            const end = before.length ? Math.max(...before.map((o) => o.r[S] + o.r[Z])) : n.box[S];
+            const med = gaps.length ? gaps.sort((p, q) => p - q)[Math.floor(gaps.length / 2)] : 0;
+            [0, med].forEach((gp) => lines.push({ at: end + gp, e: "s", k: "gap", gap: gp }));
+        }
+        const T = reach || px(6);
+        let best = null, gap = null;
+        lines.forEach((c) => {
+            const d = c.at - (c.e === "s" ? start : c.e === "c" ? start + size / 2 : start + size);
+            if (Math.abs(d) > T) return;
+            if (c.k === "gap") { if (!gap || Math.abs(d) < Math.abs(gap.d)) gap = { ...c, d }; } else if (!best || Math.abs(d) < Math.abs(best.d)) best = { ...c, d };
+        });
+        return gap && (!best || Math.abs(gap.d) <= Math.abs(best.d) + px(4)) ? gap : best; // the spacing wins over an edge that is about as close
+    }
+
+    // A child of a row, column or grid let go somewhere else in it: the drop is a demonstration. The host fits the structure that puts
+    // everything where it now is (a 2-column grid, a column, ...); until it answers, the exact offset waits unconverted.
+    let flowPending = null;
+    function flowHint(g, items) {
+        const par = g.el.parentElement;
+        if (!par || !/flex|grid/.test(getComputedStyle(par).display)) return false;
+        const kids = kidsOf(par, null).filter(inFlow), i = kids.indexOf(g.el);
+        if (i < 0 || kids.length < 2 || kids.length > 12) return false;
+        flowPending = { items, el: g.el, timer: setTimeout(keepOffset, 800) };
+        post({ type: "layoutHint", flow: true, moved: i, current: layoutOf(par), container: pathOf(par), box: laneOf(par, null).box, kids: kids.map((k) => ({ path: pathOf(k), ...pageRect(k) })) });
+        return true;
+    }
+    // While a child is dragged freely in a row, column or grid: where the structure the drop would be read as puts it, asked of the host a
+    // few times a second and drawn as a box (the drop box) with a short name for the structure.
+    let probeAt = 0;
+    function probeFlow(g) {
+        const now = Date.now();
+        if (now - probeAt < 90) return;
+        probeAt = now;
+        const par = g.el.parentElement;
+        if (!par || !/flex|grid/.test(getComputedStyle(par).display)) return;
+        const kids = kidsOf(par, null).filter(inFlow), i = kids.indexOf(g.el);
+        if (i < 0 || kids.length < 2 || kids.length > 12) return;
+        post({ type: "layoutHint", flow: "probe", moved: i, current: layoutOf(par), container: pathOf(par), box: laneOf(par, null).box, kids: kids.map((k) => ({ path: pathOf(k), ...pageRect(k) })) });
+    }
+    function showProbe(m) {
+        const g = gesture;
+        if (!m.box || !g || g.type !== "reorder" || !g.free) { dropBox.style.display = "none"; dropHint.style.display = "none"; return; }
+        Object.assign(dropBox.style, { display: "block", left: `${m.box.x}px`, top: `${m.box.y}px`, width: `${m.box.w}px`, height: `${m.box.h}px`, borderRadius: "6px", opacity: "1" });
+        dropHint.textContent = m.label;
+        Object.assign(dropHint.style, { display: "block", left: `${m.box.x + m.box.w + 8}px`, top: `${m.box.y}px`, padding: "4px 7px" });
+    }
+    function keepOffset() {
+        if (!flowPending) return;
+        const f = flowPending; clearTimeout(f.timer); flowPending = null;
+        askConvert(f.items);
+    }
 
     // ── Dropping into another slot or container: the element takes on the spacing there ──────────────────
     // Margins and alignment that belonged to its old place are cleaned off, it gets the rhythm its new neighbours use (their
@@ -1120,7 +1577,13 @@ export function agentMain() {
     // centre or the end of a column it is centred or pushed there. Everything goes through the same pixels-to-classes step as a move.
     const inFlow = (k) => !isAbs(k) && getComputedStyle(k).display !== "none";
     const median = (a) => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : 0; };
-    function dropSmart(g, e, old, wasFirst, wasLast) {
+    /**
+     * A drop to another slot or box is a change of structure, for every size: the markup is one for all of them. So what it writes
+     * (the rhythm of the new neighbours) goes on every size, and what the old place gave the element comes off at every size and
+     * state too (`lg:mx-auto`, `md:mt-8`, `hover:...` included), not only the plain class. `reflow` is false for a drop that changes
+     * no place in the markup (let go in its own slot, aligned there): that one is for the device being edited.
+     */
+    function dropSmart(g, e, old, wasFirst, wasLast, reflow = true) {
         const el = g.el, par = el.parentElement;
         if (!par || el === document.body) return [];
         const plan = new Map(); // element -> { set: {prop: px | word}, clear: [class groups] }
@@ -1136,6 +1599,11 @@ export function agentMain() {
             if (v === 0 && has(k, new RegExp(`^${group}-`))) { const c = of(k).clear; if (!c.includes(group)) c.push(group); } else of(k).set[prop] = v;
         };
         const noMargins = (k, groups) => groups.forEach((gp) => { if (has(k, new RegExp(`^${gp}-(?!auto$)`)) && !of(k).clear.includes(gp)) of(k).clear.push(gp); });
+        // 0. the exact offset it was given in its old slot (relative + left/top) belongs to that slot, not to the new one
+        if (reflow && (moved || kidsOf(par, null).indexOf(el) !== (g.home0 ? g.home0.index : (g.ih ? g.ih.index : -1)))) {
+            const offs = ["left", "top", "right", "bottom", "inset"].filter((gp) => has(el, new RegExp(`^-?${gp}-`)));
+            if (offs.length) { const c = of(el).clear; offs.forEach((gp) => { if (!c.includes(gp)) c.push(gp); }); if (has(el, /^relative$/) && !c.includes("position")) c.push("position"); }
+        }
         // 1. alignment and auto margins only mean something in the layout they were made for
         if (moved && lay !== layoutOf(old)) {
             if (has(el, /^self-/)) of(el).clear.push("self");
@@ -1174,9 +1642,9 @@ export function agentMain() {
                 if (wasLast && median(cs.slice(0, -1).map((c) => f(c.marginBottom))) > 0) want(kids[kids.length - 1], "margin-bottom", 0);
             }
         }
-        // 5. an intent drag chose the alignment: it is written, and the alignment classes it replaces come off
-        if (g.intent && g.alignSet) {
-            const a = g.alignSet, set = new Set(), off = new Set();
+        // 4a. the ghost drag chose an alignment: it is written, and the alignment classes it replaces come off
+        if (g.leave && g.ialign) {
+            const a = g.ialign, set = new Set(), off = new Set();
             const GROUP = { "align-self": "self", "justify-self": "justifySelf", "margin-left": "ml", "margin-right": "mr", "margin-top": "mt" };
             Object.keys(a).forEach((p) => set.add(GROUP[p]));
             if (a["margin-left"] !== undefined && a["margin-left"] === a["margin-right"]) { set.add("mx"); off.add("ml"); off.add("mr"); } // written as mx-*
@@ -1184,264 +1652,348 @@ export function agentMain() {
             Object.assign(of(el).set, a);
             of(el).clear = [...new Set([...of(el).clear.filter((gp) => !set.has(gp)), ...[...off].filter((gp) => !set.has(gp) && has(el, new RegExp(`^${gp}-`)))])];
         }
+        // 4. dropped on the start, centre or end of a flex row or column (the guide said so): aligned there, not nudged
+        if (g.align && g.align.container === par && (lay === "flex row" || lay === "flex column")) {
+            const cross = g.align.cross, Z = cross === "x" ? "w" : "h", n = laneOf(par, el), r = pageRect(el);
+            const word = { start: "flex-start", centre: "center", end: "flex-end" }[g.align.k];
+            const goal = g.align.k === "start" ? n.box[cross] : g.align.k === "centre" ? n.box[cross] + (n.box[Z] - r[Z]) / 2 : n.box[cross] + n.box[Z] - r[Z];
+            // (a box its new row or column stretches is "there" at every line: the guide still meant its own size, placed there)
+            if (Math.abs(r[cross] - goal) > 1 || (g.rect && Math.abs(r[Z] - g.rect[Z]) > 1)) { // not there already
+                const was = inlineOf(el, ["align-self"]);
+                el.style.setProperty("align-self", word);
+                const r1 = pageRect(el), goal1 = g.align.k === "start" ? n.box[cross] : g.align.k === "centre" ? n.box[cross] + (n.box[Z] - r1[Z]) / 2 : n.box[cross] + n.box[Z] - r1[Z];
+                const ok = Math.abs(r1[cross] - goal1) <= 1.5;
+                if (was["align-self"]) el.style.setProperty("align-self", was["align-self"]); else el.style.removeProperty("align-self");
+                tidyStyle(el);
+                if (ok) of(el).set["align-self"] = word;
+            }
+        }
+        // ... and in the page flow, near the middle or the end: centred or pushed there with auto margins
+        if (!e.metaKey && lay === "page flow" && isFinite(g.sx)) {
+            const r = pageRect(el), n = laneOf(par, el);
+            if (r.w < n.box.w - 1) {
+                const at = g.rect.x + (e.clientX - g.sx), hit = containerLine(n, "x", at, r.w);
+                if (hit && (hit.k === "centre" || hit.k === "end")) {
+                    const props = hit.k === "centre" ? { "margin-left": "auto", "margin-right": "auto" } : { "margin-left": "auto" };
+                    const was = inlineOf(el, Object.keys(props));
+                    Object.entries(props).forEach(([k, v]) => el.style.setProperty(k, v));
+                    const ok = Math.abs(pageRect(el).x - (at + hit.d)) <= 2;
+                    Object.keys(props).forEach((k) => { if (was[k]) el.style.setProperty(k, was[k]); else el.style.removeProperty(k); });
+                    tidyStyle(el);
+                    if (ok) {
+                        Object.assign(of(el).set, props);
+                        of(el).clear = of(el).clear.filter((gp) => !["mx", "ml", "mr", "self"].includes(gp));
+                    }
+                }
+            }
+        }
+        // 6. a size taken from the box it was in (w-full, h-full, a fraction) means something else in another box: it keeps the size it
+        // had (an icon that filled a 16x24 holder does not collapse, or stretch, in the row it is dropped into)
+        if (moved && g.rect) {
+            const r = pageRect(el);
+            ["w", "h"].forEach((a) => { if (has(el, new RegExp(`^${a}-(full|\\d+\\/\\d+)$`)) && Math.abs(r[a] - g.rect[a]) > 2) of(el).set[a === "w" ? "width" : "height"] = g.rect[a]; });
+            if (plan.has(el) && (plan.get(el).set.width || plan.get(el).set.height) && /^(flex row|flex column)$/.test(lay) && /^(IMG|SVG|VIDEO|CANVAS|PICTURE)$/.test(el.tagName.toUpperCase())) of(el).set["flex-shrink"] = "0";
+        }
         const work = [];
         plan.forEach((p, k) => { const props = Object.keys(p.set); if (props.length || p.clear.length) work.push({ k, p, props, pre: sourcesOf(k, props) }); });
         work.forEach(({ k, p }) => Object.entries(p.set).forEach(([prop, v]) => k.style.setProperty(prop, typeof v === "number" ? `${Math.round(v)}px` : v)));
-        return work.map(({ k, p, props, pre }) => gestureItem(k, pre, props, p.clear));
+        return work.map(({ k, p, props, pre }) => { const it = gestureItem(k, pre, props, p.clear); if (reflow) it.structural = true; return it; });
     }
 
-    // ── Dragging in the layout: the hand is free, the code is clean ──────────────────────────────────────────────────
-    // A copy of the element (the ghost) follows the pointer anywhere, to the pixel. Meanwhile the editor keeps asking what the drag
-    // means in HTML: a short list of real edits (put it at another place among its siblings, into another box, aligned in its box,
-    // pushed to the end), each one tried on the live page and measured by the browser itself. The one that puts the element closest
-    // to the ghost, without needless classes, is shown: the element itself sits there (faded, outlined), its neighbours have made
-    // room, and a label says what it is. Letting go keeps exactly that. Tab tries the next option, Esc puts everything back.
-    // Nothing is a pixel offset; Alt-drag is the way to place an element freely (absolute).
-    const INTENT_PROPS = ["align-self", "justify-self", "margin-left", "margin-right", "margin-top", "margin-bottom"];
-    const landBox = mk(`position:absolute;display:none;pointer-events:none;box-sizing:border-box;background:rgba(59,130,246,.10);`);
-    overlay.append(landBox);
-    const ORD = (n) => n + (n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th");
-    const holdsTextOnly = (k) => !k.children.length && k.textContent.trim() !== "";
-    /** May the dragged element go into `c`? A box (div, section, li...), not the element itself or anything inside it, nor a box that only holds text. */
-    const accepts = (el, c) => c && c !== el && !el.contains(c) && c !== root && CONTAINERS.has(c.tagName.toLowerCase()) && !holdsTextOnly(c) && staysInGroup(el, c);
-    function intentStart(g) {
-        const el = g.el, par = el.parentElement;
-        const flow = kidsOf(par, null).filter(inFlow);
-        g.home = { parent: par, next: el.nextSibling, index: flow.indexOf(el), inl: inlineOf(el, INTENT_PROPS), opacity: el.style.getPropertyValue("opacity"), first: flow[0] === el, last: flow[flow.length - 1] === el };
-        g.pre = sourcesOf(el, INTENT_PROPS);
-        g.cache = new Map();
-        g.pick = 0;
-        g.rank = [];
-        g.shown = null;
-        const r = pageRect(el), cs = getComputedStyle(el);
-        g.rect = r;
-        // the ghost: a copy that keeps the element's look (its inherited text style too) and floats above the page
-        const ghost = el.cloneNode(true);
-        ghost.querySelectorAll("[contenteditable]").forEach((n) => n.removeAttribute("contenteditable"));
-        ["color", "font-family", "font-size", "font-weight", "font-style", "line-height", "letter-spacing", "text-align", "text-transform"].forEach((p) => ghost.style.setProperty(p, cs.getPropertyValue(p)));
-        Object.assign(ghost.style, { position: "absolute", left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px`, margin: "0", boxSizing: "border-box", pointerEvents: "none", opacity: "0.92", zIndex: "2", transformOrigin: "center", transform: "rotate(1.2deg)" });
-        ghost.style.setProperty("box-shadow", `0 ${px(14)}px ${px(34)}px rgba(0,0,0,.22), 0 0 0 ${px(1)}px rgba(0,0,0,.08)`);
-        overlay.appendChild(ghost);
-        g.ghost = ghost;
-        el.style.setProperty("opacity", "0.35"); // the element itself becomes the landing shadow
-    }
-    /** Put the element back exactly where it was, as it was. */
-    function intentHome(g) {
-        const el = g.el, h = g.home;
+    // ── Making room: the page shows the layout the drop will make ─────────────────────────────────────────────────
+    // While an element is dragged between slots it is put in the slot in the page itself (the DOM), so every box around it lays out as it
+    // will once it is let go (a card in a row that grows to fill it takes the new width, a wrapping row wraps anew, a grid re-flows),
+    // and each one that moved is animated from where it was (Web Animations on the `translate` property, which composes with the
+    // page's own transforms). The element itself keeps following the pointer, its `translate` made up from where its slot now is.
+    // Back at its own slot it goes home; Esc, or going on as the ghost drag, puts it home too. Nothing is written until the drop.
+    const room = { anims: [], slot: null };
+    const EASE = "cubic-bezier(.2,.8,.3,1)";
+    /** The element back in the DOM place it came from. */
+    function homeDom(g) {
+        const el = g.el, h = g.home0;
+        if (!h || el.parentElement === h.parent && el.nextSibling === h.next) return;
         if (h.next && h.next.parentElement === h.parent) h.parent.insertBefore(el, h.next); else h.parent.appendChild(el);
-        intentAlign(g, null);
     }
-    /** The element's own alignment values back as they were, then `align` ({ prop: value }) over them. */
-    function intentAlign(g, align) {
-        INTENT_PROPS.forEach((p) => { if (g.home.inl[p]) g.el.style.setProperty(p, g.home.inl[p]); else g.el.style.removeProperty(p); });
-        if (align) Object.entries(align).forEach(([p, v]) => g.el.style.setProperty(p, v));
+    function closeRoom() {
+        room.anims.forEach((an) => an.cancel());
+        room.anims = []; room.slot = null;
+        landBox.style.display = "none";
     }
-    /**
-     * In another box, the margins the element brought along go where the drop takes them off (dropSmart): a gap already spaces that
-     * box's children, so the preview shows it without them, as it will be.
-     */
-    function marginsFor(g, c) {
-        if (c === g.home.parent) return null;
-        const lay = layoutOf(c), cs = getComputedStyle(c), f = (v) => parseFloat(v) || 0, out = {};
-        if (lay !== "page flow" && lay !== "flex row" && f(cs.rowGap) > 0) Object.assign(out, { "margin-top": "0px", "margin-bottom": "0px" });
-        if (lay !== "page flow" && lay !== "flex column" && f(cs.columnGap) > 0) Object.assign(out, { "margin-left": "0px", "margin-right": "0px" });
-        return Object.keys(out).length ? out : null;
-    }
-    /** Put the element where a candidate says (the n-th in-flow child of `c`, aligned so). */
-    function intentApply(g, cand) {
-        const el = g.el, sibs = kidsOf(cand.c, el).filter(inFlow), ref = sibs[cand.i] || null;
-        if (ref) cand.c.insertBefore(el, ref);
-        else if (sibs.length) sibs[sibs.length - 1].after(el);
-        else cand.c.insertBefore(el, cand.c.firstChild);
-        const fix = marginsFor(g, cand.c);
-        intentAlign(g, fix || cand.align ? { ...(fix || {}), ...(cand.align || {}) } : null);
-    }
-    const candKey = (c) => `${pathOf(c.c).join(".")}|${c.i}|${c.align ? JSON.stringify(c.align) : ""}`;
-    /** Where the candidate really puts the element: tried on the page and measured (once: the page does not change while dragging). */
-    function intentMeasure(g, cand) {
-        const k = candKey(cand);
-        if (g.cache.has(k)) return g.cache.get(k);
-        intentApply(g, cand);
-        const r = pageRect(g.el);
-        // where it lands, seen from the neighbour it lands beside (or its box), as that neighbour stood before the drag: taking the
-        // element out of its old place shifts what comes after it, and that shift must not count against a place further down the page
-        const sibs = kidsOf(cand.c, g.el).filter(inFlow), anchor = sibs[cand.i - 1] || sibs[cand.i] || cand.c;
-        const a1 = pageRect(anchor), a0 = g.origAt.get(anchor) || a1;
-        const ecs = getComputedStyle(g.el);
-        const m = { x: r.x - a1.x + a0.x, y: r.y - a1.y + a0.y, w: r.w, h: r.h, real: r, ml: parseFloat(ecs.marginLeft) || 0, mt: parseFloat(ecs.marginTop) || 0 };
-        g.cache.set(k, m);
-        return m;
-    }
-    /** The alignments worth trying for an element in `c`: only ones that can move it (it is narrower than its room, the box lays out that way). */
-    function alignsFor(g, c) {
-        const lay = layoutOf(c), out = [];
-        if (lay === "flex row") out.push({ "align-self": "flex-start" }, { "align-self": "center" }, { "align-self": "flex-end" }, { "margin-left": "auto" });
-        else if (lay === "flex column") out.push({ "align-self": "flex-start" }, { "align-self": "center" }, { "align-self": "flex-end" }, { "margin-top": "auto" });
-        else if (lay === "grid") out.push({ "justify-self": "start" }, { "justify-self": "center" }, { "justify-self": "end" }, { "align-self": "start" }, { "align-self": "center" }, { "align-self": "end" });
-        else if (getComputedStyle(g.el).display.startsWith("block")) out.push({ "margin-left": "0px", "margin-right": "0px" }, { "margin-left": "auto", "margin-right": "auto" }, { "margin-left": "auto", "margin-right": "0px" });
-        return out;
-    }
-    /** The boxes the drop could go into: the one under the pointer, the one around it, and where the element came from. */
-    function intentBoxes(g, e) {
-        const hit = document.elementsFromPoint(e.clientX, e.clientY).find((n) => !isOverlay(n) && n !== root && !g.el.contains(n)) || document.body;
-        const out = [];
-        let c = hit;
-        while (c && c !== root && !accepts(g.el, c)) c = c.parentElement;
-        if (c && c !== root) { out.push(c); let up = c.parentElement; while (up && up !== root && !accepts(g.el, up)) up = up.parentElement; if (up && up !== root) out.push(up); }
-        if (!out.includes(g.home.parent)) out.push(g.home.parent);
-        return out.slice(0, 3);
-    }
-    /** The index among `c`'s in-flow children (without the element) nearest to the point: the slot before the nearest child, or after it. */
-    function nearestSlot(g, c, x, y) {
-        const sibs = kidsOf(c, g.el).filter(inFlow);
-        if (!sibs.length) return 0;
-        let best = 0, bd = Infinity;
-        sibs.forEach((k, i) => {
-            const r = pageRect(k), cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-            const d = Math.hypot(x < r.x ? r.x - x : x > r.x + r.w ? x - r.x - r.w : 0, y < r.y ? r.y - y : y > r.y + r.h ? y - r.y - r.h : 0);
-            const lay = layoutOf(c), horiz = lay === "flex row" || (lay === "grid" && y >= r.y && y <= r.y + r.h);
-            const after = horiz ? x > cx : y > cy;
-            if (d < bd) { bd = d; best = after ? i + 1 : i; }
-        });
-        return best;
-    }
-    /** Every candidate for this pointer position, measured and scored (lower is better), best first. */
-    function intentRank(g, e) {
-        const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
-        const gx = g.rect.x + dx + g.rect.w / 2, gy = g.rect.y + dy + g.rect.h / 2; // the ghost's centre, in the page
-        const px0 = e.clientX + window.scrollX, py0 = e.clientY + window.scrollY;
-        const score = (r, extra) => Math.hypot(r.x + r.w / 2 - gx, r.y + r.h / 2 - gy) + extra;
-        // What the pointer is over is read on the page as it was before the drag (the element at home), not on the preview: the
-        // preview moves things (a box below the element's old place moves up when it leaves), and reading that would change the preview again.
-        intentHome(g);
-        const places = intentBoxes(g, e).map((c) => ({ c, n: kidsOf(c, g.el).filter(inFlow).length, i0: nearestSlot(g, c, px0, py0) }));
-        // the page as it was, for the boxes and children that could be landed beside (see intentMeasure)
-        g.origAt = g.origAt || new Map();
-        places.forEach(({ c }) => [c, ...kidsOf(c, g.el).filter(inFlow)].forEach((k) => { if (!g.origAt.has(k)) g.origAt.set(k, pageRect(k)); }));
-        const all = [];
-        places.forEach(({ c, n, i0 }, depth) => {
-            // another box: only when it is clearly meant. A box not much bigger than the element (a card dropped on the card beside
-            // it) is almost never meant to hold it: it can still be chosen, but only when nothing else is near
-            const c0 = g.origAt.get(c) || pageRect(c);
-            const crowded = c !== g.home.parent && g.rect.w * g.rect.h > 0.4 * c0.w * c0.h;
-            const moved = c !== g.home.parent ? px(14) + (crowded ? px(160) : 0) : 0;
-            [i0 - 1, i0, i0 + 1].filter((i) => i >= 0 && i <= n).forEach((i) => {
-                const cand = { c, i, align: null };
-                cand.r = intentMeasure(g, cand);
-                // the slot the pointer is in (past a neighbour's middle is after it) is the one: distance only chooses between boxes and alignments
-                cand.s = score(cand.r, moved + depth * px(2)) + (i === i0 ? 0 : px(400)); // the neighbouring slots: there for Tab, never picked over the pointer's
-                all.push(cand);
-            });
-        });
-        all.sort((p, q) => p.s - q.s);
-        // alignments, for the best two places only (each is a layout to measure)
-        if (!e.metaKey) all.slice(0, 2).forEach((base) => {
-            alignsFor(g, base.c).forEach((align) => {
-                const cand = { c: base.c, i: base.i, align };
-                cand.r = intentMeasure(g, cand);
-                if ((align["margin-left"] === "auto" && align["margin-right"] !== "auto" && cand.r.ml < 1) || (align["margin-top"] === "auto" && cand.r.mt < 1)) return; // no room to push into: it would only drop a margin
-                if (Math.abs(cand.r.w - base.r.w) > 1 || Math.abs(cand.r.h - base.r.h) > 1) return; // an alignment moves the element, never resizes it (a stretched card stays full width)
-                if (Math.abs(cand.r.x - base.r.x) < 1 && Math.abs(cand.r.y - base.r.y) < 1 && Math.abs(cand.r.w - base.r.w) < 1 && Math.abs(cand.r.h - base.r.h) < 1) return; // changes nothing: the plain place says it
-                cand.s = score(cand.r, base.s - score(base.r, 0) + px(6) * Object.keys(align).length);
-                all.push(cand);
-            });
-        });
-        all.sort((p, q) => p.s - q.s);
-        // one per distinct result: two candidates that land in the same place are one option (the simpler one, found first)
-        const seen = new Set(), out = [];
-        all.forEach((c) => { const k = `${Math.round(c.r.x)},${Math.round(c.r.y)},${Math.round(c.r.w)},${Math.round(c.r.h)}|${c.c === g.home.parent ? "" : pathOf(c.c).join(".")}`; if (!seen.has(k)) { seen.add(k); out.push(c); } });
-        out.forEach((c) => { c.home = c.c === g.home.parent && c.i === g.home.index && !c.align; });
-        return out;
-    }
-    const ALIGN_WORDS = { "flex-start": "start", start: "start", center: "centred", "flex-end": "end", end: "end" };
-    function intentWords(g, c) {
-        if (c.home) return "Back where it was";
-        const lay = layoutOf(c.c), n = kidsOf(c.c, g.el).filter(inFlow).length + 1;
-        const kind = lay === "flex row" ? "Row" : lay === "flex column" ? "Column" : lay === "grid" ? "Grid" : "Stack";
-        const parts = [];
-        if (c.c !== g.home.parent) parts.push(`Into ${c.c === document.body ? "the page" : c.c.tagName.toLowerCase()}`);
-        parts.push(`${kind} · ${n === 1 ? "only item" : ORD(c.i + 1) + " of " + n}`);
-        if (c.align) {
-            const a = c.align;
-            if (a["margin-left"] === "auto" && a["margin-right"] === "auto") parts.push("centred");
-            else if (a["margin-left"] === "auto") parts.push(lay === "flex row" ? "pushed to the end" : "right");
-            else if (a["margin-top"] === "auto") parts.push("pushed to the bottom");
-            else if (a["margin-left"] === "0px") parts.push("left");
-            else if (a["justify-self"]) parts.push(`${ALIGN_WORDS[a["justify-self"]] === "centred" ? "centred" : ALIGN_WORDS[a["justify-self"]]} in its cell`);
-            else if (a["align-self"]) parts.push(lay === "flex row" || lay === "grid" ? { "flex-start": "top", start: "top", center: "middle", "flex-end": "bottom", end: "bottom" }[a["align-self"]] : { "flex-start": "left", center: "centred", "flex-end": "right" }[a["align-self"]]);
-        }
-        return parts.join(" · ");
-    }
-    /** Show a candidate: the element there (its neighbours make room), outlined, with what it means. */
-    function intentShow(g, c) {
-        intentApply(g, c);
-        g.shown = c;
-        const r = pageRect(g.el), cr = pageRect(c.c);
-        const one = px(1);
+    /** Where the element will land, outlined (as in the ghost drag): its slot in the layout, while it follows the pointer. */
+    function showLanding(g) {
+        const r = g.lay, one = px(1);
         Object.assign(landBox.style, { display: "block", left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
         landBox.style.setProperty("box-shadow", `inset 0 0 0 ${1.5 * one}px rgba(59,130,246,.9)`);
-        Object.assign(dropBox.style, { display: c.c === g.home.parent ? "none" : "block", left: `${cr.x}px`, top: `${cr.y}px`, width: `${cr.w}px`, height: `${cr.h}px` });
-        const more = g.rank.length > 1 ? "   Tab: other options" : "";
-        dropHint.textContent = intentWords(g, c) + more;
-        Object.assign(dropHint.style, { display: "block", transform: "", left: `${r.x}px`, top: `${Math.max(0, r.y - px(26))}px`, fontSize: `${px(11)}px`, padding: `${px(4)}px ${px(7)}px` });
-        // kept inside the page: near the right edge it goes left, so it is never cut off
-        const room = window.scrollX + document.documentElement.clientWidth - px(4), w = dropHint.offsetWidth;
-        if (r.x + w > room) dropHint.style.left = `${Math.max(window.scrollX + px(4), room - w)}px`;
-        // the drag is shown: the frame's own boxes are redrawn without the selection's handles
-        redraw();
     }
-    function intentGesture(g, e) {
-        g.last = e;
-        const dx = e.clientX - g.sx, dy = e.clientY - g.sy;
-        if (g.ghost) Object.assign(g.ghost.style, { left: `${g.rect.x + dx}px`, top: `${g.rect.y + dy}px` });
-        if (g.raf) return;
-        g.raf = requestAnimationFrame(() => {
-            g.raf = 0;
-            if (gesture !== g) return;
-            const ev = g.last;
-            const shown = g.shown;
-            g.rank = intentRank(g, ev);
-            g.pick = 0;
-            let best = g.rank[0];
-            // hold on to what is shown until something is clearly better: the preview must not flicker between two close options
-            const same = shown && g.rank.find((c) => candKey(c) === candKey(shown));
-            if (same && best && same !== best && same.s - best.s < px(8)) best = same;
-            if (best) intentShow(g, best);
+    /** Would dropping at `t` leave the element where it came from? (the element may be somewhere else in the DOM by now: the preview) */
+    function sameAsHome(g, t) {
+        const h = g.home0;
+        if (t.container !== h.parent) return false;
+        if (!t.ref) return true;
+        const others = kidsOf(h.parent, g.el), i = others.indexOf(t.ref);
+        return i >= 0 && (t.before ? i : i + 1) === h.index;
+    }
+    /** Put the element in the slot `t` says (or home, when `home`), and let the others find their new places. */
+    function liveRoom(g, t, home) {
+        const el = g.el, h = g.home0;
+        const slot = home ? { home: true } : { c: t.container, ref: t.ref || null, before: Boolean(t.before) };
+        const cur = room.slot;
+        if (cur && cur.home === slot.home && cur.c === slot.c && cur.ref === slot.ref && cur.before === slot.before) return;
+        if (!cur && home) { room.slot = slot; return; } // never left its slot
+        room.slot = slot;
+        // where everything around it is now, as it shows (animations under way included)
+        const around = new Set();
+        [el.parentElement, home ? h.parent : slot.c].forEach((c) => kidsOf(c, el).filter(inFlow).forEach((k) => around.add(k)));
+        const was = new Map([...around].map((k) => [k, pageRect(k)]));
+        room.anims.forEach((an) => an.cancel());
+        room.anims = [];
+        el.style.removeProperty("translate");
+        if (home) homeDom(g);
+        else if (slot.ref) { if (slot.before) slot.ref.before(el); else slot.ref.after(el); }
+        else slot.c.appendChild(el);
+        // the others as the layout puts them, and where the element's own slot is
+        was.forEach((r0, k) => {
+            const r1 = pageRect(k), dx = r0.x - r1.x, dy = r0.y - r1.y;
+            if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+            room.anims.push(k.animate([{ translate: `${dx}px ${dy}px` }, { translate: "0 0" }], { duration: 170, easing: EASE }));
         });
+        g.lay = pageRect(el);
     }
-    function intentCycle(g) {
-        if (!g.rank.length) return;
-        g.pick = (g.pick + 1) % Math.min(4, g.rank.length);
-        intentShow(g, g.rank[g.pick]);
+
+    // ── Free drag: the element follows the pointer to the pixel, and the drop is read as what it means ──────────────
+    // Over empty space inside its own box the real element moves (the `translate` property, nothing is written while dragging), and the
+    // drop is measured against what a layout can say: back in its slot, aligned to the start, centre or end of the box (self-*, or auto
+    // margins in the page flow), pushed to the end of the row or column (ml-auto), and only if none of those is near, an exact offset
+    // from its slot (relative + left/top). A guide and a label say what the drop will mean; within 6px it is pulled onto it (Cmd: never).
+    // Over another child it is a drag to a slot instead (below), and out of the box it moves to the box it lands in.
+    const FLOW_PROPS = ["position", "left", "top", "align-self", "margin-left", "margin-right", "margin-top"];
+    const sameRect = (p, q) => Math.abs(p.x - q.x) < 1 && Math.abs(p.y - q.y) < 1 && Math.abs(p.w - q.w) < 1 && Math.abs(p.h - q.h) < 1;
+    /** What the drop could mean on each axis, as the offset from its place that each would put the element at: slot, aligned, pushed. */
+    function intentsFor(g) {
+        const lane = g.lane, r0 = g.rect, lay = lane.lay, b = lane.box;
+        const row = lay === "flex row", col = lay === "flex column", blk = lay === "page flow";
+        const mainA = row ? "x" : col || blk ? "y" : null, crossA = row ? "y" : col || blk ? "x" : null;
+        const out = { x: [{ k: "slot", off: 0 }], y: [{ k: "slot", off: 0 }] };
+        if (crossA) {
+            const Z = crossA === "x" ? "w" : "h", free = b[Z] - r0[Z];
+            if (free >= 2) {
+                const word = { start: crossA === "x" ? "Left" : "Top", centre: "Center", end: crossA === "x" ? "Right" : "Bottom" };
+                [["start", 0], ["centre", free / 2], ["end", free]].forEach(([k, at]) => {
+                    if (blk && k === "start") return; // the page flow's own start needs no class
+                    out[crossA].push({ k, off: b[crossA] + at - r0[crossA], line: b[crossA] + (k === "start" ? 0 : k === "centre" ? b[Z] / 2 : b[Z]), word: `Align ${word[k].toLowerCase()}`, cross: true });
+                });
+            }
+        }
+        if (mainA && g.last) { const Z = mainA === "x" ? "w" : "h"; out[mainA].push({ k: "push", off: b[mainA] + b[Z] - r0[mainA] - r0[Z], line: b[mainA] + b[Z], word: "Push to end" }); }
+        return { out, mainA, crossA };
     }
-    function intentCleanup(g) {
-        if (g.raf) cancelAnimationFrame(g.raf);
-        if (g.ghost) g.ghost.remove();
-        landBox.style.display = "none";
-        if (g.home.opacity) g.el.style.setProperty("opacity", g.home.opacity); else g.el.style.removeProperty("opacity");
+    function freeMove(g, e, dx, dy) {
+        const el = g.el, { out, mainA, crossA } = intentsFor(g), chosen = {}, lines = [];
+        g.stick = g.stick || {};
+        ["x", "y"].forEach((a) => {
+            const d = a === "x" ? dx : dy;
+            if (e.metaKey || Math.abs(d) < 1) { g.stick[a] = null; if (Math.abs(d) < 1) chosen[a] = { k: "slot", off: 0 }; return; }
+            const reach = g.stick[a] ? px(10) : px(6);
+            let best = null;
+            out[a].forEach((c) => {
+                const dist = Math.abs(d - c.off);
+                if (dist > reach || (c.k !== "slot" && Math.abs(c.off) < 1)) return; // already there: that is the slot
+                if (!best || dist < best.dist - 0.01 || (g.stick[a] === c.k && dist <= best.dist + px(4))) best = { ...c, dist };
+            });
+            g.stick[a] = best ? best.k : null;
+            if (!best) return;
+            chosen[a] = best;
+            if (a === "x") dx = Math.round(best.off); else dy = Math.round(best.off);
+            if (best.line !== undefined) lines.push({ a: a === crossA && best.cross ? crossA : mainA, at: best.line, word: best.word });
+        });
+        g.fi = { dx, dy, chosen, mainA, crossA };
+        g.ghost = { x: g.rect.x + dx, y: g.rect.y + dy };
+        el.style.setProperty("translate", `${dx}px ${dy}px`);
+        // the guides, and a label that says what letting go will do
+        const b = g.lane.box;
+        lines.forEach((l) => {
+            guideLayer.appendChild(mk(l.a === "x"
+                ? `position:absolute;left:${l.at - px(0.5)}px;top:${b.y}px;width:${px(1)}px;height:${b.h}px;background:${RED};`
+                : `position:absolute;top:${l.at - px(0.5)}px;left:${b.x}px;height:${px(1)}px;width:${b.w}px;background:${RED};`));
+        });
+        // the distances to what is around it, as Figma shows them: to the nearest child on each side, or to the edge of the box
+        {
+            const r = pageRect(el), nb = neighbours(r, g.lane.others.map((o) => o.r)), bx = g.lane.box;
+            const across = (a0, a1) => mid(a0, a1, a0, a1);
+            const side = (s, near, edge) => {
+                if (near) { const gp = gapBetween(s, r, near); if (gp >= 1) return s === "left" ? ["x", near.x + near.w, r.x, mid(near.y, near.y + near.h, r.y, r.y + r.h)] : s === "right" ? ["x", r.x + r.w, near.x, mid(near.y, near.y + near.h, r.y, r.y + r.h)] : s === "up" ? ["y", near.y + near.h, r.y, mid(near.x, near.x + near.w, r.x, r.x + r.w)] : ["y", r.y + r.h, near.y, mid(near.x, near.x + near.w, r.x, r.x + r.w)]; return null; }
+                if (s === "left" && r.x - bx.x >= 1) return ["x", bx.x, r.x, across(r.y, r.y + r.h)];
+                if (s === "right" && bx.x + bx.w - (r.x + r.w) >= 1) return ["x", r.x + r.w, bx.x + bx.w, across(r.y, r.y + r.h)];
+                if (s === "up" && r.y - bx.y >= 1) return ["y", bx.y, r.y, across(r.x, r.x + r.w)];
+                if (s === "down" && bx.y + bx.h - (r.y + r.h) >= 1) return ["y", r.y + r.h, bx.y + bx.h, across(r.x, r.x + r.w)];
+                return null;
+            };
+            if (Math.abs(dx) >= 1 || Math.abs(dy) >= 1) ["left", "right", "up", "down"].forEach((s) => { const d = side(s, nb[s]); if (d) drawGap(...d); });
+        }
+        const parts = ["x", "y"].map((a) => chosen[a]).filter((c) => c && c.k !== "slot").map((c) => c.word);
+        const free = ["x", "y"].filter((a) => !chosen[a] && Math.abs(a === "x" ? dx : dy) >= 1);
+        if (free.length) parts.push(free.length === 2 ? `Offset ${Math.round(dx)}, ${Math.round(dy)}` : `Offset ${free[0]} ${Math.round(free[0] === "x" ? dx : dy)}`);
+        const r = pageRect(el);
+        dropHint.textContent = parts.length ? parts.join(" · ") : "Back in its slot";
+        Object.assign(dropHint.style, { display: "block", left: `${r.x}px`, top: `${Math.max(0, r.y - px(24))}px`, fontSize: `${px(11)}px`, padding: `${px(4)}px ${px(7)}px` });
+    }
+    /** The drop as classes: each axis is written as the intent that was near, checked by measuring, or else as an exact offset. */
+    function freeDrop(g) {
+        const el = g.el, { dx, dy, chosen, mainA, crossA } = g.fi, lane = g.lane, r0 = g.rect, lay = lane.lay;
+        const f = (v) => parseFloat(v) || 0, d = { x: dx, y: dy }, written = {};
+        const others = () => lane.others.every((o) => sameRect(pageRect(o.el), o.r));
+        const keep = inlineOf(el, FLOW_PROPS);
+        const tryProps = (props, axis, target) => { // apply them and measure: the element lands on the target and nothing else moves
+            const was = inlineOf(el, Object.keys(props));
+            Object.entries(props).forEach(([k, v]) => el.style.setProperty(k, v));
+            const ok = Math.abs(pageRect(el)[axis] - target) <= 1.5 && others();
+            if (!ok) Object.keys(props).forEach((k) => { if (was[k]) el.style.setProperty(k, was[k]); else el.style.removeProperty(k); });
+            return ok;
+        };
+        ["x", "y"].forEach((a) => {
+            const c = chosen[a];
+            if (!c || c.k === "slot") { if (c) written[a] = true; return; }
+            let props = null;
+            if (c.k === "push") props = { [a === "x" ? "margin-left" : "margin-top"]: "auto" };
+            else if (lay === "page flow") props = c.k === "centre" ? { "margin-left": "auto", "margin-right": "auto" } : { "margin-left": "auto" };
+            else props = { "align-self": { start: "flex-start", centre: "center", end: "flex-end" }[c.k] };
+            if (tryProps(props, a, r0[a] + d[a])) written[a] = true;
+        });
+        // what no intent was near (or failed its check) is an exact offset from its slot
+        const cs = getComputedStyle(el), rel = cs.position === "relative";
+        const move = ["x", "y"].filter((a) => !written[a] && Math.abs(d[a]) >= 1);
+        if (move.length) {
+            if (cs.position === "static") el.style.setProperty("position", "relative");
+            else if (!rel) return [];
+            move.forEach((a) => { const prop = a === "x" ? "left" : "top", was = rel ? f(cs[prop]) : 0, v = was + (g.metaDrop ? Math.round(d[a]) : onScale(d[a])); el.style.setProperty(prop, `${v}px`); });
+            if (!others()) { FLOW_PROPS.forEach((p) => { if (keep[p]) el.style.setProperty(p, keep[p]); else el.style.removeProperty(p); }); tidyStyle(el); return []; }
+        }
+        const props = FLOW_PROPS.filter((p) => el.style.getPropertyValue(p) !== keep[p]);
+        tidyStyle(el);
+        return props.length ? [gestureItem(el, g.pre, props)] : [];
+    }
+
+    /** Esc while dragging: everything back as it was, nothing written. */
+    function reorderCancel(g) {
+        if (g.leave) return intentCancel(g);
+        g.el.style.removeProperty("translate");
+        homeDom(g);
         tidyStyle(g.el);
-    }
-    function intentCancel(g) {
-        intentCleanup(g);
-        intentHome(g);
-        tidyStyle(g.el);
-        clearGuides();
+        closeRoom();
+        guideLayer.innerHTML = "";
+        [dropBox, dropHint, insertLine, ghostBox].forEach((b) => { b.style.display = "none"; });
+        dropBox.style.opacity = "";
         gesture = null;
         post({ type: "gesture", on: false });
         redraw();
     }
-    /** Letting go: keep what is shown, as classes. */
-    function intentDrop(g, e) {
+    /**
+     * One drag, two halves. In the box it came from (reorderGesture below) the element follows the pointer to the pixel, its
+     * neighbours slide apart, guides and distances show. Once the drop would go anywhere else than that box (targetAt), the drag goes
+     * on as the ghost drag (above): a copy follows the pointer, the element itself sits where the drop would put it. Back in its box
+     * it is the first again. Both ways every frame is read from the page as it was when the drag started, so neither moves a box
+     * out from under the pointer; a switch needs the other half to hold for 60ms (and 90ms since the last switch, looked at again by a timer if
+     * the pointer stops), so a pointer on the line between the two does not flicker.
+     */
+    function enterLeave(g) {
+        const el = g.el;
+        closeRoom();
+        el.style.removeProperty("translate"); tidyStyle(el);
+        homeDom(g); // the ghost drag starts from the page as it was
+        guideLayer.innerHTML = ""; insertLine.style.display = "none"; ghostBox.style.display = "none"; dropBox.style.opacity = "";
+        g.free = false; g.fi = null; g.align = null; g.align0 = null; g.target = null; g.same = false;
+        g.leave = true;
+        intentStart(g);
+        redraw();
+    }
+    function exitLeave(g) {
         intentCleanup(g);
-        const c = g.shown;
-        if (!c || c.home) { intentHome(g); tidyStyle(g.el); return redraw(); }
-        intentApply(g, c);
-        intentAlign(g, null); // the alignment is written below as a class, from what it was before (not as an inline style)
+        intentHome(g);
         tidyStyle(g.el);
-        setSelection([g.el]);
-        g.alignSet = c.align;
-        const items = dropSmart(g, e, g.home.parent, g.home.first, g.home.last);
-        return items.length ? askConvert(items) : changed();
+        dropBox.style.display = "none"; dropHint.style.display = "none";
+        g.leave = false; g.ishown = null;
+        redraw();
+    }
+    function reorderGesture(g, e) {
+        const el = g.el;
+        if (!g.lane) {
+            const par0 = el.parentElement, flow0 = kidsOf(par0, null).filter(inFlow);
+            g.lane = laneOf(par0, el); g.pre = sourcesOf(el, FLOW_PROPS); g.last = flow0.slice(-1)[0] === el;
+            g.home0 = { parent: par0, next: el.nextSibling, index: kidsOf(par0, null).indexOf(el), first: flow0[0] === el, last: g.last };
+            g.lay = g.rect;
+        }
+        // where a drop here goes, read on the page as it was when the drag started (see targetAt): what slides apart while dragging
+        // cannot move a box out from under the pointer
+        const cx = Math.min(Math.max(e.clientX, 1), document.documentElement.clientWidth - 2), cy = Math.min(Math.max(e.clientY, 1), innerHeight - 2);
+        const t = targetAt(g, cx, cy);
+        const par = g.geo.home, leaves = t.container !== par;
+        g.lastE = e;
+        if (leaves !== Boolean(g.leave)) {
+            const now = performance.now();
+            if (!g.flipSince) g.flipSince = now;
+            if (now - g.flipSince >= 60 && now - (g.switched || 0) > 90) { g.flipSince = 0; g.switched = now; clearTimeout(g.flipT); if (leaves) enterLeave(g); else exitLeave(g); }
+            else {
+                // not sure yet: look again shortly even if the pointer stops here
+                clearTimeout(g.flipT);
+                g.flipT = setTimeout(() => { if (gesture === g && g.lastE) reorderGesture(g, g.lastE); }, 70);
+                if (!g.leave) return; // about to leave: the picture is held for the moment it takes to be sure
+            }
+        } else { g.flipSince = 0; clearTimeout(g.flipT); }
+        if (g.leave) { intentGesture(g, e); return; }
+        dropBox.style.opacity = "";
+        guideLayer.innerHTML = "";
+        // an element in a group stays in it: a drop outside the group changes nothing (ungroup to take it out)
+        const held = !staysInGroup(g.el, t.container);
+        g.free = !held && Boolean(t.open); // over open space in its own box: placed freely
+        if (g.free) {
+            liveRoom(g, null, true); g.align = null; g.same = true; g.target = null; landBox.style.display = "none";
+            ghostBox.style.display = "none"; dropBox.style.display = "none"; insertLine.style.display = "none";
+            let dx = Math.round(e.clientX - g.sx), dy = Math.round(e.clientY - g.sy);
+            if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+            g.metaDrop = e.metaKey;
+            freeMove(g, e, dx, dy);
+            redraw();
+            if (!g.metaDrop) probeFlow(g);
+            return;
+        }
+        g.fi = null;
+        g.same = held || Boolean(t.stay) || sameAsHome(g, t);
+        g.target = t.ref || t.container;
+        g.pos = t.ref ? (t.before ? "before" : "after") : "inside";
+        // the box that follows the pointer, pulled onto the start, centre or end of a flex row or column when it comes near one
+        let gx = g.rect.x + (e.clientX - g.sx), gy = g.rect.y + (e.clientY - g.sy);
+        g.align = null;
+        const lc = layoutOf(t.container);
+        if (!held && !e.metaKey && (lc === "flex row" || lc === "flex column")) {
+            const cross = lc === "flex row" ? "y" : "x", Z = cross === "x" ? "w" : "h", n = laneOf(t.container, g.el);
+            if (n.box[Z] - g.rect[Z] >= 2) {
+                const hit = containerLine(n, cross, cross === "x" ? gx : gy, g.rect[Z], g.align0 ? px(10) : px(6));
+                g.align0 = hit && (hit.k === "start" || hit.k === "centre" || hit.k === "end") ? hit : null;
+                if (g.align0) {
+                    g.align = { k: g.align0.k, cross, container: t.container };
+                    if (cross === "x") gx += g.align0.d; else gy += g.align0.d;
+                    const word = { start: cross === "x" ? "Left" : "Top", centre: "Center", end: cross === "x" ? "Right" : "Bottom" }[g.align0.k];
+                    guideLayer.appendChild(mk(cross === "x"
+                        ? `position:absolute;left:${g.align0.at - px(0.5)}px;top:${n.box.y}px;width:${px(1)}px;height:${n.box.h}px;background:${RED};`
+                        : `position:absolute;top:${g.align0.at - px(0.5)}px;left:${n.box.x}px;height:${px(1)}px;width:${n.box.w}px;background:${RED};`));
+                    const lb = guideLayer.appendChild(mk(`position:absolute;${cross === "x" ? `left:${g.align0.at + px(4)}px;top:${n.box.y + n.box.h - px(4)}px;transform:translate(0,-100%)` : `left:${n.box.x + n.box.w - px(4)}px;top:${g.align0.at - px(3)}px;transform:translate(-100%,-100%)`};background:${RED};color:#fff;font:600 ${px(10)}px/1 system-ui,sans-serif;padding:${px(2)}px ${px(5)}px;border-radius:${px(3)}px;white-space:nowrap;`));
+                    lb.textContent = word;
+                }
+            } else g.align0 = null;
+        } else g.align0 = null;
+        g.ghost = { x: gx, y: gy };
+        ghostBox.style.display = "none";
+        liveRoom(g, t, g.same); // the page shows the layout the drop would make
+        el.style.setProperty("translate", `${gx - g.lay.x}px ${gy - g.lay.y}px`); // the real element follows the pointer
+        if (held) landBox.style.display = "none"; else showLanding(g); // and the place it will land is outlined
+        // the container it would land in
+        const cr = pageRect(held ? groupAround(g.el) : t.container); // held in a group: the group it stays in is outlined
+        Object.assign(dropBox.style, { display: "block", left: `${cr.x}px`, top: `${cr.y}px`, width: `${cr.w}px`, height: `${cr.h}px`, borderWidth: `${px(1.5)}px` });
+        const tag = t.container === document.body ? "page" : t.container.tagName.toLowerCase();
+        dropHint.textContent = held ? "In a group · ungroup to take it out" : g.same ? (g.align ? `Align ${g.align.k === "centre" ? "center" : g.align.k}` : "Same slot · Alt-drag to place freely") : `${t.ref ? "Insert in" : "Drop into"} ${tag} · ${layoutOf(t.container)}`;
+        Object.assign(dropHint.style, { display: "block", left: `${cr.x}px`, top: `${Math.max(0, cr.y - px(22))}px`, fontSize: `${px(11)}px`, padding: `${px(4)}px ${px(7)}px` });
+        redraw();
+        insertLine.style.display = "none"; // the layout shows the slot: the gap it leaves is the marker
     }
 
     function resizeGesture(g, e) {
@@ -1633,7 +2185,7 @@ export function agentMain() {
             const x0 = Math.min(g.sx, e.clientX) + window.scrollX, y0 = Math.min(g.sy, e.clientY) + window.scrollY;
             Object.assign(draftBox.style, { display: "block", left: `${x0}px`, top: `${y0}px`, width: `${Math.abs(e.clientX - g.sx)}px`, height: `${Math.abs(e.clientY - g.sy)}px` });
         } else if (g.type === "move") { moveGesture(g, e); redraw(); }
-        else if (g.type === "intent") { if (!g.ghost) intentStart(g); intentGesture(g, e); }
+        else if (g.type === "reorder") reorderGesture(g, e);
         else if (g.type === "gap") gapGesture(g, e);
         else if (g.type === "resize") { resizeGesture(g, e); if (g.guide) showGuides(g.guide.box, g.targets, g.guide.keysX, g.guide.keysY, false, g.guide.want); else guideLayer.innerHTML = ""; redraw(); }
         else if (g.type === "rotate") { rotateGesture(g, e); redraw(); }
@@ -1679,7 +2231,31 @@ export function agentMain() {
             else if (!g.shift) post({ type: "frameClick" }); // a click on the empty part of the design: the frame itself
             return;
         }
-        if (g.type === "intent") return g.moved && g.ghost ? intentDrop(g, e) : undefined;
+        if (g.type === "reorder" && g.moved && g.leave) return intentDrop(g, e); // out of its box: the ghost drag's drop
+        if (g.type === "reorder") { g.el.style.removeProperty("translate"); tidyStyle(g.el); dropBox.style.opacity = ""; closeRoom(); dropHint.style.display = "none"; }
+        if (g.type === "reorder" && g.moved && g.free && g.fi) {
+            const items = freeDrop(g);
+            guideLayer.innerHTML = "";
+            if (items.length && !g.metaDrop && items.some((i) => i.values.left !== undefined || i.values.top !== undefined) && flowHint(g, items)) return redraw();
+            if (items.length) return askConvert(items);
+            redraw(); return;
+        }
+        if (g.type === "reorder" && g.moved && g.same) {
+            // let go in its own slot: nothing moves, unless it was dropped on the start, centre or end of a flex box (then it is aligned there)
+            if (g.align) { const items = dropSmart(g, e, g.el.parentElement, false, false, false); if (items.length) return askConvert(items); }
+            redraw(); return;
+        }
+        if (g.type === "reorder" && g.moved && g.target) {
+            // (the preview has put it in its slot already; where it came from is what was kept at the start)
+            const was = g.home0.parent, wasFirst = g.home0.first, wasLast = g.home0.last;
+            if (g.pos === "before") g.target.before(g.el); else if (g.pos === "after") g.target.after(g.el); else g.target.appendChild(g.el);
+            setSelection([g.el]);
+            // it settles into its slot from where it was let go
+            // (the selection is drawn again once it has settled: until then its box is still on the way)
+            if (g.ghost) { const fin = pageRect(g.el); const an = g.el.animate([{ translate: `${g.ghost.x - fin.x}px ${g.ghost.y - fin.y}px` }, { translate: "0 0" }], { duration: 170, easing: EASE }); an.onfinish = an.oncancel = () => redraw(); }
+            const items = was ? dropSmart(g, e, was, wasFirst, wasLast) : [];
+            return items.length ? askConvert(items) : changed();
+        }
         if (g.type === "pan") return;
         if (g.type === "move" && g.freeOnMove) return post({ type: "selected", info: describe(primary()) }); // Alt-click: nothing freed
         if (g.moved && g.type === "move") { askConvert(g.items.map((i) => gestureItem(i.el, i.pre, g.freed ? FREE_PROPS : ["left", "top"]))); if (!g.freed && g.items.length === 1) layoutHint(g.container); return; }
@@ -2041,7 +2617,7 @@ export function agentMain() {
     // ── Keyboard ────────────────────────────────────────────────────────────────────────────
     document.addEventListener("keydown", (e) => {
         // while dragging in the layout: Tab tries the next option, Esc puts the element back
-        if (gesture && gesture.type === "intent" && gesture.ghost && (e.key === "Tab" || e.key === "Escape")) { e.preventDefault(); if (e.key === "Tab") intentCycle(gesture); else intentCancel(gesture); return; }
+        if (gesture && gesture.type === "reorder" && gesture.moved && (e.key === "Escape" || (e.key === "Tab" && gesture.leave))) { e.preventDefault(); if (e.key === "Tab") intentCycle(gesture); else reorderCancel(gesture); return; }
         // Ctrl/Cmd + = / - / 0 zoom the plane, never this frame's page
         if ((e.metaKey || e.ctrlKey) && !e.altKey && ["=", "+", "-", "_", "0"].includes(e.key)) { e.preventDefault(); post({ type: "zoomKey", key: e.key }); return; }
         if (editing) {
@@ -2275,9 +2851,11 @@ export function agentMain() {
         if (m.cmd === "cutSel") { copySelection(true); return; }
         if (m.cmd === "pasteSel") { pasteSelection(); return; }
         if (m.cmd === "nudgeSel") { nudge(m.dx || 0, m.dy || 0); return; }
-        if (m.cmd === "dragKey") { if (gesture && gesture.type === "intent" && gesture.ghost) { if (m.key === "Tab") intentCycle(gesture); else intentCancel(gesture); } return; }
+        if (m.cmd === "dragKey") { if (gesture && gesture.type === "reorder" && gesture.moved) { if (m.key === "Escape") reorderCancel(gesture); else if (m.key === "Tab" && gesture.leave) intentCycle(gesture); } return; }
         if (m.cmd === "applyGesture") { applyGesture(m); return; }
         if (m.cmd === "applyLayout") { applyLayout(m); return; }
+        if (m.cmd === "probeGhost") { showProbe(m); return; }
+        if (m.cmd === "keepOffset") { keepOffset(); return; }
         if (m.cmd === "freePosition") {
             const el = elAt(m.path);
             if (!el) return;

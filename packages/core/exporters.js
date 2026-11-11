@@ -1,4 +1,6 @@
 import { parseDocument } from "./split-sections.js";
+import { tailwindTag, toTailwindConfig } from "./config-file.js";
+import { themeHead, normalizeTheme, tailwindConfig } from "./theme.js";
 
 const VOID_TAGS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"]);
 
@@ -107,7 +109,7 @@ export function toSvelte(code) {
     return parts.join("\n\n") + "\n";
 }
 
-const TAILWIND_CDN = '<script src="https://cdn.tailwindcss.com"></script>';
+const TAILWIND_CDN_PLAIN = '<script src="https://cdn.tailwindcss.com"></script>';
 const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const mentionsTailwind = (list) => list.some((tag) => /\bsrc\s*=\s*["'][^"']*tailwind/i.test(tag));
 
@@ -115,8 +117,10 @@ const mentionsTailwind = (list) => list.some((tag) => /\bsrc\s*=\s*["'][^"']*tai
  * The component as a complete, openable .html file (doctype, head, Tailwind, its own CSS and JS),
  * like the file Claude Design exports. Full documents are kept as they are, only adding Tailwind if missing.
  */
-export function toStandaloneHtml(code, { title = "Page" } = {}) {
+export function toStandaloneHtml(code, { title = "Page", theme = null } = {}) {
     const src = String(code || "");
+    // with the project's theme the file carries its Tailwind setup (engine, plugins, config files, font), so it looks as it does in the editor
+    const TAILWIND_CDN = theme ? `${tailwindTag(theme)}\n${themeHead(theme)}` : TAILWIND_CDN_PLAIN;
     if (/<html[\s>]/i.test(src)) {
         if (/<script\b[^>]*\bsrc\s*=\s*["'][^"']*tailwind/i.test(src)) return src;
         if (/<\/head>/i.test(src)) return src.replace(/<\/head>/i, `${TAILWIND_CDN}\n</head>`);
@@ -141,16 +145,18 @@ ${d.scripts.join("\n")}
 `;
 }
 
-export const FORMATS = ["html", "standalone", "react", "vue", "svelte"];
+export const FORMATS = ["html", "standalone", "react", "vue", "svelte", "config"];
 
-export function exportComponent(code, format = "html", name = "Component") {
+/** `opts.theme`: the project's theme with the page's files (pageTheme), so a standalone page keeps its setup and `config` can hand over the files. */
+export function exportComponent(code, format = "html", name = "Component", opts = {}) {
     const safeName = String(name).replace(/[^a-zA-Z0-9]+(.)?/g, (_, c) => (c ? c.toUpperCase() : "")).replace(/^[^a-zA-Z]+/, "") || "Component";
     const cap = safeName[0].toUpperCase() + safeName.slice(1);
     switch (format) {
         case "react": return toReact(code, cap);
         case "vue": return toVue(code);
         case "svelte": return toSvelte(code);
-        case "standalone": return toStandaloneHtml(code, { title: name });
+        case "standalone": return toStandaloneHtml(code, { title: name, theme: opts.theme || null });
+        case "config": return toTailwindConfig(opts.theme ? normalizeTheme(opts.theme) : {}, opts.theme ? tailwindConfig(opts.theme).theme.extend : null);
         default: return code;
     }
 }

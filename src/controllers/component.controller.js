@@ -2,8 +2,11 @@ import mongoose from "mongoose";
 import FigmaSource from "../models/figmaSource.model.js";
 import { adoptDraftSource } from "../services/figma-update.service.js";
 import Component from "../models/component.model.js";
+import Project from "../models/project.model.js";
+import { pageTheme } from "@windcraft/core/theme.js";
 import { exportComponent, FORMATS } from "@windcraft/core/exporters.js";
 import { normalizeGroup } from "@windcraft/core/pages.js";
+import { cleanTw, hasTw } from "@windcraft/core/config-file.js";
 import { specOf } from "../services/design-spec.service.js";
 import { buildProfile, profileToMarkdown, enrichProfileWithAI } from "../services/profile.service.js";
 import { resolveProject } from "../services/project.service.js";
@@ -144,7 +147,7 @@ export const updateComponent = async (req, res) => {
             });
         }
 
-        const { title, category, description, htmlCode, isPublished, tags, note, useAsReference, project: projectRef, board, group } = req.body;
+        const { title, category, description, htmlCode, isPublished, tags, note, useAsReference, project: projectRef, board, group, twConfig } = req.body;
         let codeChanged = false;
         const kindWas = component.kind === 'page';
 
@@ -173,6 +176,7 @@ export const updateComponent = async (req, res) => {
             codeChanged = true;
         }
         if (group !== undefined) component.group = normalizeGroup(group);
+        if (twConfig !== undefined) { const tw = cleanTw(twConfig); component.twConfig = hasTw(tw) ? tw : null; } // the page's own config files, or null for none
         if (title) component.title = title;
         if (category) component.category = category;
         if (description) component.description = description;
@@ -287,10 +291,12 @@ export const exportComponentCode = async (req, res) => {
         if (!component || (!component.isPublished && !isOwner)) {
             return res.status(404).json({ success: false, message: 'Component not found' });
         }
+        const project = component.project ? await Project.findById(component.project).select("theme").lean() : null;
+        const theme = pageTheme(project && project.theme, component.twConfig); // the project's setup with this page's own config files: standalone pages keep it, `config` hands it over
         res.status(200).json({
             success: true,
             format,
-            code: format === "design" ? JSON.stringify(specOf(component), null, 2) : exportComponent(component.htmlCode, format, component.title),
+            code: format === "design" ? JSON.stringify(specOf(component), null, 2) : exportComponent(component.htmlCode, format, component.title, { theme }),
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

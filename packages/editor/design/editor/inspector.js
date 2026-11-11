@@ -6,6 +6,11 @@ import { checkTags } from "../code-view.js";
 import { groupOf, variantOf, twShown, hasScale, twValue, fromPx, tokenFor } from "../../../core/prop-tailwind.js";
 import { normalizeValue } from "../css-props.js";
 import { host } from "../host.js";
+import { pageTheme } from "../../../core/theme.js";
+import { TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
+import { requiresOf, kindOf, OFFICIAL, TEMPLATES, hasTw } from "../../../core/config-file.js";
+import { openConfig } from "./config-dialog.js";
+import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
 import { curWidth, fitTo, heightOfDoc, layout, positions, remeasureHeight, widthOf } from "./plane.js";
@@ -16,6 +21,8 @@ import { setPanel } from "./color-ui.js";
 import { elementRange } from "./code-panel.js";
 import { loadFrame } from "./docs.js";
 import { canvasLook, setCanvasLook } from "./canvas-mode.js";
+import { compileItems } from "../../../core/intent.js";
+import { offerScope, scopeMode } from "./scope-chip.js";
 
 // ── Inspector (the panel is components: see panel.js; what it shows, panel-model.js; its state, panel-state.js) ──
 export const insp = $("inspector");
@@ -23,7 +30,10 @@ export const insp = $("inspector");
 /** The selected page's own properties, for the panel. */
 function pageInfo() {
     const d = docs.get(S.curKey), p = positions()[S.curKey] || { x: 0, y: 0 };
-    return { name: data.title || "", group: data.group || "", w: widthOf(d), h: heightOfDoc(d), auto: !(d.board && d.board.h), empty: model.markup.trim() === "", x: Math.round(p.x), y: Math.round(p.y), version: data.version, isNew: S.isNew, project: data.project && data.project.name };
+    const pt = data.projectTheme || {}, engine = pt.engine === "4" ? "4" : "3";
+    const file = engine === "4" ? "" : pt.configJs || TEMPLATES["3"].text;
+    const tailwind = { engine, canManage: Boolean(host.saveProjectTheme && data.project), hasPage: hasTw(data.twConfig), plugins: [...new Set(requiresOf(file).filter((r) => kindOf(r.spec) !== "builtin").map((r) => OFFICIAL[r.spec] || r.spec))] };
+    return { tailwind, name: data.title || "", group: data.group || "", w: widthOf(d), h: heightOfDoc(d), auto: !(d.board && d.board.h), empty: model.markup.trim() === "", x: Math.round(p.x), y: Math.round(p.y), version: data.version, isNew: S.isNew, project: data.project && data.project.name };
 }
 /** A page panel field (name, size, position) typed by the user: applied if it makes sense, otherwise the panel shows the old value again. */
 function setPageField(key, text) {
@@ -77,6 +87,7 @@ const panelActions = {
     remove: () => { if (S.selected) cmd({ cmd: "remove", path: S.selected.path }); },
     setTag: (tag) => { if (S.selected) cmd({ cmd: "setTag", path: S.selected.path, tag }); },
     setTab: (tab) => panelStore.set({ tab }),
+    openConfig,
     closePanel: () => setPanel(false),
     // a breakpoint picked: the frame goes to its width, so what is edited is what is seen; All sizes leaves the frame as it is
     setBreakpoint: (bp) => { panelStore.set({ bp, all: bp === "" }); if (bp) setDevice(BREAKPOINT_WIDTH[bp]); },
@@ -90,7 +101,7 @@ const panelActions = {
         const n = Number(text);
         if (text.trim() === "" || !Number.isFinite(n)) return renderInspector(); // not a number: show the old value again
         const prop = { w: "width", h: "height", x: "left", y: "top" }[key];
-        if (prop) setProp(prop, `${Math.round(prop === "width" || prop === "height" ? Math.max(1, n) : n)}px`);
+        if (prop) setProp(prop, `${prop === "width" || prop === "height" ? Math.max(1, n) : Math.round(n)}px`);
         else cmd({ cmd: "setGeom", path: S.selected.path, [key]: n });
     },
     setProps: (props, value, group, clear) => { if (S.selected) setProps(props, value, group, clear); },
@@ -219,7 +230,6 @@ export const pickerClosed = (t) => { liveSession++; t.blur(); };
 // value where it is (md:p-6 stays md:), and anything new is a plain class for every size, as a frontend developer writes it.
 /** The variant picked in the panel ("md:hover:"), or "" for none. */
 const picked = () => (panelStore.get().bp || panelStore.get().st ? variant() : "");
-function newVariant() { return picked(); }
 /**
  * A multiple selection: the same class change goes to every element selected, in one undo step. `groups` are the class groups the
  * edit touched and `next` the primary element's classes after it (where the new class is read from). True when it handled the edit.
@@ -357,50 +367,17 @@ export function setProps(props, raw, group, clear = [], cssOverride, key) {
 export function convertGesture(items) {
     const blocked = items.find((it) => it.blocked);
     if (blocked) flashHint(`This element's ${blocked.blocked} is set by its flex layout. Use "Size it myself" in the panel to size it by hand.`);
-    send({ cmd: "applyGesture", items: items.map((it0) => {
-        // both halves of a gap, or the padding of both sides of an axis, equal: one class (gap-6, px-6), not two
-        let it = it0;
-        const pairs = [];
-        for (const [a, b, one] of [["column-gap", "row-gap", "gap"], ["padding-left", "padding-right", "padding-inline"], ["padding-top", "padding-bottom", "padding-block"], ["margin-left", "margin-right", "margin-inline"]]) {
-            // only when both halves came from one class (px-4, p-4, gap-4) or from none: separate pl-4 pr-4 would override a px-6 written over them
-            const pa = it.pre[a] || {}, pb = it.pre[b] || {}, sameSource = (pa.token || pa.source || "") === (pb.token || pb.source || "");
-            if (it.values[a] !== undefined && it.values[a] === it.values[b] && sameSource) {
-                const { [a]: va, [b]: vb, ...rest } = it.values;
-                it = { ...it, values: { ...rest, [one]: va }, pre: { ...it.pre, [one]: it.pre[a] || it.pre[b] } };
-                pairs.push([a, b, one]);
-            }
-        }
-        const tw = it.made || modeFor({ classes: it.classes }) === "tailwind";
-        let classes = it.classes;
-        const tokens = {};
-        Object.entries(it.values).forEach(([prop, value]) => {
-            const pre = it.pre[prop] || { source: "default" };
-            if (!it.made && (pre.source === "inline" || pre.source === "design")) return; // it was CSS: it stays CSS
-            if (!tw && pre.source !== "tailwind") return;
-            const cols = prop === "grid-template-columns" && /^repeat\((\d+),\s*minmax\(0px?,\s*1fr\)\)$/.exec(value); // grid-cols-3
-            const group = cols ? "gridCols" : groupOf(prop);
-            if (!group) return;
-            const tv = cols ? cols[1] : /^-?[\d.]+px$/.test(value) ? fromPx(group, Math.round(parseFloat(value))) : twValue(prop, value, false); // a size, or a word (flex, column, absolute)
-            if (tv === null) return;
-            const built = GROUPS[group].build(tv);
-            if (!GROUPS[group].re.test(built)) return;
-            // judged on the classes from before this gesture: a left-[..] written a moment ago must not make top an xl: class.
-            // A structural change (a box made a row or grid, its children taken into the flow) is for every size.
-            const vp = it.structural ? "" : (pre.source === "tailwind" && variantOf(pre.token)) || newVariant();
-            const next = setGroup(classes, group, tv, vp);
-            if (next === null) return;
-            classes = next;
-            tokens[prop] = vp + built;
-        });
-        // class groups the element's old place gave it (margins, alignment) come off
-        let cleared = false;
-        // (a structural change takes the group off at every size and state: md:left-4 as well as left-4)
-        const dropAll = (cls, group) => cls.split(/\s+/).filter(Boolean).filter((t) => !GROUPS[group].re.test(parseToken(t).base)).join(" ");
-        if (tw || it.made) (it.clear || []).forEach((group) => { const next = it.structural ? dropAll(classes, group) : setGroup(classes, group, "", ""); if (next !== null && next !== classes) { classes = next; cleared = true; } });
-        // the frame checks each property it changed against the class meant for it: both halves of a pair answer to the one class
-        pairs.forEach(([a, b, one]) => { if (tokens[one]) { tokens[a] = tokens[b] = tokens[one]; delete tokens[one]; } });
-        return { path: it.path, classes, tokens, cleared };
-    }) });
+    const out = compileGesture(items, scopeMode());
+    send({ cmd: "applyGesture", items: out.map(({ path, classes, tokens, cleared }) => ({ path, classes, tokens, cleared })) });
+    offerScope(items, out, compileGesture);
+}
+/**
+ * The gesture as classes for a scope (core/intent.js): written for the device being edited (Mobile plain, Tablet md:, Desktop lg:)
+ * unless a Screen chip or a state was picked in the panel, which says where. A bar over the canvas offers the other scopes.
+ */
+function compileGesture(items, mode) {
+    const ui = panelStore.get();
+    return compileItems(items, { tw: (it) => modeFor({ classes: it.classes }) === "tailwind", width: curWidth(), mode, picked: ui.bp, state: ui.st });
 }
 
 /** A flex child that grows to fill its row: stop flex from sizing it (flex-none, or flex: none in CSS), so a width or height set on it applies. */

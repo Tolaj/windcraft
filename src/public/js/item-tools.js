@@ -10,7 +10,7 @@ const codeEl = document.getElementById("libCode");
 const historyEl = document.getElementById("libHistory");
 const copyBtn = document.getElementById("libCopy");
 const tabsEl = document.getElementById("libTabs");
-const TABS = [["profile", "Profile"], ["design", "Design spec"], ["html", "HTML"], ["react", "React"], ["vue", "Vue"], ["svelte", "Svelte"], ["history", "History"]];
+const TABS = [["profile", "Profile"], ["design", "Design spec"], ["html", "HTML"], ["standalone", "Standalone page"], ["react", "React"], ["vue", "Vue"], ["svelte", "Svelte"], ["config", "Tailwind config"], ["history", "History"]];
 const cache = {};
 let current = null;
 

@@ -1,4 +1,5 @@
-import { parseComponentSource, buildPreviewDocument } from "../../playground/component-source.js";
+import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "../../playground/component-source.js";
+import { pageTheme } from "../../../core/theme.js";
 import { host } from "../host.js";
 import { normalizeGroup } from "../../../core/pages.js";
 import { GAP_X } from "../../../core/board-layout.js";
@@ -17,7 +18,7 @@ import { setCanvasOnly, setFramesSel } from "./canvas-mode.js";
 // ── Many designs on one plane ────────────────────────────────────────────────
 // One design is live (the iframe you edit). The others are previews in the same project; click one to switch to it.
 // Each design keeps its own history, so switching never loses edits. Save writes every changed design.
-const META_KEYS = ["id", "title", "version", "category", "description", "tags", "isPublished", "useAsReference", "project", "group"];
+const META_KEYS = ["id", "title", "version", "category", "description", "tags", "isPublished", "useAsReference", "project", "group", "twConfig"];
 const takeMeta = () => Object.fromEntries(META_KEYS.map((k) => [k, data[k]]));
 const applyMeta = (m) => META_KEYS.forEach((k) => { data[k] = m[k]; });
 
@@ -169,6 +170,7 @@ export function activate(key) {
     const next = docs.get(key);
     ensureLoaded(next);
     applyMeta(next.meta);
+    setPreviewTheme(pageTheme(data.projectTheme, data.twConfig)); // this page's own Tailwind config is on its canvas
     S.parsed = next.parsed;
     model.markup = next.markup;
     S.history = next.history;
@@ -483,7 +485,7 @@ export function init() {
         if (it.id === S.curKey) return;
         docs.set(it.id, {
             key: it.id, kind: it.kind, parent: it.parent, board: it.board, frameW: it.frameW || null, source: it.htmlCode, loaded: false, isNew: false, height: 0,
-            meta: { id: it.id, title: it.title, group: it.group || "", version: it.version, category: it.category, description: it.description, tags: it.tags, isPublished: it.isPublished, useAsReference: it.useAsReference !== false, project: data.project },
+            meta: { id: it.id, title: it.title, group: it.group || "", version: it.version, category: it.category, description: it.description, tags: it.tags, isPublished: it.isPublished, useAsReference: it.useAsReference !== false, project: data.project, twConfig: it.twConfig || "" },
         });
     });
     $("designs").addEventListener("click", (e) => {

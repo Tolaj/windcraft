@@ -47,6 +47,12 @@ export const appHost = {
         if (navigator.sendBeacon) navigator.sendBeacon(`/api/projects/${projectId}/layout`, new Blob([JSON.stringify({ positions })], { type: "application/json" }));
     },
     generate,
+    saveProjectTheme: async (id, theme) => {
+        const res = await fetch(`/api/projects/${id}`, { method: "PUT", headers: JSON_HEADERS, body: JSON.stringify({ theme }) });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.success) throw new Error(body.message || `Could not save the plugins (the server answered ${res.status})`);
+        return body.data.theme;
+    },
     projectUrl: (id) => `/projects/${id}`,
     previewUrl: ({ projectId, designId }) => `/prototype/${projectId}?page=${designId}`, // the prototype page (its own tab)
     showDesign: (id) => window.history.replaceState({}, "", id ? `/design/${id}` : "/design/new"),

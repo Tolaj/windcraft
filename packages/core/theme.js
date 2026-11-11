@@ -3,13 +3,19 @@
 //   gray     which of Tailwind's neutral palettes `gray-*` means in this project (slate, gray, zinc, neutral, stone)
 //   font     the sans font (a Google Fonts family, or "System")
 //   radius   how round corners are (none, sm, md, lg, xl): the rounded-* sizes follow it
-// tailwindConfig() is the object for `tailwind.config` (the play CDN, or a project's own tailwind.config.js); themeHead() is the HTML
-// a preview document needs for it (the config, the font link). Pure functions: nothing here touches a page or a database.
+//   engine   "3" (Tailwind 3.4 play CDN) or "4" (the v4 browser build)
+//   configJs the project's tailwind.config.js (engine 3), configCss its global.css (engine 4), lock what their packages resolved to (see config-file.js)
+//   page     not stored on the project: one page's own files { js, css, lock }, laid over the project's by pageTheme()
+// tailwindConfig() is the settings object the choices above make; themeHead() is the HTML a preview document needs for it and for the project's config file
+// (the config, the font link). Pure functions: nothing here touches a page or a database.
+
+import { cleanEngine, cleanFile, cleanLock, cleanTw, configHead3, css4Of, TEMPLATES } from "./config-file.js";
+import { themeCss4 } from "./theme-v4.js";
 
 export const GRAYS = ["slate", "gray", "zinc", "neutral", "stone"];
 export const RADII = ["none", "sm", "md", "lg", "xl"];
 export const SYSTEM_FONT = "System";
-export const DEFAULT_THEME = Object.freeze({ brand: "#4f46e5", gray: "slate", font: "Inter", radius: "md" });
+export const DEFAULT_THEME = Object.freeze({ brand: "#4f46e5", gray: "slate", font: "Inter", radius: "md", engine: "3", configJs: "", configCss: "", lock: {}, page: { js: "", css: "", lock: {} } });
 
 const STEPS = ["50", "100", "200", "300", "400", "500", "600", "700", "800", "900", "950"];
 const PALETTES = {
@@ -25,6 +31,9 @@ const SYSTEM_STACK = ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI",
 const HEX = /^#?([0-9a-f]{6})$/i;
 const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 ]{0,39}$/;
 
+/** The theme for one page: the project's theme with the page's own config files (the same kind as the project's) laid over it. */
+export const pageTheme = (theme, tw) => ({ ...normalizeTheme(theme), page: cleanTw(tw) });
+
 /** A theme from anything: every field checked, anything invalid replaced by the default. */
 export function normalizeTheme(input) {
     const t = input && typeof input === "object" ? input : {};
@@ -34,6 +43,11 @@ export function normalizeTheme(input) {
         gray: GRAYS.includes(t.gray) ? t.gray : DEFAULT_THEME.gray,
         font: typeof t.font === "string" && (t.font === SYSTEM_FONT || FONT_NAME.test(t.font.trim())) ? t.font.trim() : DEFAULT_THEME.font,
         radius: RADII.includes(t.radius) ? t.radius : DEFAULT_THEME.radius,
+        engine: cleanEngine(t.engine),
+        configJs: cleanFile(t.configJs),
+        configCss: cleanFile(t.configCss),
+        lock: cleanLock(t.lock),
+        page: cleanTw(t.page),
     };
 }
 
@@ -79,9 +93,13 @@ export const fontUrl = (theme) => {
     return f === SYSTEM_FONT ? null : `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f).replace(/%20/g, "+")}:wght@400;500;600;700&display=swap`;
 };
 
-/** What a preview document's <head> needs after the Tailwind script: the font and the config. */
+/** What a preview document's <head> needs after the Tailwind script: the font, the theme's settings and the project's config file. */
 export function themeHead(theme) {
-    const url = fontUrl(theme);
-    const config = JSON.stringify(tailwindConfig(theme)).replace(/</g, "\\u003c");
-    return `${url ? `<link rel="stylesheet" href="${url}">\n` : ""}<script data-wc-theme>tailwind.config = ${config};<\/script>`;
+    const url = fontUrl(theme), t = normalizeTheme(theme);
+    const link = url ? `<link rel="stylesheet" href="${url}">\n` : "";
+    if (t.engine === "4") { // the v4 browser build reads CSS, not a config object
+        const css = themeCss4(tailwindConfig(t).theme.extend, [css4Of(t.configCss || TEMPLATES["4"].text, t.lock), css4Of(t.page.css, t.page.lock)].join("\n")).css;
+        return `${link}<style type="text/tailwindcss" data-wc-theme>\n${css}\n</style>`;
+    }
+    return `${link}${configHead3(t, tailwindConfig(t))}`;
 }
