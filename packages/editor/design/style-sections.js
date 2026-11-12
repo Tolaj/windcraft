@@ -421,14 +421,15 @@ export function InteractionsSection({ s, actions }) {
         <${IconBtn} icon=${I.target} title=${picking ? "Cancel: click an element on the canvas" : "Pick it on the canvas"} onClick=${() => (picking ? stopPick() : pick((path) => onPick(path.join("."))))} /></div>`;
     const pathOf = (key) => (key === "" ? null : (targets.find((t) => t.key === key) || {}).path || null);
     const runSetup = () => {
-        const r = setup.kind === "tabs" ? actions.setupTabs(pathOf(setup.a)) : actions.setupModal(pathOf(setup.a), pathOf(setup.b || ""));
+        const r = setup.kind === "tabs" ? actions.setupTabs(pathOf(setup.a), setup.active || []) : actions.setupModal(pathOf(setup.a), pathOf(setup.b || ""));
         if (r && r.ok) setSetup(null); else setSetup({ ...setup, error: (r && r.message) || "Something went wrong." });
     };
     const setupCard = () => html`<div class="irule">
         <div class="frow"><b style="flex:1;font-size:11px">${setup.kind === "tabs" ? "Make tabs" : "Make a modal"}</b><${Remove} title="Cancel" onClick=${() => { stopPick(); setSetup(null); }} /></div>
-        ${setup.kind === "tabs" ? html`<p class="muted" style="margin:0">The ${s.kids} children of this element become the tabs. Choose the element that holds their panels: one panel for each tab, in the same order.</p>
-            ${elementField("Panels", "The element that holds the panels", setup.a || "", (t) => t.kids === s.kids, (v) => setSetup({ ...setup, a: v, error: "" }))}`
-        : html`<p class="muted" style="margin:0">This element opens the modal when it is clicked. The modal starts hidden.</p>
+        ${setup.kind === "tabs" ? html`<p class="muted" style="margin:0">The ${s.kids} children of this element become the tabs. Choose the element that holds their panels: one panel for each tab, in the same order. Optionally give the active tab a look, such as border-b-2 border-black.</p>
+            ${elementField("Panels", "The element that holds the panels", setup.a || "", (t) => t.kids === s.kids, (v) => setSetup({ ...setup, a: v, error: "" }))}
+            <${ClassChips} label="Active" title="How the tab you clicked looks (optional): these classes go on it, and come off the others. The first tab starts active." value=${setup.active || []} own=${[]} onChange=${(v) => setSetup({ ...setup, active: v })} />`
+        : html`<p class="muted" style="margin:0">This element opens the modal when it is clicked. The modal starts hidden, and closes on its close button or a click on its backdrop.</p>
             ${elementField("Modal", "The element that opens", setup.a || "", () => true, (v) => setSetup({ ...setup, a: v, error: "" }))}
             ${elementField("Close", "The button that closes it (optional)", setup.b || "", () => true, (v) => setSetup({ ...setup, b: v, error: "" }))}`}
         ${setup.error ? html`<p class="muted" style="margin:0;color:#b91c1c">${setup.error}</p>` : null}

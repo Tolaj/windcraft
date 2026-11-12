@@ -290,6 +290,9 @@ test("One-click setups: Make tabs writes the rules for every tab, and it works i
     await page.getByText("Tabs, from the children of this element").click();
     const panelsSel = page.locator(".irule select").first();
     await panelsSel.selectOption(await panelsSel.evaluate((s) => [...s.options].filter((o) => o.value).map((o) => o.value)[0]));
+    const activeBox = page.locator(".irule .cchip input").first(); // the look of the active tab
+    await activeBox.fill("font-bold");
+    await activeBox.press("Enter");
     await page.locator(".irule").getByText("Make tabs", { exact: true }).last().click();
     await page.waitForTimeout(900);
     await page.locator("#codeBtn").click();
@@ -311,6 +314,11 @@ test("One-click setups: Make tabs writes the rules for every tab, and it works i
     await page.waitForTimeout(500);
     assert.equal(await visible("Panel three"), true);
     assert.equal(await visible("Panel two"), false);
+    // the active tab takes the look, and the others lose it
+    const classOf = async (id) => (await live(id)).evaluate((i) => document.getElementById(i).className, id);
+    assert.match(await classOf("t3"), /font-bold/, "the clicked tab is active");
+    assert.doesNotMatch(await classOf("t2"), /font-bold/, "the one before it is not");
+    assert.doesNotMatch(await classOf("t1"), /font-bold/);
     await ctx.close();
 });
 
@@ -353,5 +361,16 @@ test("One-click setups: Make a modal opens from a button and closes from its clo
     await (await frameOf()).locator("#close").click();
     await page.waitForTimeout(400);
     assert.equal(await shown(), false, "the close button closes it");
+    await (await frameOf()).locator("#open").click();
+    await page.waitForTimeout(300);
+    assert.equal(await shown(), true);
+    await (await frameOf()).locator("#modal").click({ position: { x: 2, y: 2 } }); // its own backdrop, not what is inside
+    await page.waitForTimeout(300);
+    assert.equal(await shown(), false, "a click on the backdrop closes it");
+    await (await frameOf()).locator("#open").click();
+    await page.waitForTimeout(300);
+    await (await frameOf()).getByText("Hello modal").click(); // inside: stays open
+    await page.waitForTimeout(300);
+    assert.equal(await shown(), true, "a click on what is inside does not");
     await ctx.close();
 });
