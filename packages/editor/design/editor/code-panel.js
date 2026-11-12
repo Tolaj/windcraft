@@ -198,6 +198,7 @@ const copyFlash = (btn, msg) => { const was = btn.textContent; btn.textContent =
 /** Registers this part's listeners and does its first draw (called once, in order, by editor.js). */
 export function init() {
     $("codeBtn").addEventListener("click", () => setCodePanel(!codeOpen()));
+    document.addEventListener("wc-config-changed", () => { if (tab === "config" && codeOpen()) showConfigIn($("codeConfig")); }); // the page's file changed elsewhere (the Properties panel, the animation dialog)
     $("codeConfig").addEventListener("keydown", (e) => e.stopPropagation()); // typing in the config file is not an editor shortcut
     $("codeTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-ctab]"); if (b) setTab(b.dataset.ctab); });
     $("codeClose").addEventListener("click", () => setCodePanel(false));

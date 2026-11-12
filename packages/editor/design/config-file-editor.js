@@ -22,6 +22,7 @@ const STYLE = `.cfe-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace
 export function mountConfigFileEditor(el, opts, onApply) {
     if (!document.getElementById("cfe-style")) { const st = document.createElement("style"); st.id = "cfe-style"; st.textContent = STYLE; document.head.appendChild(st); }
     let { theme, tw, scopes = ["project"] } = opts;
+    const compact = Boolean(opts.compact); // one file, edited live: no file tabs, no result column, no Apply (it applies itself a moment after typing)
     let scope = opts.scope || scopes[0], engine = cleanEngine(theme.engine);
     const name = (sc, e) => (e === "4" ? "global.css" : "tailwind.config.js");
     const tmpl = (sc, e) => (sc === "page" ? PAGE_TEMPLATES[e] : TEMPLATES[e]).text;
@@ -41,6 +42,8 @@ export function mountConfigFileEditor(el, opts, onApply) {
             <div class="cfe-res flex min-w-0 flex-[2] flex-col border-l border-neutral-200 bg-neutral-50"><div class="border-b border-neutral-200 px-4 py-2.5"><p class="font-semibold text-neutral-900">Result</p><p class="mt-0.5 text-neutral-500" aria-live="polite" data-resnote></p></div><div class="min-h-0 flex-1 overflow-auto" data-res></div></div></div>
         <div class="flex items-center gap-3 border-t border-neutral-200 px-4 py-2.5"><span class="min-w-0 flex-1 truncate text-neutral-500" role="status" aria-live="polite" data-status></span><button type="button" data-reset class="text-neutral-500 underline hover:text-neutral-900">Reset this file</button><button type="button" data-apply class="h-8 rounded-md bg-black px-5 font-semibold text-white hover:bg-neutral-800">Apply</button></div></div>`;
     const q = (s) => el.querySelector(s), ta = q("[data-ta]");
+    if (compact) { ["[data-tabs]", ".cfe-res", "[data-apply]"].forEach((sel) => q(sel).classList.add("hidden")); q(".cfe-left").classList.add("flex-1"); }
+    let autoTimer = null, tried = "";
     const dirty = (sc) => texts[sc][engine] !== saved[sc][engine];
 
     function tabs() {
@@ -61,7 +64,7 @@ export function mountConfigFileEditor(el, opts, onApply) {
         q("[data-status]").textContent = status[scope];
         q("[data-apply]").textContent = busy ? "Checking…" : scope === "page" ? "Apply to this page" : "Apply to the project";
         const rows = diag[scope].map((d) => `<div class="flex gap-2 py-0.5"><span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full" style="background:${DOT[d.level]}"></span><span class="w-12 shrink-0 font-mono text-neutral-500">${d.line ? `line ${d.line}` : "file"}</span><span class="${d.level === "error" ? "text-red-800" : d.level === "warn" ? "text-amber-800" : "text-neutral-600"}">${esc(d.message)}</span></div>`).join("");
-        q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${scope === "page" ? "Only this page uses this file, on top of the project's. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>; Apply checks each package." : "Paste what a plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
+        q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${scope === "page" ? "Only this page uses this file, on top of the project's. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>; " + (compact ? "it is applied as you type, and each package is checked." : "Apply checks each package.") : "Paste what a plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
         gutter();
     }
     function load() { ta.value = texts[scope][engine]; draw(); live(); }
@@ -71,7 +74,7 @@ export function mountConfigFileEditor(el, opts, onApply) {
         const proj = { ...theme, engine, configJs: texts.project["3"], configCss: texts.project["4"], lock: locks.project };
         return normalizeTheme(scope === "page" ? { ...proj, page: { js: texts.page["3"], css: texts.page["4"], lock: locks.page } } : proj);
     };
-    function live(delay = 700) { clearTimeout(timer); const mine = ++seq; q("[data-resnote]").textContent = "Working it out…"; timer = setTimeout(() => showResult(mine), delay); }
+    function live(delay = 700) { if (compact) return; clearTimeout(timer); const mine = ++seq; q("[data-resnote]").textContent = "Working it out…"; timer = setTimeout(() => showResult(mine), delay); }
     async function showResult(mine) {
         const t = candidate();
         if (engine === "4") {
@@ -92,9 +95,10 @@ export function mountConfigFileEditor(el, opts, onApply) {
     }
 
     async function apply() {
-        if (busy) return;
+        if (busy) { if (compact) { clearTimeout(autoTimer); autoTimer = setTimeout(apply, 600); } return; } // typing goes on: try again when this one is done
         const sc = scope;
         texts[sc][engine] = ta.value;
+        tried = ta.value;
         busy = true; status[sc] = "Looking up packages…"; draw();
         try {
             const { lock, diagnostics } = await resolveFile({ engine, text: ta.value }, get);
@@ -122,13 +126,18 @@ export function mountConfigFileEditor(el, opts, onApply) {
         if (e.target.closest("[data-apply]")) return apply();
         if (e.target.closest("[data-reset]")) { if (!confirm(`Put ${name(scope, engine)} (${scope === "page" ? "this page" : "whole project"}) back to the blank template?`)) return; texts[scope][engine] = tmpl(scope, engine); diag[scope] = []; load(); }
     });
-    ta.addEventListener("input", () => { texts[scope][engine] = ta.value; diag[scope] = []; tabs(); gutter(); live(); });
+    ta.addEventListener("input", () => {
+        texts[scope][engine] = ta.value; diag[scope] = []; tabs(); gutter(); live();
+        if (compact) { status[scope] = "Applying…"; q("[data-status]").textContent = status[scope]; clearTimeout(autoTimer); autoTimer = setTimeout(apply, 900); }
+    });
     ta.addEventListener("scroll", () => { q("[data-gutter]").scrollTop = ta.scrollTop; });
     ta.addEventListener("keydown", (e) => { if (e.key === "Tab" && !e.shiftKey) { // Shift+Tab leaves the editor, so a keyboard user is never trapped in it
          e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); ta.dispatchEvent(new Event("input")); } if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); apply(); } });
     load();
     return {
         set(next) { theme = next.theme; tw = next.tw; if (next.scopes) scopes = next.scopes; engine = cleanEngine(theme.engine); texts = initial(); saved = initial(); locks = { project: theme.lock || {}, page: (tw && tw.lock) || {} }; diag = { project: [], page: [] }; status = { project: "", page: "" }; if (next.scope) scope = next.scope; if (!scopes.includes(scope)) scope = scopes[0]; load(); },
+        /** The page's file as it is in the editor now, as stored (the blank template is nothing): lets the Code panel tell its own save from a change made elsewhere. */
+        current() { const keep = (e) => (texts.page[e] === tmpl("page", e) ? "" : texts.page[e]); return { js: keep("3"), css: keep("4") }; },
         show(sc) { if (scopes.includes(sc) && sc !== scope) { texts[scope][engine] = ta.value; scope = sc; load(); } },
     };
 }

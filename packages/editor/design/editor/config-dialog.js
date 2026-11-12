@@ -44,16 +44,22 @@ export async function applyPage(patch, { reload = true } = {}) {
     setPreviewTheme(pageTheme(data.projectTheme, tw));
     if (reload) loadFrame();
     renderInspector();
+    document.dispatchEvent(new CustomEvent("wc-config-changed"));
     return { ok: true };
 }
 
-/** The same workspace inside the Code panel's Config tab: mounted into `el` the first time, and refreshed when the page or the project's theme changed since. */
-let panelEditor = null, panelSig = "";
-export function showConfigIn(el, which = "page") {
-    const next = { theme: data.projectTheme || {}, tw: data.twConfig, scopes: data.id ? ["page", "project"] : ["project"], scope: data.id ? which : "project" };
+/** This page's own Tailwind file inside the Code panel's Config tab: one file, edited live. It is mounted the first time; after that it takes a change made elsewhere
+ *  (the Properties panel, the animation dialog, another page) but leaves alone what it saved itself, so typing is never overwritten. */
+let panelEditor = null, panelSig = "", panelPage = null;
+export function showConfigIn(el) {
+    const next = { theme: data.projectTheme || {}, tw: data.twConfig, scopes: ["page"], scope: "page" };
     const sig = JSON.stringify([data.id, next.theme, next.tw]);
-    if (!panelEditor) { panelEditor = mountConfigFileEditor(el, next, (scope, patch) => (scope === "page" ? applyPage(patch) : applyProject(patch))); panelSig = sig; return; }
-    if (sig !== panelSig) { panelEditor.set(next); panelSig = sig; }
+    if (!panelEditor) { panelEditor = mountConfigFileEditor(el, { ...next, compact: true }, (scope, patch) => applyPage(patch)); panelSig = sig; panelPage = data.id; return; }
+    if (sig === panelSig) return;
+    const cur = panelEditor.current(), same = (next.tw && next.tw.js || "") === cur.js && (next.tw && next.tw.css || "") === cur.css;
+    panelSig = sig;
+    if (!same || panelPage !== data.id) panelEditor.set(next);
+    panelPage = data.id;
 }
 
 /** Opens the dialog on the "page" or "project" file. */
