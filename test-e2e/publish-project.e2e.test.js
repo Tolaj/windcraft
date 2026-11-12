@@ -36,6 +36,7 @@ test("Publish all frames: on publishes every frame, off makes them private, one 
     const box = page.locator("#details [data-publish-toggle]");
     await box.waitFor({ timeout: 30000 });
     assert.equal(await box.isChecked(), true, "the project page shows it on");
+    assert.ok((await page.locator("#fCat option").count()) > 1, "the category filter lists the categories the frames are in");
     await box.click();
     await page.waitForFunction(() => !document.querySelector("#details [data-publish-toggle]").checked, null, { timeout: 10000 });
     assert.ok(frames(await projectData(ctx)).every((f) => !f.isPublished), "off from the project page: all private");
