@@ -81,7 +81,7 @@ async function makeParts(userId, page) {
 // Create component
 export const createComponent = async (req, res) => {
     try {
-        const { title, category, description, htmlCode, tags, isPublished, useAsReference, project: projectRef, group, draftId } = req.body;
+        const { title, category, description, htmlCode, tags, isPublished, useAsReference, project: projectRef, group, draftId, kind: askedKind } = req.body;
         const project = await resolveProject(req.session.user.id, projectRef);
         if (!project) return res.status(400).json({ success: false, message: 'Choose a project: every design belongs to one' });
 
@@ -100,7 +100,7 @@ export const createComponent = async (req, res) => {
             tags: normalizeTags(tags),
             profile: buildProfile(htmlCode),
             project: project ? project._id : null,
-            kind: kindOfCategory(category), // the category decides: a page (the "Pages" group) or a component
+            kind: askedKind === "page" ? "page" : kindOfCategory(category), // a page made on the canvas says so (only one category is a "Pages" one); otherwise the category decides: a page (the "Pages" group) or a component
             group: project ? normalizeGroup(group) : "",
             isPublished: isPublished === true || isPublished === "true", // private until its owner turns Public on
             useAsReference: !(useAsReference === false || useAsReference === "false"), // AI may use it as a style reference unless the owner says no
@@ -166,7 +166,8 @@ export const updateComponent = async (req, res) => {
         }
 
         // the category decides what a design is (a section keeps being a section)
-        if (category && component.kind !== 'section') component.kind = kindOfCategory(category);
+        // (only when the category really changed: saving a page's details again with the category it already had must not turn it into a component)
+        if (category && component.kind !== 'section' && category !== component.category) component.kind = kindOfCategory(category);
 
         if (htmlCode && htmlCode !== component.htmlCode) {
             component.versions.push({ version: component.version, htmlCode: component.htmlCode, note: note || "" });

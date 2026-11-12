@@ -13,6 +13,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const freePort = () => new Promise((resolve) => { const s = net.createServer(); s.listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => resolve(port)); }); });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Waits for `p` (errors ignored), but never longer than `ms`: for closing things at the end of a test run. */
+export const within = (p, ms = 10000) => Promise.race([Promise.resolve(p).catch(() => {}), wait(ms)]);
 async function waitFor(fn, label, ms = 30000) { const t = Date.now(); while (Date.now() - t < ms) { try { if (await fn()) return; } catch { /* retry */ } await wait(250); } throw new Error(`Timed out waiting for ${label}`); }
 
 /** Why the tests can't run here, or "" when they can. */
@@ -36,7 +38,8 @@ export async function startStack() {
     await mongoose.connection.dropDatabase();
     const app = spawn("node", ["src/server.js"], { cwd: ROOT, env: { ...process.env, MONGO_URI: mongoUri, PORT: String(appPort), SESSION_SECRET: process.env.SESSION_SECRET || "e2e-secret" }, stdio: process.env.E2E_VERBOSE ? "inherit" : "ignore" });
     const base = `http://127.0.0.1:${appPort}`;
-    const cleanup = async () => { app.kill(); mongod.kill(); await mongoose.disconnect().catch(() => {}); await wait(300); rmSync(dir, { recursive: true, force: true }); };
+    // the connection closes first, while the database is still there, and nothing here may wait for ever (a hung clean-up once held a whole test file until its time limit)
+    const cleanup = async () => { await within(mongoose.disconnect()); app.kill(); mongod.kill(); await wait(300); try { rmSync(dir, { recursive: true, force: true }); } catch { /* a temp folder: the system clears it */ } };
     try { await waitFor(async () => (await fetch(`${base}/auth/sign-in`)).status < 500, "the app", 90000); }
     catch (e) { await cleanup(); throw e; } // never leave a database or a server running behind a failed start
     return {

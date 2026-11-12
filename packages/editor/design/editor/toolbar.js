@@ -34,6 +34,7 @@ async function persist(d) {
         const saved = await host.createComponent({
             ...body, title: m.title || "Untitled page", category: m.category || DEFAULT_CATEGORY, description: m.description || "A page on the canvas.",
             tags: (m.tags || []).join(","), isPublished: String(m.isPublished), useAsReference: m.useAsReference !== false, project: m.project ? m.project.id : "",
+            ...(d.kind === "page" ? { kind: "page" } : {}), // a page made on the canvas is a page (its category, "Application Components" by default, would make it a component, and Preview would leave it out)
             ...(S.draftKey && d.key === S.draftKey ? { draftId: data.draftId } : {}), // a draft from Figma: its Figma data moves to this page
         });
         m.id = saved._id;

@@ -2,7 +2,7 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
-import { missingPrerequisite, chromePath, startStack, seed } from "./helpers.js";
+import { missingPrerequisite, chromePath, startStack, seed, within } from "./helpers.js";
 
 const skip = missingPrerequisite();
 let stack, ids, browser;
@@ -12,7 +12,7 @@ before(async () => {
     ids = await seed();
     browser = await chromium.launch({ executablePath: chromePath(), headless: true });
 });
-after(async () => { if (skip) return; if (browser) await browser.close(); if (stack) await stack.stop(); });
+after(async () => { if (skip) return; if (browser) await within(browser.close()); if (stack) await within(stack.stop(), 20000); });
 
 const frameWith = async (page, id, ms = 20000) => { const t = Date.now(); while (Date.now() - t < ms) { for (const f of page.frames().filter((x) => x !== page.mainFrame())) { try { if (await f.evaluate((i) => Boolean(document.getElementById(i)), id)) return f; } catch { /* still loading */ } } await page.waitForTimeout(250); } throw new Error(`no frame with #${id}`); };
 /** Waits until `check` is true of the element in the canvas (the canvas reloads when the code changes, so the frame is found again each time). */
@@ -173,8 +173,9 @@ test("Interactions: a rule on the selected element (chosen from the list or pick
     const frame = await frameWith(page, "b");
     const box = await frame.locator("#b").boundingBox();
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await page.waitForFunction(() => document.querySelectorAll(".irule").length === 2, null, { timeout: 20000 });
-    assert.match(await page.locator("#codeMount .cm-content").textContent().then((t) => t), /data-wc-do="click toggle b;load hide b"/);
+    // (two cards are on screen while the second is still being made: wait for the rule itself to be in the code)
+    await page.waitForFunction(() => /data-wc-do="click toggle b;load hide b"/.test(document.querySelector("#codeMount .cm-content").textContent), null, { timeout: 20000 });
+    assert.match(await page.locator("#codeMount .cm-content").textContent(), /data-wc-do="click toggle b;load hide b"/);
     await page.locator("#saveBtn").click();
     await page.waitForFunction(() => /^Saved/.test(document.getElementById("saveState").textContent.trim()), null, { timeout: 15000 });
     // Interact: it starts hidden; clicking the first button shows it, and again hides it
