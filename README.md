@@ -72,7 +72,7 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
   <tr>
     <td valign="top">
       <img src="docs/media/layers.png" alt="Layers panel listing every element of the page" width="420">
-      <br><b>Layers and pages.</b> Every element in a tree, every page on one infinite canvas.
+      <br><b>Layers and pages.</b> Every element in a tree, every frame on one infinite canvas.
     </td>
     <td valign="top">
       <img src="docs/media/responsive.png" alt="The same page at mobile width, the cards stacked in one column" width="420">
@@ -92,6 +92,12 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
 **Work with the code**
 - A Properties panel where every field is a Tailwind class, edited at its source. Breakpoints `sm` to `2xl` and states (`hover`, `focus`). `16px` becomes `p-4`; an off-scale value becomes `rounded-[10px]`.
 - A live code panel: click an element and its code lights up; edit the HTML and the canvas follows. Paste HTML from anywhere.
+
+**Make it move and respond, with no JavaScript**
+- **Interactions.** Select an element and say what it does: *when* it is clicked, hovered or the frame loads, *do* show or hide, scroll to, copy text, change classes, or go to another frame. One-click **Tabs** and **Modal** set up the rules for you. A rule is one attribute on the element, so it stays readable in the code.
+- **Animations.** A library of presets, a keyframe editor, and triggers (on load, hover, focus, scrolled into view, click). Scroll-linked effects, text that arrives letter by letter, SVG line drawing. The keyframes go into your Tailwind config.
+- **Your Tailwind config.** Edit the project's `tailwind.config.js` (Tailwind 3) or `global.css` (Tailwind 4) right in the editor, with plugins, and it applies as you type.
+- **HTML, CSS, JS and Config in one panel.** Tabs in the code panel split the page into its markup, its own styles, its own scripts and its Tailwind config.
 
 **Bring things in**
 - **Figma:** a free plugin turns a selection into HTML and Tailwind on your computer, with no LLM, no network and no picture fallback. Auto Layout becomes flex. See [packages/figma](packages/figma/README.md).

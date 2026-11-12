@@ -1,7 +1,7 @@
 {
   "name": "nodejs_express_handlebars_boilerplate",
   "version": "1.0.0",
-  "description": "",
+  "description": "Windcraft: design in Tailwind, keep it as code. A visual editor where every click writes real Tailwind HTML.",
   "main": "src/server.js",
   "workspaces": [
     "packages/*"
@@ -19,7 +19,10 @@
     "build:npm": "node scripts/build-npm.mjs",
     "e2e": "node --test --test-concurrency=1 test-e2e/"
   },
-  "keywords": [],
+  "keywords": ["tailwindcss", "tailwind", "visual-editor", "design-tool", "no-code", "website-builder", "drag-and-drop", "html", "figma-plugin", "mcp", "claude", "open-source"],
+  "homepage": "https://windcraft.swapniljadhav.com/",
+  "repository": { "type": "git", "url": "git+https://github.com/Tolaj/windcraft.git" },
+  "bugs": { "url": "https://github.com/Tolaj/windcraft/issues" },
   "author": "Swapnil Jadhav",
   "license": "MIT",
   "type": "module",
