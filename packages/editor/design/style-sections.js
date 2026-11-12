@@ -385,7 +385,11 @@ export function InteractionsSection({ s, actions }) {
     const [picking, setPicking] = useState(false);
     const nameOf = (id) => { const t = targets.find((x) => x.id === id); return t ? (t.label ? `${t.tag} · ${t.label}` : t.tag) : `#${id} (not on this page)`; };
     const choose = (path) => actions.targetId(path);
-    const change = (i, patch) => actions.setRules(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+    const change = (i, patch) => {
+        // a rule switched to "Change classes" has no classes yet, and a rule with nothing to do is not stored: it becomes a rule being made (the old one stays until it is finished)
+        if (patch.do === "classes" && !rules[i].change) { setDraft({ when: rules[i].when, do: "classes", to: rules[i].to, parts: { add: [], remove: [], toggle: [] }, replace: i }); return; }
+        actions.setRules(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+    };
     const pick = (done) => { setPicking(true); actions.pickTarget((path) => { setPicking(false); if (path) done(path); }); };
     const stopPick = () => { setPicking(false); actions.cancelPick(); };
     const whenSel = (v, onChange) => html`<label class="nf src-tw" title="What starts it"><span class="nfl">When</span><select class="nfs wide" onChange=${(e) => onChange(e.target.value)}>${WHEN.map(([k, l]) => html`<option value=${k} selected=${k === v}>${l}</option>`)}</select></label>`;
@@ -403,19 +407,19 @@ export function InteractionsSection({ s, actions }) {
         html`<${ClassChips} label=${l} title=${t} value=${parts[k]} own=${k === "remove" || k === "toggle" ? ownOf(id) : []} onChange=${(v) => set({ ...parts, [k]: v })} />`)}`;
     return html`<${FSection} title="Interactions" extra=${html`<${IconBtn} icon=${I.plus} title="Add an interaction: when this is clicked, hovered or shown, do something to another element" onClick=${() => setDraft({ when: "click", do: "toggle" })} />`}>
         ${!rules.length && !draft ? html`<p class="muted" style="margin:0 0 4px">Make this do something when it is clicked or hovered: show or hide a menu, scroll to a section, copy some text. They run in Interact and Preview.</p>` : null}
-        ${rules.map((r, i) => html`<div class="irule">
+        ${rules.map((r, i) => (draft && draft.replace === i ? null : html`<div class="irule">
             <div class="frow">${whenSel(r.when, (v) => change(i, { when: v }))}<${Remove} title="Remove this interaction" onClick=${() => actions.setRules(rules.filter((_, j) => j !== i))} /></div>
             <div class="frow">${doSel(r.do, (v) => change(i, { do: v }))}<span class="ispace"></span></div>
             ${target(r.to, (path) => change(i, { to: choose(path) }))}
             ${r.do === "classes" ? classRows(r.to, changeParts(r.change), (parts) => { const next = changeFrom(parts); if (next.length) change(i, { change: next }); }) : null}
             ${!TARGET_LESS.has(r.do) && actions.setStart ? html`<label class="frow ichk" title="The element is hidden when the page opens, and this shows it"><input type="checkbox" checked=${Boolean(hasStart(r.to))} onChange=${(e) => actions.setStart(r.to, e.target.checked)} /> <span>${nameOf(r.to)} starts hidden</span></label>` : null}
-        </div>`)}
+        </div>`))}
         ${draft ? html`<div class="irule">
             <div class="frow">${whenSel(draft.when, (v) => setDraft({ ...draft, when: v }))}<${Remove} title="Cancel" onClick=${() => { stopPick(); setDraft(null); }} /></div>
             <div class="frow">${doSel(draft.do, (v) => setDraft({ ...draft, do: v }))}<span class="ispace"></span></div>
             ${target(draft.to || "", (path) => { const id = choose(path); if (draft.do === "classes") setDraft({ ...draft, to: id }); else { actions.setRules([...rules, { when: draft.when, do: draft.do, to: id }]); setDraft(null); } })}
             ${draft.do === "classes" && draft.to ? html`${classRows(draft.to, draft.parts || { add: [], remove: [], toggle: [] }, (parts) => setDraft({ ...draft, parts }))}
-                <div class="frow"><button type="button" class="nfb" onClick=${() => { const change = changeFrom(draft.parts || {}); if (change.length) { actions.setRules([...rules, { when: draft.when, do: "classes", to: draft.to, change }]); setDraft(null); } }}>Add this interaction</button></div>` : null}
+                <div class="frow"><button type="button" class="nfb" onClick=${() => { const change = changeFrom(draft.parts || {}); if (change.length) { const made = { when: draft.when, do: "classes", to: draft.to, change }; actions.setRules(draft.replace === undefined ? [...rules, made] : rules.map((r, j) => (j === draft.replace ? made : r))); setDraft(null); } }}>Add this interaction</button></div>` : null}
             <p class="muted" style="margin:2px 0 0">${draft.do === "classes" ? "Choose the element, then the classes to add, remove or toggle on it." : "Choose the element it acts on, or click ⌖ and then the element on the canvas."}</p>
         </div>` : null}
     </${FSection}>`;

@@ -190,7 +190,7 @@ test("Interactions: a rule on the selected element (chosen from the list or pick
 test("Interactions: Change classes rebuilds a drawer menu with no JavaScript written (open adds w-full and removes w-0, close does the reverse)", { skip: skip || false, timeout: 170000 }, async () => {
     const ctx = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
     await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
-    const html = '<div class="p-6"><button id="open" class="p-2 bg-black text-white">open</button><div id="menu" class="w-0 overflow-hidden"><a href="#">Home</a><button id="close" class="p-2 bg-black text-white">close</button></div></div>';
+    const html = '<div class="p-6"><button id="open" class="p-2 bg-black text-white">open</button><div id="menu" class="w-0 overflow-hidden"><a href="#">Home</a><button id="close" class="p-2 bg-black text-white">close</button></div></div><script>/*wc-interact*/(function(){/* an older copy of the script, from before Change classes: the page gets the current one */})();</script>';
     assert.equal((await ctx.request.put(`${stack.base}/api/components/${ids.effects}`, { data: { htmlCode: html } })).status(), 200);
     const page = await ctx.newPage();
     await page.goto(`${stack.base}/design/${ids.effects}`);
