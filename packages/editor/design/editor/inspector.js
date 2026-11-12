@@ -12,7 +12,7 @@ import { openConfig } from "./config-dialog.js";
 import { newAnimation, ensureEntries } from "./animation-dialog.js";
 import { REVEALS, EFFECT_ENTRIES, typewriterClasses } from "../../../core/text-effects.js";
 import { triggerPlan, WIRING, ATTRS, delayClass, hasMotionScript, MOTION_SCRIPT } from "../../../core/animation-triggers.js";
-import { ATTR as DO_ATTR, START_ATTR, INTERACT_SCRIPT, hasInteractScript, freshId, writeRules } from "../../../core/interactions.js";
+import { ATTR as DO_ATTR, START_ATTR, INTERACT_SCRIPT, hasInteractScript, freshId, writeRules, parseRules } from "../../../core/interactions.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
@@ -114,6 +114,12 @@ const panelActions = {
         const value = writeRules(rules);
         if (value) ensureInteractScript();
         cmd({ cmd: "setAttr", path: S.selected.path, name: DO_ATTR, value: value || null }, "interactions");
+        // "starts hidden" only makes sense for an element a rule shows or hides: when none does any more (the rule became Change classes, or was removed), the mark would
+        // hide it for good, with nothing to bring it back
+        const shown = new Set(), nodes = [], self = S.selected.path.join(".");
+        (function walk(n) { if (!n) return; nodes.push(n); (n.children || []).forEach(walk); })(S.tree);
+        nodes.forEach((n) => parseRules(n.path.join(".") === self ? value : n.rules).filter((r) => ["toggle", "show", "hide"].includes(r.do)).forEach((r) => shown.add(r.to)));
+        nodes.filter((n) => n.start && !shown.has((n.label || "").replace(/^#/, ""))).forEach((n) => cmd({ cmd: "setAttr", path: n.path, name: START_ATTR, value: null }, "interactions"));
     },
     setStart: (id, on) => {
         const all = [];

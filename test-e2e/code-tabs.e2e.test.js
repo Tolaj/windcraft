@@ -190,7 +190,7 @@ test("Interactions: a rule on the selected element (chosen from the list or pick
 test("Interactions: Change classes rebuilds a drawer menu with no JavaScript written (open adds w-full and removes w-0, close does the reverse)", { skip: skip || false, timeout: 170000 }, async () => {
     const ctx = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
     await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
-    const html = '<div class="p-6"><button id="open" class="p-2 bg-black text-white">open</button><div id="menu" class="w-0 overflow-hidden"><a href="#">Home</a><button id="close" class="p-2 bg-black text-white">close</button></div></div><script>/*wc-interact*/(function(){/* an older copy of the script, from before Change classes: the page gets the current one */})();</script>';
+    const html = '<div class="p-6"><button id="open" class="p-2 bg-black text-white">open</button><div id="menu" class="w-0 overflow-hidden" data-wc-start="hidden"><a href="#">Home</a><button id="close" class="p-2 bg-black text-white">close</button></div></div><script>/*wc-interact*/(function(){/* an older copy of the script, from before Change classes: the page gets the current one */})();</script>';
     assert.equal((await ctx.request.put(`${stack.base}/api/components/${ids.effects}`, { data: { htmlCode: html } })).status(), 200);
     const page = await ctx.newPage();
     await page.goto(`${stack.base}/design/${ids.effects}`);
@@ -222,6 +222,7 @@ test("Interactions: Change classes rebuilds a drawer menu with no JavaScript wri
     await page.waitForSelector("#codeMount .cm-content");
     const code = await page.locator("#codeMount .cm-content").textContent();
     assert.match(code, /data-wc-do="click classes menu \+w-full\|-w-0"/);
+    assert.doesNotMatch(code, /data-wc-start="hidden"/, "a leftover 'starts hidden' is cleared when no rule shows or hides the menu any more");
     assert.match(code, /data-wc-do="click classes menu \+w-0\|-w-full"/);
     await page.locator('[data-ctab="js"]').click();
     assert.equal((await page.locator("#codeMount .cm-content").textContent()).trim(), "", "no JavaScript was written");
@@ -229,7 +230,7 @@ test("Interactions: Change classes rebuilds a drawer menu with no JavaScript wri
     const classesOf = async () => { const f = await frameWith(page, "menu"); return f.evaluate(() => document.getElementById("menu").className); };
     await until(page, "menu", (i) => document.getElementById(i).classList.contains("w-0"), 12000);
     await (await frameWith(page, "open")).locator("#open").click();
-    await until(page, "menu", (i) => document.getElementById(i).classList.contains("w-full") && !document.getElementById(i).classList.contains("w-0"), 8000);
+    await until(page, "menu", (i) => document.getElementById(i).classList.contains("w-full") && !document.getElementById(i).classList.contains("w-0") && getComputedStyle(document.getElementById(i)).display !== "none", 8000);
     await (await frameWith(page, "close")).locator("#close").click();
     await until(page, "menu", (i) => document.getElementById(i).classList.contains("w-0") && !document.getElementById(i).classList.contains("w-full"), 8000);
     assert.match(await classesOf(), /overflow-hidden/, "its other classes are left alone");
