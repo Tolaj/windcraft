@@ -61,8 +61,8 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
 <table>
   <tr>
     <td valign="top" width="50%">
-      <img src="docs/media/interactions.png" alt="The Interactions panel: when the menu button is clicked, show or hide the navigation" width="420">
-      <br><b>Interactions, no JavaScript.</b> Say what a button does: show, hide, change classes, scroll, go to another frame. One-click Tabs and Modal.
+      <img src="docs/media/interactions.png" alt="A mobile frame with the menu button selected and an arrow to the navigation it controls" width="420">
+      <br><b>Interactions.</b> Pick a button and say what it does: show or hide something, change classes, scroll, go to another frame. The arrow shows what it acts on.
     </td>
     <td valign="top" width="50%">
       <img src="docs/media/animations.png" alt="The animation library: a grid of presets with a live preview and settings" width="420">
