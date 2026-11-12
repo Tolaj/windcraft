@@ -370,12 +370,13 @@ function classSuggestions(text, own, taken) {
 function ClassChips({ label, title, value, own, onChange }) {
     const [text, setText] = useState("");
     const add = (v) => { const c = String(v).trim().replace(/[,;|]+$/, ""); setText(""); if (c && !/[\s;|]/.test(c) && !value.includes(c)) onChange([...value, c]); };
-    const sug = text.trim() ? classSuggestions(text, own, value) : [];
+    const typed = text.trim().replace(/[,;|]+$/, "");
+    const sug = typed ? [...(/[\s;|]/.test(typed) || value.includes(typed) ? [] : [typed]), ...classSuggestions(text, own, value).filter((c) => c !== typed)] : [];
     return html`<div class="cchip" title=${title}><span class="nfl">${label}</span><div class="cbox">
         ${value.map((c) => html`<span class="chip">${c}<button type="button" aria-label=${`Remove ${c}`} onClick=${() => onChange(value.filter((x) => x !== c))}>×</button></span>`)}
         <input value=${text} placeholder=${value.length ? "" : "class name"} spellcheck="false" autocomplete="off" onInput=${(e) => setText(e.target.value)}
             onKeyDown=${(e) => { if (e.key === "Enter" || e.key === " " || e.key === ",") { e.preventDefault(); add(text); } else if (e.key === "Backspace" && !text && value.length) onChange(value.slice(0, -1)); }} onBlur=${() => add(text)} />
-        ${sug.length ? html`<div class="csug">${sug.map((c) => html`<button type="button" onMouseDown=${(e) => { e.preventDefault(); add(c); }}>${c}</button>`)}</div>` : null}</div></div>`;
+        ${sug.length ? html`<div class="csug">${sug.map((c, i) => html`<button type="button" class=${i === 0 && c === typed ? "typed" : ""} onMouseDown=${(e) => { e.preventDefault(); add(c); }}>${c}${i === 0 && c === typed ? html`<span class="ret">↵ add</span>` : null}</button>`)}</div>` : null}</div></div>`;
 }
 /** The page's interactions for the selected element. A rule reads like a sentence: When [Clicked] Do [Show or hide] On [an element]. The element is picked from a list of the page's layers, or by clicking it on the canvas. */
 export function InteractionsSection({ s, actions }) {
