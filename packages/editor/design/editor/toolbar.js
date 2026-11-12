@@ -4,7 +4,7 @@ import { $, S, data, send } from "./base.js";
 import { assembleDoc, loadFrame, step, updateChrome } from "./docs.js";
 import { pref } from "./color-ui.js";
 import { applyView, canvas, canvasSize, fitTo, handleWheel, layout, view, zoomAt } from "./plane.js";
-import { activate, anyDirty, boardPayload, clearSelection, docDirty, docs, loadActiveFromStash, pinBoard, remapKey, saveBoard, selectAllFrames } from "./designs.js";
+import { extrasOf, activate, anyDirty, boardPayload, clearSelection, docDirty, docs, loadActiveFromStash, pinBoard, remapKey, saveBoard, selectAllFrames } from "./designs.js";
 import { openDetails } from "./add-menu.js";
 import { closePreview, openPreview, previewOpen } from "./present.js";
 
@@ -50,6 +50,7 @@ async function persist(d) {
         m.version = saved.version;
     }
     d.savedMarkup = d.markup;
+    d.savedExtras = extrasOf(d.parsed);
 }
 
 export async function save() {

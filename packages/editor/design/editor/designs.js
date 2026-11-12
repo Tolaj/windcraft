@@ -44,10 +44,13 @@ function ensureLoaded(d) {
     d.history = [];
     d.hIndex = -1;
     d.savedMarkup = d.markup;
+    d.savedExtras = extrasOf(d.parsed);
     d.loaded = true;
 }
 
-export const docDirty = (d) => d.loaded && (d.isNew ? d.markup.trim() !== "" : d.markup !== d.savedMarkup);
+/** What is in a page besides its markup (its CSS, scripts, links, body attributes): changing it is a change to save too. */
+export const extrasOf = (p) => JSON.stringify([p.styles, p.scripts, p.links, p.bodyAttrs]);
+export const docDirty = (d) => d.loaded && (d.isNew ? d.markup.trim() !== "" : d.markup !== d.savedMarkup || (d.savedExtras !== undefined && extrasOf(d.parsed) !== d.savedExtras));
 export function anyDirty() {
     stashActive();
     return [...docs.values()].some(docDirty);
@@ -480,7 +483,7 @@ async function ensureProject() {
 /** Registers this part's listeners and does its first draw (called once, in order, by editor.js). */
 export function init() {
 
-    docs.set(S.curKey, { key: S.curKey, meta: takeMeta(), kind: data.kind || (data.project ? "page" : "component"), parent: data.parent || null, board: data.board || null, frameW: data.frameW || null, parsed: S.parsed, markup: model.markup, history: S.history, hIndex: S.hIndex, isNew: S.isNew, savedMarkup: S.savedMarkup, height: 0, loaded: true });
+    docs.set(S.curKey, { key: S.curKey, meta: takeMeta(), kind: data.kind || (data.project ? "page" : "component"), parent: data.parent || null, board: data.board || null, frameW: data.frameW || null, parsed: S.parsed, markup: model.markup, history: S.history, hIndex: S.hIndex, isNew: S.isNew, savedMarkup: S.savedMarkup, savedExtras: extrasOf(S.parsed), height: 0, loaded: true });
     (data.plane || []).forEach((it) => {
         if (it.id === S.curKey) return;
         docs.set(it.id, {

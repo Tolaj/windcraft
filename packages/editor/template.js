@@ -165,9 +165,14 @@ export const editorHtml = `<div class="flex h-full flex-col">
                         <div id="codePanel" class="relative hidden shrink-0 flex-col overflow-hidden border-t border-neutral-200 bg-white" style="height: 256px">
                                 <div id="codeResize" title="Drag to resize" class="absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize"></div>
                 <div
-                    class="flex h-8 shrink-0 items-center gap-2 overflow-hidden whitespace-nowrap border-b border-neutral-200 bg-neutral-50 px-3 text-[11px]">
-                    <span class="shrink-0 font-semibold uppercase tracking-wide text-neutral-500">Code</span>
-                    <span id="codeLines" class="min-w-0 truncate text-neutral-400"></span>
+                    class="flex h-9 shrink-0 items-stretch gap-2 overflow-hidden whitespace-nowrap border-b border-neutral-200 bg-neutral-50 px-3 text-[11px] [&>*]:self-center">
+                    <span class="shrink-0 font-semibold uppercase tracking-wide text-neutral-400">Code</span>
+                    <div id="codeTabs" role="tablist" class="flex h-full shrink-0 items-stretch gap-1 pl-3">
+                        <button type="button" role="tab" data-ctab="html" aria-selected="true" class="ctab is-on">HTML<span class="ck"></span></button>
+                        <button type="button" role="tab" data-ctab="css" aria-selected="false" class="ctab">CSS<span class="ck"></span></button>
+                        <button type="button" role="tab" data-ctab="js" aria-selected="false" class="ctab">JS<span class="ck"></span><i id="codeJsDot" class="hidden h-1.5 w-1.5 rounded-full bg-red-500" title="This script has an error"></i></button>
+                    </div>
+                    <span id="codeLines" class="sr-only"></span>
                     <button id="codeWarn" type="button" class="hidden min-w-0 truncate rounded px-1.5 py-0.5 text-left text-amber-700 hover:bg-amber-50" title="Go to the line"></button>
                     <span class="ml-auto flex shrink-0 items-center gap-1">
                         <button id="codeDock" type="button" class="flex h-6 w-6 items-center justify-center rounded text-neutral-600 hover:bg-neutral-200"></button>

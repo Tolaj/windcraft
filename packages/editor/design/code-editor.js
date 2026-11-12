@@ -219,18 +219,23 @@ export async function createCodeEditor(parent, { value = "", onChange, problems,
     }, { dark: false });
 
     const htmlSupport = cm.html({ matchClosingTags: true, autoCloseTags: true, selfClosingTags: true });
+    // what the text is: "html" (with its <style> and <script>), or "css" or "js" on their own (the Code panel's tabs)
+    const langBox = new cm.Compartment();
+    const languageFor = (l) => (l === "css" ? [cm.css()] : l === "js" ? [cm.javascript()] : [htmlSupport, htmlSupport.language.data.of({ autocomplete: classCompletion })]);
+    let lang = "html";
+    let problemsFn = problems;
     const extensions = [
         cm.lineNumbers(), cm.highlightActiveLineGutter(), cm.foldGutter({ markerDOM: foldMarker }), cm.history(), cm.drawSelection(), cm.dropCursor(),
         EditorState.allowMultipleSelections.of(true), cm.indentOnInput(), cm.indentUnit.of("  "), EditorState.tabSize.of(2),
         cm.bracketMatching(), cm.closeBrackets(), cm.rectangularSelection(), cm.crosshairCursor(), cm.highlightActiveLine(), cm.highlightSelectionMatches(),
-        cm.search({ top: true, createPanel: (view) => searchPanel(view, cm) }), cm.syntaxHighlighting(style), htmlSupport, htmlSupport.language.data.of({ autocomplete: classCompletion }),
+        cm.search({ top: true, createPanel: (view) => searchPanel(view, cm) }), cm.syntaxHighlighting(style), langBox.of(languageFor("html")),
         cm.autocompletion({ activateOnTyping: true, icons: false, maxRenderedOptions: 60 }),
         keymap.of([
             ...(onSave ? [{ key: "Mod-s", preventDefault: true, run: () => { onSave(); return true; } }] : []),
             { key: "Mod-/", run: cm.toggleComment }, ...cm.closeBracketsKeymap, ...cm.defaultKeymap, ...cm.searchKeymap, ...cm.historyKeymap,
             ...cm.foldKeymap, ...cm.completionKeymap, ...cm.lintKeymap, cm.indentWithTab,
         ]),
-        ...(problems ? [cm.linter((view) => problems(view.state.doc.toString()).map((p) => ({ from: p.from, to: p.to, severity: "error", message: p.message })), { delay: 350 })] : []),
+        cm.linter((view) => (problemsFn ? problemsFn(view.state.doc.toString()) : []).map((p) => ({ from: p.from, to: p.to, severity: "error", message: p.message })), { delay: 350 }),
         ...(wrap ? [EditorView.lineWrapping] : []),
         ...(placeholderText ? [cm.placeholder(placeholderText)] : []),
         marksField, theme,
@@ -244,7 +249,7 @@ export async function createCodeEditor(parent, { value = "", onChange, problems,
         let out;
         try {
             const { formatSource } = await import("../vendor/prettier.js");
-            out = await formatSource(text);
+            out = await formatSource(text, lang === "css" ? { parser: "css" } : lang === "js" ? { parser: "babel" } : {});
         } catch (err) {
             return { ok: false, changed: false, message: String(err && err.message ? err.message : err).split("\n")[0] };
         }
@@ -278,6 +283,8 @@ export async function createCodeEditor(parent, { value = "", onChange, problems,
             try { view.dispatch({ changes: { from: a, to: cur.length - b, insert: text.slice(a, text.length - b) } }); } finally { quiet--; }
         },
         format,
+        /** Switches what the text is ("html", "css" or "js") and which checker runs over it. */
+        setLanguage(l, check) { lang = l; problemsFn = check || null; view.dispatch({ effects: langBox.reconfigure(languageFor(l)) }); },
         focus: () => view.focus(),
         hasFocus: () => view.hasFocus,
         lineCount: () => view.state.doc.lines,
