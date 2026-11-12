@@ -69,6 +69,7 @@ The host is an object with these functions. The editor calls the first group, so
 | `showDesign(id)` and `openDesign(id)` | The address now shows this design, and go to another design | Required |
 | `generate(body, onText)` | The AI drafts a page and resolves to its HTML | No AI box or AI tab |
 | `saveProjectTheme(projectId, theme)` | Saves the project's theme and Tailwind config, and resolves to what was kept | The Tailwind config is shown but cannot be changed |
+| `saveProjectSettings(projectId, { autoParts })` | Saves whether the project makes the parts of a frame on its own, and resolves to what was kept | The "Auto-create parts" switch is not shown |
 | `projectUrl(projectId)` | Where a project's own page is | The project name is not a link |
 | `previewUrl({ projectId, designId })` | The prototype page for a saved design | Preview opens over the editor instead of in its own tab |
 | `updateFromFigma(id)` | Converts a design again from its Figma data | No such button |

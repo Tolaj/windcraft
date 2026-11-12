@@ -412,13 +412,17 @@ function renderOutline() {
     }).join("") || `<div class="p-3 text-neutral-500">${filterOn() ? "Nothing matches." : "No frames yet."}</div>`;
     dimBoard();
 }
+/** The "Auto-create parts" switch: in the Parts tab and in the project's details (any switch with data-parts-toggle changes the setting). */
+function partsToggleHtml(margin = "") {
+    return `<label class="${margin} flex cursor-pointer items-start gap-2 rounded-md border border-neutral-200 bg-white p-2 text-[11px] leading-4 text-neutral-600"><input data-parts-toggle type="checkbox" ${project.autoParts !== false ? "checked" : ""} class="mt-0.5 h-3.5 w-3.5 shrink-0 accent-black"><span><b class="text-neutral-900">Auto-create parts</b><br>Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.</span></label>`;
+}
 function renderComponents(saved, found) {
     const words = filter.q ? filter.q.split(/\s+/) : [];
     const match = (text) => words.every((w) => text.toLowerCase().includes(w));
     const mine = filter.kind ? [] : saved.filter((c) => match(`${c.title} ${c.description || ""} ${(c.tags || []).join(" ")}`));
     const row = (id, tag, name, from) => `<div class="layer-row cursor-pointer gap-1 px-1 ${id === selectedId ? "is-selected" : ""}" style="padding-left:6px" data-pick="${esc(id)}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${tag}</span><span class="truncate" title="${esc(name)}">${esc(name)}</span>${from ? `<span class="ml-auto max-w-[70px] shrink-0 truncate pl-2 text-[10px] text-neutral-400" title="from ${esc(from)}">${esc(from)}</span>` : ""}</div>`;
     const on = project.autoParts !== false;
-    const toggle = `<label class="m-2 flex cursor-pointer items-start gap-2 rounded-md border border-neutral-200 bg-white p-2 text-[11px] leading-4 text-neutral-600"><input id="partsToggle" type="checkbox" ${on ? "checked" : ""} class="mt-0.5 h-3.5 w-3.5 shrink-0 accent-black"><span><b class="text-neutral-900">Auto-create parts</b><br>Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.</span></label>`;
+    const toggle = partsToggleHtml("m-2");
     let html = mine.length ? `<div class="group-head">Saved parts</div>${mine.map((c) => row(c.id, "part", c.title, "")).join("")}` : "";
     KINDS.forEach(([k, name]) => {
         if (filter.kind && filter.kind !== k) return;
@@ -431,15 +435,15 @@ $("tabPages").addEventListener("click", () => { tab = "page"; renderFilters(); r
 $("tabComponents").addEventListener("click", () => { tab = "component"; renderFilters(); renderOutline(); });
 $("tabTheme").addEventListener("click", () => { tab = "theme"; renderOutline(); renderTheme(); });
 // Auto-create parts: on, the parts of every frame are made and listed; off, none are (nothing already made is deleted)
-$("outline").addEventListener("change", async (e) => {
-    if (e.target.id !== "partsToggle") return;
+document.addEventListener("change", async (e) => {
+    if (!e.target.matches || !e.target.matches("[data-parts-toggle]")) return;
     const on = e.target.checked;
     try {
         const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoParts: on }) });
         if (!res.ok) throw new Error("not saved");
         project.autoParts = on;
         extractCache.clear();
-        renderHeader(); renderFilters(); renderOutline();
+        renderHeader(); renderFilters(); renderOutline(); renderDetails();
         if (tab === "component") { buildFrames(); fitAll(); }
     } catch {
         e.target.checked = !on;
@@ -538,12 +542,14 @@ function renderDetails() {
     if (part) return renderPartDetails(part);
     const it = selectedId && byId(selectedId);
     if (!it) {
-        el.innerHTML = `<p class="font-semibold text-neutral-900">${esc(project.name)}</p>
+        el.innerHTML = `<label class="block text-neutral-500">Name</label>
+            <input id="nameInput" type="text" maxlength="80" class="fi" value="${esc(project.name)}" placeholder="Project name">
             <label class="mt-3 block text-neutral-500">Description</label>
             <textarea id="descInput" rows="2" class="fi area" placeholder="What is this project?">${esc(project.description)}</textarea>
             <label class="mt-3 block text-neutral-500">Brief for Claude and designers</label>
             <textarea id="briefInput" rows="7" class="fi area" placeholder="Brand, audience, tone, colors, navigation, rules. Claude reads this automatically when this is the active project.">${esc(project.brief || "")}</textarea>
             <button type="button" id="saveDesc" class="mt-2 h-7 w-full rounded-md border border-neutral-200 hover:bg-neutral-50">Save</button>
+            <div class="mt-3">${partsToggleHtml()}</div>
             <p class="mt-4 text-neutral-500">Click a frame to see its details. Drag frames to arrange them. Double-click a frame to open it in the editor.</p>`;
         return;
     }
@@ -645,10 +651,12 @@ document.addEventListener("click", async (e) => {
         dropItem(it);
     }
     if (e.target.id === "saveDesc") {
+        const name = $("nameInput").value.trim();
+        if (!name) { $("nameInput").focus(); return; }
         const description = $("descInput").value;
         const brief = $("briefInput").value;
-        const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ description, brief }) });
-        if ((await res.json()).success) { project.description = description; project.brief = brief; e.target.textContent = "Saved"; setTimeout(() => (e.target.textContent = "Save"), 1200); }
+        const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, description, brief }) });
+        if ((await res.json()).success) { project.name = name; project.description = description; project.brief = brief; renderHeader(); e.target.textContent = "Saved"; setTimeout(() => (e.target.textContent = "Save"), 1200); }
     }
 });
 

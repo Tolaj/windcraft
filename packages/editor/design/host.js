@@ -13,6 +13,7 @@
  * @property {(body: object, onText?: (text: string) => void) => Promise<string>} [generate]   the AI drafts a page; resolves to its HTML. Omit it and the editor shows no AI box or AI tab
  * @property {(id: string | null) => void} showDesign   the address now shows this saved design (null: an unsaved one)
  * @property {(projectId: string, theme: object) => Promise<object>} [saveProjectTheme]   saves the project's theme (its plugins live there) and resolves to the theme as kept; omit it and the plugins are shown but not changed
+ * @property {(projectId: string, patch: { autoParts?: boolean }) => Promise<{ autoParts?: boolean }>} [saveProjectSettings]   saves a setting of the project (autoParts: whether the parts of a frame are made on their own) and resolves to what was kept; omit it and the editor shows no such switch
  * @property {(projectId: string) => string} [projectUrl]   where a project's own page is (the project name links there); omit for none
  * @property {(where: { projectId: string, designId: string }) => string} [previewUrl]   the address of the prototype page for a saved design (the play button opens it in its own tab); omit it and Preview opens over the editor instead
  * @property {(id: string) => void} openDesign   go to this design (loads the page again)

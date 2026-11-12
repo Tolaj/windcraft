@@ -78,6 +78,16 @@ const panelActions = {
     // the canvas itself (nothing selected): its background, its dot grid, and every frame in view
     setCanvasBg: (bg) => setCanvasLook({ bg }),
     toggleDots: () => setCanvasLook({ dots: !canvasLook().dots }),
+    // the project's "Auto-create parts" switch (in the canvas panel, only where the app can save it)
+    setAutoParts: async (on) => {
+        partsMsg = "";
+        try {
+            const kept = await host.saveProjectSettings(data.project.id, { autoParts: on });
+            data.project.autoParts = kept && typeof kept.autoParts === "boolean" ? kept.autoParts : on;
+            partsMsg = on ? "On: parts are made when a frame is saved." : "Off: no parts are made.";
+        } catch (err) { partsMsg = (err && err.message) || "Could not save it."; }
+        renderInspector();
+    },
     fitAll: () => { S.viewTouched = true; fitTo([...docs.keys()]); },
     details: () => $("detailsBtn").click(),
     // the top of the Design tab (design-tab.js)
@@ -313,6 +323,7 @@ function idsFor(paths) {
 function ensureInteractScript() {
     if (S.parsed && !hasInteractScript(S.parsed.scripts)) S.parsed.scripts.push({ src: "", type: "", defer: false, text: INTERACT_SCRIPT });
 }
+let partsMsg = ""; // what the canvas panel says about the Auto-create parts switch after it is used
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
 export function renderInspector() {
     const ui = { ...panelStore.get(), frameW: curWidth() }; // the panel's state, and the frame's width (for the Screen chips)
@@ -320,7 +331,7 @@ export function renderInspector() {
     const elementCode = sel && ui.tab === "classes" ? sourceOf(sel.path) : null;
     const top = insp.scrollTop;
     if (S.canvasOnly) { // nothing selected: the canvas's own panel
-        renderPanel(insp, { canvas: { ...canvasLook(), frames: docs.size, picked: S.framesSel.length, project: data.project && data.project.name } }, panelActions, ui);
+        renderPanel(insp, { canvas: { ...canvasLook(), frames: docs.size, picked: S.framesSel.length, project: data.project && data.project.name, partsOn: data.project && host.saveProjectSettings ? data.project.autoParts !== false : null, partsMsg } }, panelActions, ui);
         insp.scrollTop = top;
         return;
     }

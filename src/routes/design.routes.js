@@ -19,7 +19,7 @@ const categoryGroups = () => {
 
 const safeJson = (obj) => JSON.stringify(obj).replace(/</g, "\\u003c").replace(/[\u2028\u2029]/g, "");
 
-const projectList = async (userId) => (await Project.find({ owner: userId }).select("name").sort("name").lean()).map((p) => ({ id: String(p._id), name: p.name }));
+const projectList = async (userId) => (await Project.find({ owner: userId }).select("name autoParts").sort("name").lean()).map((p) => ({ id: String(p._id), name: p.name, autoParts: p.autoParts !== false }));
 
 const boardOf = (c) => (c.board && Number.isFinite(c.board.x) && Number.isFinite(c.board.y)
     ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) }
@@ -42,7 +42,7 @@ router.get("/new", async (req, res) => {
     renderEditor(res, {
         id: null, draftId: draft ? String(draft._id) : null, frameW: draft && draft.width ? draft.width : null, // the frame opens at the width it has in Figma
          title: draft ? draft.title : "", version: 0, htmlCode: draft ? draft.html : "", category: "", description: "", tags: [], isPublished: false, useAsReference: true,
-        project: p ? { id: String(p._id), name: p.name } : null, projects: await projectList(req.session.user.id), theme: normalizeTheme(p && p.theme),
+        project: p ? { id: String(p._id), name: p.name, autoParts: p.autoParts !== false } : null, projects: await projectList(req.session.user.id), theme: normalizeTheme(p && p.theme),
         // "New component" from a project: the code opens below the design (the default), ready to write or paste into
         ...(req.query.kind === "component" ? { kind: "component", codeOpen: true } : {}),
     }, "New component");
