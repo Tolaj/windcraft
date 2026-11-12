@@ -127,3 +127,52 @@ test("the Config tab holds the project's Tailwind file, which applies by itself;
     assert.equal(await page.locator("#codeFormat").isVisible(), true);
     await ctx.close();
 });
+
+test("Add a behaviour: the selected element is filled in, the script goes into the JS tab, and it works in Interact", { skip: skip || false, timeout: 170000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    await page.waitForSelector("#codeBtn", { state: "attached" });
+    await page.waitForTimeout(3500);
+    // a first click selects the outer box
+    const frame = await frameWith(page, "a");
+    const box = await frame.locator("#a").boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(900);
+    await page.locator("#codeBtn").click();
+    await page.locator('[data-ctab="js"]').click();
+    assert.equal(await page.locator("#codeBehaviour").isVisible(), true, "the button is on the JS tab");
+    await page.locator('[data-ctab="css"]').click();
+    assert.equal(await page.locator("#codeBehaviour").isVisible(), false, "and only there");
+    await page.locator('[data-ctab="js"]').click();
+    await page.locator("#codeBehaviour").click();
+    assert.deepEqual(await page.locator('[role=menuitem] .font-medium').allTextContents(), ["Toggle menu", "Modal", "Tabs"]);
+    await page.locator('[role=menuitem][data-b="toggle-menu"]').click();
+    await page.waitForSelector("#behaviourDlg[open]");
+    assert.equal(await page.locator('#behaviourDlg [name="button"]').inputValue(), "#div-1", "the selected element (the page's outer box, which has no id) is filled in with an id it will get");
+    assert.match(await page.locator("#behaviourDlg").textContent(), /gets div-1/);
+    // an empty field is named, and nothing is added
+    await page.locator("#behaviourDlg [data-add]").click();
+    assert.match(await page.locator("#behaviourDlg [data-err]").textContent(), /Fill in: Menu/);
+    await page.locator('#behaviourDlg [name="menu"]').fill("#b");
+    await page.locator("#behaviourDlg [data-add]").click();
+    await page.waitForFunction(() => !document.getElementById("behaviourDlg").open);
+    const code = await page.locator("#codeMount .cm-content").textContent();
+    assert.match(code, /Toggle menu: #div-1 shows and hides #b/);
+    assert.match(code, /querySelector\("#b"\)/);
+    // the outer box got its id, in the markup
+    await page.locator('[data-ctab="html"]').click();
+    assert.match(await page.locator("#codeMount .cm-content").textContent(), /id="div-1"/);
+    // it runs in Interact
+    await page.waitForTimeout(900);
+    await page.locator('[data-tool="interact"]').first().click();
+    await until(page, "b", (i) => !document.getElementById(i).classList.contains("hidden"));
+    await page.waitForTimeout(500);
+    const live = await frameWith(page, "div-1");
+    await live.locator("#div-1").click({ position: { x: 3, y: 3 } });
+    await until(page, "b", (i) => document.getElementById(i).classList.contains("hidden"), 8000);
+    await (await frameWith(page, "div-1")).locator("#div-1").click({ position: { x: 3, y: 3 } });
+    await until(page, "b", (i) => !document.getElementById(i).classList.contains("hidden"), 8000);
+    await ctx.close();
+});

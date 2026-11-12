@@ -7,6 +7,8 @@ import { assembleDoc, commit, loadFrame } from "./docs.js";
 import { cssText, jsText, withCss, withJs, withOwnFrom, withoutOwn } from "../../../core/code-parts.js";
 import { layout } from "./plane.js";
 import { showConfigIn } from "./config-dialog.js";
+import { openBehaviourForm, openBehaviourMenu } from "./behaviour-dialog.js";
+import { appendScript } from "../../../core/behaviours.js";
 
 // ── Code panel (two-way with the canvas) ─────────────────────────────────────
 // The editor itself is design/code-editor.js (CodeMirror); this part keeps it and the canvas in step.
@@ -176,6 +178,7 @@ function setTab(next) {
     $("codeMount").classList.toggle("hidden", cfg);
     $("codeConfig").classList.toggle("hidden", !cfg);
     ["codeFind", "codeFormat", "codeCopy"].forEach((id) => $(id).classList.toggle("hidden", cfg)); // they act on the code editor
+    $("codeBehaviour").classList.toggle("hidden", tab !== "js"); // ready-made scripts are for the JS tab
     if (cfg) {
         const panel = $("codePanel");
         if (panel.style.height && panel.offsetHeight < 340 && panel.style.width === "") { panel.style.height = "340px"; layout(); } // room for the file and its result
@@ -199,6 +202,13 @@ const copyFlash = (btn, msg) => { const was = btn.textContent; btn.textContent =
 export function init() {
     $("codeBtn").addEventListener("click", () => setCodePanel(!codeOpen()));
     document.addEventListener("wc-config-changed", () => { if (tab === "config" && codeOpen()) showConfigIn($("codeConfig")); }); // the page's file changed elsewhere (the Properties panel, the animation dialog)
+    // Add a behaviour: pick one, say which elements it works on, and its script goes on the end of the page's JavaScript
+    $("codeBehaviour").addEventListener("click", (e) => openBehaviourMenu(e.currentTarget, (b) => openBehaviourForm(b, (text) => {
+        if (!ed || tab !== "js") return;
+        ed.setValue(appendScript(ed.getValue(), text));
+        applyCode();
+        ed.reveal(ed.getValue().length);
+    })));
     $("codeConfig").addEventListener("keydown", (e) => e.stopPropagation()); // typing in the config file is not an editor shortcut
     $("codeTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-ctab]"); if (b) setTab(b.dataset.ctab); });
     $("codeClose").addEventListener("click", () => setCodePanel(false));

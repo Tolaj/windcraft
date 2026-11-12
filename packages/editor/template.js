@@ -177,6 +177,7 @@ export const editorHtml = `<div class="flex h-full flex-col">
                     <button id="codeWarn" type="button" class="hidden min-w-0 truncate rounded px-1.5 py-0.5 text-left text-amber-700 hover:bg-amber-50" title="Go to the line"></button>
                     <span class="ml-auto flex shrink-0 items-center gap-1">
                         <button id="codeDock" type="button" class="flex h-6 w-6 items-center justify-center rounded text-neutral-600 hover:bg-neutral-200"></button>
+                        <button id="codeBehaviour" type="button" title="Add a ready-made script: toggle menu, modal, tabs" style="border:1px solid #d4d4d4;border-radius:4px;padding:1px 8px" class="hidden text-neutral-700 hover:text-neutral-900">Add a behaviour ▾</button>
                         <button id="codeFind" type="button" title="Find and replace (Ctrl/Cmd+F)" class="rounded px-2 py-0.5 text-neutral-600 hover:bg-neutral-200">Find</button>
                         <button id="codeFormat" type="button" title="Tidy the indentation (one undo step)" class="rounded px-2 py-0.5 text-neutral-600 hover:bg-neutral-200">Format</button>
                         <button id="codeCopy" type="button" title="Copy all the code" class="rounded px-2 py-0.5 text-neutral-600 hover:bg-neutral-200">Copy</button>
