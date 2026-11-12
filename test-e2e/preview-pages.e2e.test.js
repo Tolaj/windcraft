@@ -55,8 +55,16 @@ test("Preview plays whatever is placed on the canvas, and the details dialog has
     await page.waitForTimeout(3500);
     await page.evaluate(() => document.getElementById("detailsBtn").click());
     await page.waitForSelector("#dKind", { state: "visible" });
-    assert.equal(await page.locator("#dKind").inputValue(), "component", "it shows what the design is now");
-    await page.locator("#dKind").selectOption("page");
+    assert.equal(await page.locator("#dKind").getAttribute("data-value"), "component", "it shows what the design is now");
+    assert.equal(await page.locator("#dKind").getAttribute("aria-checked"), "false", "the switch is off for a component");
+    await page.locator("#dKind").click();
+    assert.equal(await page.locator("#dKind").getAttribute("data-value"), "page", "the switch turns it into a page");
+    assert.equal(await page.locator("#dKind").getAttribute("aria-checked"), "true");
+    // Visibility is a switch too: it follows what the design is, and flips
+    const vis = await page.locator("#dVis").getAttribute("aria-checked");
+    await page.locator("#dVis").click();
+    assert.notEqual(await page.locator("#dVis").getAttribute("aria-checked"), vis);
+    await page.locator("#dVis").click();
     await page.locator("#detailsSave").click();
     await page.waitForFunction(() => !document.querySelector("dialog[open]"), null, { timeout: 15000 });
     const kind = async () => (await (await ctx.request.get(`${stack.base}/api/components/${loose._id}`, { headers: { accept: "application/json" } })).json()).data?.kind;

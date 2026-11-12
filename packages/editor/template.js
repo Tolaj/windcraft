@@ -224,11 +224,8 @@ export const editorHtml = `<div class="flex h-full flex-col">
                     <option value="" disabled selected>Select a category</option>
                 </select>
             </div>
-            <div><label class="mb-1 block text-xs font-medium text-neutral-700" for="dKind">Type</label>
-                <select id="dKind" class="field" style="height:36px">
-                    <option value="page">Page: a screen of your project (Preview plays it)</option>
-                    <option value="component">Component: a reusable piece</option>
-                </select>
+            <div><label class="flex cursor-pointer items-center gap-2 text-xs font-medium text-neutral-700"><button id="dKind" type="button" role="switch" aria-checked="true" data-value="page" class="sw"><i></i></button><span id="dKindLabel">This is a page</span></label>
+                <p id="dKindHint" class="mt-1 text-[11px] text-neutral-500"></p>
             </div>
             <div><label class="mb-1 block text-xs font-medium text-neutral-700" for="dDesc">Description (optional)</label><textarea
                     id="dDesc" rows="3" class="field" style="font-family:inherit"
@@ -240,11 +237,8 @@ export const editorHtml = `<div class="flex h-full flex-col">
             <div><label class="mb-1 block text-xs font-medium text-neutral-700" for="dProject">Project</label>
                 <select id="dProject" class="field" style="height:36px" required></select>
             </div>
-            <div><label class="mb-1 block text-xs font-medium text-neutral-700" for="dVis">Visibility</label>
-                <select id="dVis" class="field" style="height:36px">
-                    <option value="true">Public in the gallery</option>
-                    <option value="false">Private (only me)</option>
-                </select>
+            <div><label class="flex cursor-pointer items-center gap-2 text-xs font-medium text-neutral-700"><button id="dVis" type="button" role="switch" aria-checked="false" data-value="false" class="sw"><i></i></button><span>Public in the gallery</span></label>
+                <p id="dVisHint" class="mt-1 text-[11px] text-neutral-500"></p>
             </div>
             <label class="flex cursor-pointer items-start gap-2 text-xs text-neutral-700"><input id="dRef" type="checkbox" checked class="mt-0.5 h-4 w-4 rounded border-neutral-300"><span><span class="font-medium">Use as AI reference</span><br><span class="text-neutral-500">AI tools may use this design as a style reference.</span></span></label>
             <p id="detailsError" class="hidden text-xs text-red-700"></p>
