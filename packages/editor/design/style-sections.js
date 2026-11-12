@@ -17,7 +17,7 @@ import { data } from "./editor/base.js";
 import { PropRow } from "./prop-sections.js";
 import { TRIGGERS, readTrigger } from "../../core/animation-triggers.js";
 import { REVEALS } from "../../core/text-effects.js";
-import { parseRules, writeRules, changeParts, changeFrom, WHEN, DO } from "../../core/interactions.js";
+import { parseRules, writeRules, changeParts, changeFrom, hidingClasses, WHEN, DO } from "../../core/interactions.js";
 import { tailwindClasses } from "./tailwind-classes.js";
 
 const SIDES = ["top", "right", "bottom", "left"];
@@ -412,6 +412,11 @@ export function InteractionsSection({ s, actions }) {
             <div class="frow">${whenSel(r.when, (v) => change(i, { when: v }))}<${Remove} title="Remove this interaction" onClick=${() => actions.setRules(rules.filter((_, j) => j !== i))} /></div>
             <div class="frow">${doSel(r.do, (v) => change(i, { do: v }))}<span class="ispace"></span></div>
             ${target(r.to, (path) => change(i, { to: choose(path) }))}
+            ${["toggle", "show", "hide"].includes(r.do) ? (() => {
+                const hid = hidingClasses((targets.find((t) => t.id === r.to) || {}).cls);
+                return hid.length ? html`<div class="inote"><p>This element is hidden by <code>${hid.map((h) => h.cls).join(" ")}</code>, so "${DO.find(([k]) => k === r.do)[1]}" has nothing to reveal.</p>
+                    <button type="button" class="nfb" onClick=${() => setDraft({ when: r.when, do: "classes", to: r.to, parts: { add: hid.map((h) => h.opposite), remove: hid.map((h) => h.cls), toggle: [] }, replace: i })}>Switch to Change classes</button></div>` : null;
+            })() : null}
             ${r.do === "classes" ? classRows(r.to, changeParts(r.change), (parts) => { const next = changeFrom(parts); if (next.length) change(i, { change: next }); }) : null}
             ${!TARGET_LESS.has(r.do) && actions.setStart ? html`<label class="frow ichk" title="The element is hidden when the page opens, and this shows it"><input type="checkbox" checked=${Boolean(hasStart(r.to))} onChange=${(e) => actions.setStart(r.to, e.target.checked)} /> <span>${nameOf(r.to)} starts hidden</span></label>` : null}
         </div>`))}

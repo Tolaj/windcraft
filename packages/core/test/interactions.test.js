@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseRules, writeRules, freshId, INTERACT_SCRIPT, hasInteractScript, changeParts, changeFrom } from "../interactions.js";
+import { parseRules, writeRules, freshId, INTERACT_SCRIPT, hasInteractScript, changeParts, changeFrom, hidingClasses } from "../interactions.js";
 
 test("rules are read and written, and anything that is not a rule is left out", () => {
     assert.deepEqual(parseRules("click toggle menu-1;hover show tip"), [{ when: "click", do: "toggle", to: "menu-1" }, { when: "hover", do: "show", to: "tip" }]);
@@ -69,4 +69,12 @@ test("the script swaps classes like the drawer menu: open adds w-full and remove
     assert.equal(menu.classList.has("glow"), true, "toggle on");
     handlers[tog.getAttribute("data-wc-do")].mouseleave();
     assert.equal(menu.classList.has("glow"), false, "and off when the pointer leaves");
+});
+
+test("classes that hide an element the way a drawer or a fade does are found, with what undoes them", () => {
+    assert.deepEqual(hidingClasses("flex max-md:w-0 max-md:overflow-hidden"), [{ cls: "max-md:w-0", opposite: "max-md:w-full" }]);
+    assert.deepEqual(hidingClasses("opacity-0 scale-0 -translate-x-full invisible h-0").map((h) => h.opposite), ["opacity-100", "scale-100", "translate-x-0", "visible", "h-full"]);
+    assert.deepEqual(hidingClasses("hover:opacity-0").map((h) => h.opposite), ["hover:opacity-100"]);
+    assert.deepEqual(hidingClasses("w-10 hidden opacity-50 w-0.5 p-0"), [], "other zeros and `hidden` itself are not these");
+    assert.deepEqual(hidingClasses(""), []);
 });

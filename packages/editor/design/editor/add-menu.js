@@ -60,15 +60,33 @@ export const detailsOf = () => ({
     isPublished: data.isPublished, useAsReference: data.useAsReference !== false, project: data.project ? data.project.id : "", isNew: S.isNew,
 });
 
+/** The two switches in the details: Type (on: a page, off: a component) and Visibility (on: public in the gallery, off: private). */
+const KIND_HINT = { page: "A screen of your project: Preview plays it, and its parts are saved as components.", component: "A reusable piece you keep to use in other pages." };
+function setKind(kind) {
+    const sw = $("dKind");
+    sw.dataset.value = kind;
+    sw.setAttribute("aria-checked", String(kind === "page"));
+    $("dKindLabel").textContent = kind === "page" ? "This is a page" : "This is a component";
+    $("dKindHint").textContent = KIND_HINT[kind];
+}
+function setVisible(on) {
+    const sw = $("dVis");
+    sw.dataset.value = String(on);
+    sw.setAttribute("aria-checked", String(on));
+    $("dVisHint").textContent = on ? "Anyone can find it in the gallery." : "Only you can see it.";
+}
+
 export function openDetails() {
     if (S.mode !== "edit") return; // Interact uses the page as it is: name, category and the rest are not changed there
     if (config.hooks.details) return config.hooks.details(detailsOf()); // the app shows its own form and answers with saveDetails()
     fillProjects();
     $("dTitle").value = data.title || "";
     $("dCategory").value = data.category || "";
+    const cur = docs.get(S.curKey);
+    setKind(cur && cur.kind === "component" ? "component" : "page"); // what the design is now (a design made on the canvas is a page)
     $("dDesc").value = data.description || "";
     $("dTags").value = (data.tags || []).join(", ");
-    $("dVis").value = String(Boolean(data.isPublished)); // private unless it was made public
+    setVisible(Boolean(data.isPublished)); // private unless it was made public
     $("dRef").checked = data.useAsReference !== false;
     $("dDesc").required = false; // optional: it defaults to the name
     $("detailsTitle").textContent = S.isNew ? "Name and save your component" : "Component details";
@@ -82,6 +100,7 @@ export async function saveDetails(fields) {
     const fromDraft = S.isNew && S.draftKey && S.draftKey === S.curKey; // a design opened from a Figma draft: its Figma data moves to the new page
     const saved = S.isNew ? await host.createComponent({ ...fields, htmlCode: assemble(), ...(fromDraft ? { draftId: data.draftId } : {}) }) : await host.updateComponent(data.id, fields);
     const movedProject = (data.project ? data.project.id : "") !== (fields.project || "");
+    if (fields.kind) { const d = docs.get(S.curKey); if (d) d.kind = fields.kind; }
     data.project = (data.projects || []).find((p) => p.id === fields.project) || null;
     Object.assign(data, { title: fields.title, category: fields.category, description: fields.description, tags: String(fields.tags || "").split(",").map((t) => t.trim()).filter(Boolean), isPublished: String(fields.isPublished) === "true", useAsReference: fields.useAsReference !== false && fields.useAsReference !== "false" });
     if (S.isNew) {
@@ -129,12 +148,14 @@ $("dCategory").innerHTML += (data.categories || []).map((g) => `<optgroup label=
         fillProjects();
         $("dProject").value = project.id;
     });
+    $("dKind").addEventListener("click", () => setKind($("dKind").dataset.value === "page" ? "component" : "page"));
+    $("dVis").addEventListener("click", () => setVisible($("dVis").dataset.value !== "true"));
     $("detailsBtn").addEventListener("click", openDetails);
     $("detailsCancel").addEventListener("click", () => dlg.close());
 
     $("detailsForm").addEventListener("submit", async (e) => {
         e.preventDefault();
-        const fields = { title: $("dTitle").value.trim(), category: $("dCategory").value, description: $("dDesc").value.trim(), tags: $("dTags").value, isPublished: $("dVis").value, useAsReference: $("dRef").checked, project: $("dProject").value };
+        const fields = { title: $("dTitle").value.trim(), category: $("dCategory").value, description: $("dDesc").value.trim(), tags: $("dTags").value, isPublished: $("dVis").dataset.value, useAsReference: $("dRef").checked, project: $("dProject").value, kind: $("dKind").dataset.value };
         if (!fields.description) fields.description = fields.title;
         if (!fields.title || !fields.category || !fields.description) return;
         const err = $("detailsError");

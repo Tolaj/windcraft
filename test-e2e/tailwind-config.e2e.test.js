@@ -3,7 +3,7 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
-import { missingPrerequisite, chromePath, startStack, seed, PROJECT_FILE, PAGE_FILE, colourOf } from "./helpers.js";
+import { missingPrerequisite, chromePath, startStack, seed, PROJECT_FILE, PAGE_FILE, colourOf, within } from "./helpers.js";
 
 const skip = missingPrerequisite();
 let stack, ids, browser, ctx;
@@ -17,7 +17,7 @@ before(async () => {
     const r = await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
     assert.equal(r.status(), 200, "the seeded user signs in");
 });
-after(async () => { if (skip) return; if (browser) await browser.close(); if (stack) await stack.stop(); });
+after(async () => { if (skip) return; if (browser) await within(browser.close()); if (stack) await within(stack.stop(), 20000); });
 
 const applied = (page, root = "body") => page.waitForFunction((sel) => /Applied|Not applied|Not saved/.test(document.querySelector(`${sel} [data-status]`).textContent), root, { timeout: 90000 });
 const frameWith = async (page, id, ms = 20000) => { const t = Date.now(); while (Date.now() - t < ms) { for (const f of page.frames().filter((x) => x !== page.mainFrame())) { try { if (await f.evaluate((i) => Boolean(document.getElementById(i)), id)) return f; } catch { /* not ready */ } } await new Promise((r) => setTimeout(r, 300)); } throw new Error("the preview frame did not appear"); };

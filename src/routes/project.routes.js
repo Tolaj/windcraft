@@ -205,8 +205,9 @@ protoPages.get("/:ref", async (req, res) => {
     if (!project) return res.status(404).render("error", { layout: "main", title: "Not found", message: "This link doesn't work (any more).", user: req.session?.user || null });
     owner = owner || Boolean(me && String(project.owner) === String(me));
     const items = await Component.find({ project: project._id, kind: { $ne: "section" } }).select("title htmlCode kind frameW board twConfig").sort("order createdAt").lean();
-    const pages = items.filter((c) => c.kind === "page");
-    const shown = (pages.length ? pages : items).map((c) => ({
+    // what is in Preview: the pages, and anything else placed on the canvas (a design is a design: the label page / component does not keep one out of the flow)
+    const wanted = items.filter((c) => c.kind === "page" || c.board);
+    const shown = (wanted.length ? wanted : items).map((c) => ({
         id: String(c._id), title: c.title, htmlCode: c.htmlCode, twConfig: c.twConfig || null, width: (c.board && Number.isFinite(c.board.w) && c.board.w) || c.frameW || null,
         height: (c.board && Number.isFinite(c.board.h) && c.board.h) || null,
     }));

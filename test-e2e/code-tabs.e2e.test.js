@@ -2,7 +2,7 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
-import { missingPrerequisite, chromePath, startStack, seed } from "./helpers.js";
+import { missingPrerequisite, chromePath, startStack, seed, within } from "./helpers.js";
 
 const skip = missingPrerequisite();
 let stack, ids, browser;
@@ -12,7 +12,7 @@ before(async () => {
     ids = await seed();
     browser = await chromium.launch({ executablePath: chromePath(), headless: true });
 });
-after(async () => { if (skip) return; if (browser) await browser.close(); if (stack) await stack.stop(); });
+after(async () => { if (skip) return; if (browser) await within(browser.close()); if (stack) await within(stack.stop(), 20000); });
 
 const frameWith = async (page, id, ms = 20000) => { const t = Date.now(); while (Date.now() - t < ms) { for (const f of page.frames().filter((x) => x !== page.mainFrame())) { try { if (await f.evaluate((i) => Boolean(document.getElementById(i)), id)) return f; } catch { /* still loading */ } } await page.waitForTimeout(250); } throw new Error(`no frame with #${id}`); };
 /** Waits until `check` is true of the element in the canvas (the canvas reloads when the code changes, so the frame is found again each time). */
@@ -173,8 +173,9 @@ test("Interactions: a rule on the selected element (chosen from the list or pick
     const frame = await frameWith(page, "b");
     const box = await frame.locator("#b").boundingBox();
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await page.waitForFunction(() => document.querySelectorAll(".irule").length === 2, null, { timeout: 20000 });
-    assert.match(await page.locator("#codeMount .cm-content").textContent().then((t) => t), /data-wc-do="click toggle b;load hide b"/);
+    // (two cards are on screen while the second is still being made: wait for the rule itself to be in the code)
+    await page.waitForFunction(() => /data-wc-do="click toggle b;load hide b"/.test(document.querySelector("#codeMount .cm-content").textContent), null, { timeout: 20000 });
+    assert.match(await page.locator("#codeMount .cm-content").textContent(), /data-wc-do="click toggle b;load hide b"/);
     await page.locator("#saveBtn").click();
     await page.waitForFunction(() => /^Saved/.test(document.getElementById("saveState").textContent.trim()), null, { timeout: 15000 });
     // Interact: it starts hidden; clicking the first button shows it, and again hides it
@@ -234,5 +235,38 @@ test("Interactions: Change classes rebuilds a drawer menu with no JavaScript wri
     await (await frameWith(page, "close")).locator("#close").click();
     await until(page, "menu", (i) => document.getElementById(i).classList.contains("w-0") && !document.getElementById(i).classList.contains("w-full"), 8000);
     assert.match(await classesOf(), /overflow-hidden/, "its other classes are left alone");
+    await ctx.close();
+});
+
+test("Interactions: Show or hide on an element hidden by w-0 says so, and one click switches the rule to Change classes with the right classes", { skip: skip || false, timeout: 170000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const html = '<div class="p-6"><button id="open" class="p-2 bg-black text-white">open</button><div id="menu" class="max-md:w-0 overflow-hidden"><a href="#">Home</a></div></div>';
+    assert.equal((await ctx.request.put(`${stack.base}/api/components/${ids.effects}`, { data: { htmlCode: html } })).status(), 200);
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.effects}`);
+    await page.waitForSelector("#codeBtn", { state: "attached" });
+    await page.waitForTimeout(3500);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
+    await page.evaluate(() => document.getElementById("frame").contentWindow.postMessage({ cmd: "select", paths: [[0, 0]] }, "*"));
+    await page.waitForSelector('[title^="Add an interaction"]');
+    await page.waitForTimeout(500);
+    await page.locator('[title^="Add an interaction"]').click();
+    const sel = page.locator(".irule select").nth(2);
+    await sel.selectOption(await sel.evaluate((s) => [...s.options].find((o) => /#menu\b/.test(o.textContent)).value));
+    await page.waitForSelector(".inote", { timeout: 20000 });
+    assert.match(await page.locator(".inote").textContent(), /hidden by max-md:w-0/);
+    await page.locator(".inote button").click();
+    const card = page.locator(".irule").last();
+    await card.locator(".cchip .chip").first().waitFor();
+    assert.deepEqual(await card.locator(".cchip").evaluateAll((rows) => rows.map((r) => [...r.querySelectorAll(".chip")].map((c) => c.textContent.replace("×", "")))), [["max-md:w-full"], ["max-md:w-0"], []]);
+    await card.getByText("Add this interaction").click();
+    await page.waitForTimeout(900);
+    await page.locator("#codeBtn").click();
+    await page.waitForSelector("#codeMount .cm-content");
+    const code = await page.locator("#codeMount .cm-content").textContent();
+    assert.match(code, /data-wc-do="click classes menu \+max-md:w-full\|-max-md:w-0"/);
+    assert.doesNotMatch(code, /click toggle/, "the old rule is replaced, not kept beside it");
+    assert.equal(await page.locator(".inote").count(), 0, "no note once the rule changes classes");
     await ctx.close();
 });

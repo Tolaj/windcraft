@@ -52,6 +52,18 @@ export function changeParts(change) {
 /** The other way: the tokens for { add, remove, toggle } (class names with whitespace, ; or | are dropped). */
 export const changeFrom = ({ add = [], remove = [], toggle = [] }) => [...add.map((c) => `+${c}`), ...remove.map((c) => `-${c}`), ...toggle.map((c) => `~${c}`)].filter((c) => CHANGE.test(c));
 
+// Classes that hide an element without display:none, and what undoes each. "Show or hide" only adds or removes Tailwind's `hidden` class, so it cannot bring such an element back: it needs "Change classes".
+const HIDERS = [[/^(w|h|size|max-w|max-h)-0$/, (m) => `${m[1]}-full`], [/^opacity-0$/, () => "opacity-100"], [/^scale-(x-|y-)?0$/, (m) => `scale-${m[1] || ""}100`], [/^-?translate-(x|y)-full$/, (m) => `translate-${m[1]}-0`], [/^invisible$/, () => "visible"]];
+/** The classes in a class list that hide an element in a way "Show or hide" cannot undo: [{ cls: "max-md:w-0", opposite: "max-md:w-full" }]. A variant in front (md:, max-md:, hover:) carries over to the opposite. */
+export function hidingClasses(classList) {
+    const out = [];
+    String(classList || "").split(/\s+/).filter(Boolean).forEach((token) => {
+        const colon = token.lastIndexOf(":"), pre = colon >= 0 ? token.slice(0, colon + 1) : "", base = token.slice(pre.length);
+        for (const [re, opp] of HIDERS) { const m = re.exec(base); if (m) { out.push({ cls: token, opposite: pre + opp(m) }); break; } }
+    });
+    return out;
+}
+
 /** An id for an element that has none: "div-1", "ul-2"... not one of `taken`. */
 export function freshId(tag, taken) {
     const used = new Set(taken);
