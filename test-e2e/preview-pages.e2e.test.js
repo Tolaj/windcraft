@@ -73,3 +73,43 @@ test("Preview plays whatever is placed on the canvas, and the details dialog has
     assert.ok((await previewTitles(ctx)).includes("A component not placed"), "and now it is a page, so Preview plays it");
     await ctx.close();
 });
+
+test("Go to page: a button opens another page in Preview and in Interact", { skip: skip || false, timeout: 170000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    await page.waitForSelector("#codeBtn", { state: "attached" });
+    await page.waitForTimeout(3500);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
+    await page.evaluate(() => document.getElementById("frame").contentWindow.postMessage({ cmd: "select", paths: [[0, 0]] }, "*")); // the first button
+    await page.waitForSelector('[title^="Add an interaction"]');
+    await page.waitForTimeout(500);
+    await page.locator('[title^="Add an interaction"]').click();
+    const card = page.locator(".irule").last();
+    await card.locator("select").nth(1).selectOption("goto");
+    const pageSel = card.locator("select").nth(2);
+    const options = await pageSel.locator("option").allTextContents();
+    assert.ok(options.includes("Brand"), `the project's pages are listed (${options})`);
+    assert.ok(!options.some((t) => /Header/.test(t)), "the parts made from a page are not");
+    await pageSel.selectOption({ label: "Brand" });
+    await page.locator("#codeBtn").click();
+    await page.waitForSelector("#codeMount .cm-content");
+    await page.waitForFunction((id) => (document.querySelector("#codeMount .cm-content")?.textContent || "").includes(`data-wc-do="click goto ${id}"`), ids.brand, { timeout: 20000 });
+    await page.locator("#saveBtn").click();
+    await page.waitForFunction(() => /^Saved/.test(document.getElementById("saveState").textContent.trim()), null, { timeout: 15000 });
+    // Interact: the click opens Brand in the editor and Interact goes on there
+    await page.locator('[data-tool="interact"]').first().click();
+    const f = async () => { const t = Date.now(); while (Date.now() - t < 15000) { for (const fr of page.frames().filter((x) => x !== page.mainFrame())) { try { if (await fr.evaluate(() => Boolean(document.getElementById("a")))) return fr; } catch { /* loading */ } } await page.waitForTimeout(250); } throw new Error("no frame"); };
+    await (await f()).locator("#a").click();
+    await page.waitForFunction(() => document.getElementById("designsName").textContent.trim() === "Brand", null, { timeout: 15000 });
+    // Preview: the prototype view switches page in its player
+    const proto = await ctx.newPage();
+    await proto.goto(`${stack.base}/prototype/${ids.project}?page=${ids.page}`);
+    await proto.waitForSelector("[data-title]");
+    await proto.waitForFunction(() => /Home/.test(document.querySelector("[data-title]").textContent), null, { timeout: 20000 });
+    const frame = async () => { const t = Date.now(); while (Date.now() - t < 20000) { for (const fr of proto.frames().filter((x) => x !== proto.mainFrame())) { try { if (await fr.evaluate(() => Boolean(document.getElementById("a")))) return fr; } catch { /* loading */ } } await proto.waitForTimeout(250); } throw new Error("no frame"); };
+    await (await frame()).locator("#a").click();
+    await proto.waitForFunction(() => /Brand/.test(document.querySelector("[data-title]").textContent), null, { timeout: 15000 });
+    await ctx.close();
+});

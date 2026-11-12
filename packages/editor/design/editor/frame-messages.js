@@ -2,7 +2,7 @@ import { closeColorPicker } from "../color-picker.js";
 import { CSS_PROP_LIST } from "../css-props.js";
 import { panelStore } from "../panel-state.js";
 import { S, data, frame, model, send } from "./base.js";
-import { docs, scheduleLayout, selectFrame, wraps } from "./designs.js";
+import { activate, docs, scheduleLayout, selectFrame, wraps } from "./designs.js";
 import { pathKey, renderLayers } from "./layers.js";
 import { FLOAT_ACTIONS, ftb, renderFloat, renderSel } from "./frame-handles.js";
 import { handleKey, keyZoom, setSpace, setTool } from "./toolbar.js";
@@ -95,6 +95,10 @@ export function init() {
         }
         if (m.type === "zoomKey") return keyZoom(m.key);
         if (m.type === "tw-names") { panelStore.set({ animations: Array.isArray(m.animations) ? m.animations.filter((n) => /^[a-z][a-z0-9-]*$/.test(n)) : [] }); return; }
+        if (m.type === "wcGoto") { // an interaction's "Go to page" while Interact runs the page: open that page here and carry on in Interact
+            if (S.mode === "preview" && m.load === S.loadSeq && docs.has(m.key)) activate(m.key);
+            return;
+        }
         if (m.type === "wheel") {
             const pos = positions()[S.curKey] || { x: 0, y: 0 };
             return handleWheel({ dx: m.dx, dy: m.dy, zoomKey: m.zoom, cx: view.x + (pos.x + m.x) * view.z, cy: view.y + (pos.y + m.y) * view.z });

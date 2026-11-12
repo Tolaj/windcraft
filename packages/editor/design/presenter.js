@@ -119,7 +119,7 @@ export function createPresenter(o) {
     const stage = q("[data-stage]"), wrap = q("[data-wrap]"), shell = q("[data-shell]"), screen = q("[data-screen]"), notch = q("[data-notch]"), cam = q("[data-cam]"), side = q("[data-side]"), frame = q("[data-frame]"), dock = q("[data-dock]"), full = q("[data-full]"), mini = q("[data-mini]");
 
     // A page of its own has none of the editor's script: keys and Ctrl/Cmd + scroll (the browser's zoom) are handed to this window.
-    const pageScript = (id) => `<script data-wc-present>(function(){var I=${JSON.stringify(id)};function name(e){var m=e.metaKey||e.ctrlKey;if(m&&e.key==="\\\\")return"hideui";if(m||e.altKey)return"";if(e.key==="ArrowLeft"||e.key==="ArrowRight"||e.key==="Escape")return e.key;if(e.key==="z"||e.key==="Z")return"responsive";return""}addEventListener("keydown",function(e){var k=name(e);if(!k)return;var t=e.target;if(k!=="Escape"&&k!=="hideui"&&t&&(/^(input|textarea|select)$/i.test(t.tagName)||t.isContentEditable))return;e.preventDefault();parent.postMessage({wcPresent:I,key:k},"*")},true);addEventListener("wheel",function(e){if(e.ctrlKey||e.metaKey)e.preventDefault()},{passive:false});["gesturestart","gesturechange","gestureend"].forEach(function(t){addEventListener(t,function(e){e.preventDefault()})})})()<\/script>`;
+    const pageScript = (id) => `<script data-wc-present>(function(){var I=${JSON.stringify(id)};window.__wcGoto=function(k){parent.postMessage({wcPresent:I,goto:k},"*")};function name(e){var m=e.metaKey||e.ctrlKey;if(m&&e.key==="\\\\")return"hideui";if(m||e.altKey)return"";if(e.key==="ArrowLeft"||e.key==="ArrowRight"||e.key==="Escape")return e.key;if(e.key==="z"||e.key==="Z")return"responsive";return""}addEventListener("keydown",function(e){var k=name(e);if(!k)return;var t=e.target;if(k!=="Escape"&&k!=="hideui"&&t&&(/^(input|textarea|select)$/i.test(t.tagName)||t.isContentEditable))return;e.preventDefault();parent.postMessage({wcPresent:I,key:k},"*")},true);addEventListener("wheel",function(e){if(e.ctrlKey||e.metaKey)e.preventDefault()},{passive:false});["gesturestart","gesturechange","gestureend"].forEach(function(t){addEventListener(t,function(e){e.preventDefault()})})})()<\/script>`;
 
     const sourceOf = (p) => {
         const s = typeof p.source === "function" ? p.source() : p.source;
@@ -263,6 +263,7 @@ export function createPresenter(o) {
     }
     const onMessage = (e) => {
         if (e.source !== frame.contentWindow || !e.data || e.data.wcPresent !== box.dataset.id) return;
+        if (e.data.goto !== undefined) { const i = pages.findIndex((p) => p.key === e.data.goto); if (i >= 0) show(i); return; } // an interaction on the page: Go to page
         key(e.data.key);
     };
     const onKey = (e) => {

@@ -78,3 +78,18 @@ test("classes that hide an element the way a drawer or a fade does are found, wi
     assert.deepEqual(hidingClasses("w-10 hidden opacity-50 w-0.5 p-0"), [], "other zeros and `hidden` itself are not these");
     assert.deepEqual(hidingClasses(""), []);
 });
+
+test("Go to page: the target is a page id, and the script asks the player to switch", () => {
+    const id = "6ae22d6509f0e37b410d6c2d";
+    assert.deepEqual(parseRules(`click goto ${id}`), [{ when: "click", do: "goto", to: id }]);
+    assert.equal(writeRules([{ when: "click", do: "goto", to: id }]), `click goto ${id}`);
+    assert.deepEqual(parseRules("click goto menu"), [], "an element id is not a page");
+    assert.deepEqual(parseRules(`click toggle ${id}`), [], "and a page id is not an element");
+    const asked = [];
+    const el = { tagName: "A", getAttribute: (n) => (n === "data-wc-do" ? `click goto ${id}` : "/real-link"), addEventListener: (ev, fn) => { el.fn = fn; } };
+    let prevented = 0;
+    new Function("document", "window", "navigator", INTERACT_SCRIPT)({ getElementById: () => null, querySelectorAll: (q) => (q === "[data-wc-do]" ? [el] : []) }, { __wcGoto: (k) => asked.push(k) }, {});
+    el.fn({ preventDefault: () => prevented++ });
+    assert.deepEqual(asked, [id]);
+    assert.equal(prevented, 1, "a link with a real href does not also navigate");
+});
