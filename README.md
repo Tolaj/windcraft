@@ -75,8 +75,8 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
       <br><b>Your Tailwind config.</b> Edit <code>tailwind.config.js</code> (Tailwind 3) or <code>global.css</code> (Tailwind 4), with plugins. It applies as you type.
     </td>
     <td valign="top" width="50%">
-      <img src="docs/media/dashboard.png" alt="An admin dashboard frame with the Frames and Layers lists beside it" width="420">
-      <br><b>Frames and layers.</b> Every frame of a project on one canvas, every element in a tree. Works for landing pages and app screens alike.
+      <img src="docs/media/frames.png" alt="Three frames of a project on one canvas, with the Frames and Layers lists and a selected box showing its children as dashed outlines" width="420">
+      <br><b>Frames and layers.</b> Every frame of a project on one canvas, every element in a tree. Select a box and its children show as dashed outlines.
     </td>
   </tr>
 </table>
