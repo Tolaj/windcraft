@@ -17,7 +17,7 @@
     "test-email": "node test-email.js",
     "start": "node --env-file=.env src/server.js",
     "build:npm": "node scripts/build-npm.mjs",
-    "e2e": "node --test test-e2e/"
+    "e2e": "node --test --test-concurrency=1 test-e2e/"
   },
   "keywords": [],
   "author": "Swapnil Jadhav",
