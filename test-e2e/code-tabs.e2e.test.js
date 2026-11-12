@@ -236,3 +236,36 @@ test("Interactions: Change classes rebuilds a drawer menu with no JavaScript wri
     assert.match(await classesOf(), /overflow-hidden/, "its other classes are left alone");
     await ctx.close();
 });
+
+test("Interactions: Show or hide on an element hidden by w-0 says so, and one click switches the rule to Change classes with the right classes", { skip: skip || false, timeout: 170000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const html = '<div class="p-6"><button id="open" class="p-2 bg-black text-white">open</button><div id="menu" class="max-md:w-0 overflow-hidden"><a href="#">Home</a></div></div>';
+    assert.equal((await ctx.request.put(`${stack.base}/api/components/${ids.effects}`, { data: { htmlCode: html } })).status(), 200);
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.effects}`);
+    await page.waitForSelector("#codeBtn", { state: "attached" });
+    await page.waitForTimeout(3500);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
+    await page.evaluate(() => document.getElementById("frame").contentWindow.postMessage({ cmd: "select", paths: [[0, 0]] }, "*"));
+    await page.waitForSelector('[title^="Add an interaction"]');
+    await page.waitForTimeout(500);
+    await page.locator('[title^="Add an interaction"]').click();
+    const sel = page.locator(".irule select").nth(2);
+    await sel.selectOption(await sel.evaluate((s) => [...s.options].find((o) => /#menu\b/.test(o.textContent)).value));
+    await page.waitForSelector(".inote", { timeout: 20000 });
+    assert.match(await page.locator(".inote").textContent(), /hidden by max-md:w-0/);
+    await page.locator(".inote button").click();
+    const card = page.locator(".irule").last();
+    await card.locator(".cchip .chip").first().waitFor();
+    assert.deepEqual(await card.locator(".cchip").evaluateAll((rows) => rows.map((r) => [...r.querySelectorAll(".chip")].map((c) => c.textContent.replace("×", "")))), [["max-md:w-full"], ["max-md:w-0"], []]);
+    await card.getByText("Add this interaction").click();
+    await page.waitForTimeout(900);
+    await page.locator("#codeBtn").click();
+    await page.waitForSelector("#codeMount .cm-content");
+    const code = await page.locator("#codeMount .cm-content").textContent();
+    assert.match(code, /data-wc-do="click classes menu \+max-md:w-full\|-max-md:w-0"/);
+    assert.doesNotMatch(code, /click toggle/, "the old rule is replaced, not kept beside it");
+    assert.equal(await page.locator(".inote").count(), 0, "no note once the rule changes classes");
+    await ctx.close();
+});

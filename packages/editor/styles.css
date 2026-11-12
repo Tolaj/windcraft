@@ -454,3 +454,6 @@ select.fi, .vbar select { -webkit-appearance: none; appearance: none; padding-ri
 .csug button:hover { background: #f1f5f9; }
 .csug button.typed { background: #f1f5f9; }
 .csug .ret { float: right; color: #94a3b8; font: 10px system-ui, sans-serif; }
+.inote { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; border-radius: 6px; background: #fffbeb; border: 1px solid #fde68a; }
+.inote p { margin: 0; font-size: 11px; line-height: 1.4; color: #92400e; }
+.inote code { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
