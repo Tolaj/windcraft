@@ -1,6 +1,7 @@
 import { host } from "../host.js";
 import { mountConfigFileEditor } from "../config-file-editor.js";
 import { pageTheme } from "../../../core/theme.js";
+import { hasTw } from "../../../core/config-file.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data } from "./base.js";
 import { docs } from "./designs.js";
@@ -31,6 +32,7 @@ export async function applyProject(patch, { reload = true } = {}) {
         setPreviewTheme(pageTheme(saved, data.twConfig));
         if (reload) loadFrame(); // the canvas takes the new config
         renderInspector();
+        document.dispatchEvent(new CustomEvent("wc-config-changed"));
         return { ok: true };
     } catch (err) { return { ok: false, message: err.message || "Could not save" }; }
 }
@@ -48,18 +50,23 @@ export async function applyPage(patch, { reload = true } = {}) {
     return { ok: true };
 }
 
-/** This page's own Tailwind file inside the Code panel's Config tab: one file, edited live. It is mounted the first time; after that it takes a change made elsewhere
- *  (the Properties panel, the animation dialog, another page) but leaves alone what it saved itself, so typing is never overwritten. */
-let panelEditor = null, panelSig = "", panelPage = null;
+/** The project's Tailwind file inside the Code panel's Config tab: one file, edited live (it changes every page, so the line under it says so). It is mounted the first time;
+ *  after that it takes a change made elsewhere (the animation dialog, the project page) but leaves alone what it saved itself, so typing is never overwritten.
+ *  A page that still has a file of its own (older pages) gets a link to it. */
+let panelEditor = null, panelSig = "";
 export function showConfigIn(el) {
-    const next = { theme: data.projectTheme || {}, tw: data.twConfig, scopes: ["page"], scope: "page" };
-    const sig = JSON.stringify([data.id, next.theme, next.tw]);
-    if (!panelEditor) { panelEditor = mountConfigFileEditor(el, { ...next, compact: true }, (scope, patch) => applyPage(patch)); panelSig = sig; panelPage = data.id; return; }
-    if (sig === panelSig) return;
-    const cur = panelEditor.current(), same = (next.tw && next.tw.js || "") === cur.js && (next.tw && next.tw.css || "") === cur.css;
-    panelSig = sig;
-    if (!same || panelPage !== data.id) panelEditor.set(next);
-    panelPage = data.id;
+    const next = { theme: data.projectTheme || {}, tw: data.twConfig, scopes: ["project"], scope: "project" };
+    const sig = JSON.stringify([next.theme]);
+    const own = hasTw(data.twConfig);
+    if (!panelEditor) {
+        panelEditor = mountConfigFileEditor(el, { ...next, compact: true, onNote: () => openConfig("page") }, (scope, patch) => applyProject(patch));
+        panelSig = sig;
+    } else if (sig !== panelSig) {
+        panelSig = sig;
+        const cur = panelEditor.current();
+        if (cur.js !== (next.theme.configJs || "") || cur.css !== (next.theme.configCss || "")) panelEditor.set(next);
+    }
+    panelEditor.setNote(own ? "This page also has its own file: edit it" : "");
 }
 
 /** Opens the dialog on the "page" or "project" file. */

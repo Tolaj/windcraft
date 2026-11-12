@@ -77,7 +77,7 @@ test("the CSS and JS tabs write into the page, are saved with it, and the script
     await ctx.close();
 });
 
-test("the Config tab holds only this page's Tailwind file, which applies by itself and stays in step with the panel", { skip: skip || false, timeout: 170000 }, async () => {
+test("the Config tab holds the project's Tailwind file, which applies by itself; the panel has no config row", { skip: skip || false, timeout: 170000 }, async () => {
     const ctx = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
     await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
     const page = await ctx.newPage();
@@ -89,18 +89,18 @@ test("the Config tab holds only this page's Tailwind file, which applies by itse
     await page.waitForSelector("#codeConfig [data-ta]", { state: "visible" });
     assert.equal(await page.locator("#codeMount").isVisible(), false, "the code editor makes room for the config");
     assert.equal(await page.locator("#codeFormat").isVisible(), false, "Format is for code, not for the config");
-    assert.equal(await page.locator("#codeConfig [data-tabs]").isVisible(), false, "only this page's file: no file tabs");
+    assert.equal(await page.locator("#codeConfig [data-tabs]").isVisible(), false, "one file: no file tabs");
     assert.equal(await page.locator("#codeConfig [data-apply]").isVisible(), false, "no Apply: it applies itself");
     assert.equal(await page.locator("#codeConfig .cfe-res").isVisible(), false, "no result column");
-    // typing in this page's file reaches the canvas by itself
-    await page.locator("#codeConfig [data-ta]").fill('module.exports = {\n  theme: { extend: { colors: { pg: "#7c3aed" } } },\n};\n');
+    assert.match(await page.locator("#codeConfig [data-diag]").textContent(), /Every page in this project/);
+    assert.doesNotMatch(await page.locator("#inspector").textContent(), /Tailwind config/, "the page's panel has no config row");
+    // typing in the project's file reaches the canvas by itself
+    await page.locator("#codeConfig [data-ta]").fill('module.exports = {\n  theme: { extend: { colors: { proj: "#0f766e" } } },\n};\n');
     await page.waitForFunction(() => /^Applied/.test(document.querySelector("#codeConfig [data-status]").textContent), null, { timeout: 30000 });
-    await until(page, "a", (i) => getComputedStyle(document.getElementById(i)).backgroundColor === "rgb(124, 58, 237)", 20000);
-    // and the panel says the page has its own file
-    await page.waitForFunction(() => /this page has its own file/.test(document.getElementById("inspector").textContent), null, { timeout: 8000 });
+    await until(page, "b", (i) => getComputedStyle(document.getElementById(i)).backgroundColor === "rgb(15, 118, 110)", 20000);
     // a refresh from elsewhere keeps what is in the tab
     await page.evaluate(() => document.dispatchEvent(new CustomEvent("wc-config-changed")));
-    assert.match(await page.locator("#codeConfig [data-ta]").inputValue(), /#7c3aed/);
+    assert.match(await page.locator("#codeConfig [data-ta]").inputValue(), /#0f766e/);
     // back to the code: the editor is where it was
     await page.locator('[data-ctab="html"]').click();
     assert.equal(await page.locator("#codeMount .cm-content").isVisible(), true);

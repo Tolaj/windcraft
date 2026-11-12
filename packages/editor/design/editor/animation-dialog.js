@@ -1,9 +1,9 @@
 import { addAnimation, addKeyframes, hasEntry } from "../../../core/config-edit.js";
-import { TEMPLATES, PAGE_TEMPLATES, cleanEngine } from "../../../core/config-file.js";
+import { TEMPLATES, cleanEngine } from "../../../core/config-file.js";
 import { PRESETS, GROUPS, EASINGS, EASING_LABEL, REPEATS, DIRECTIONS, FILLS, animationValue, keyframesCss, isEasing } from "../../../core/animation-presets.js";
 import { TRIGGERS } from "../../../core/animation-triggers.js";
 import { $, data, send } from "./base.js";
-import { applyProject, applyPage } from "./config-dialog.js";
+import { applyProject } from "./config-dialog.js";
 import { panelStore } from "../panel-state.js";
 import { mountKeyframeEditor } from "../keyframe-editor.js";
 
@@ -63,7 +63,7 @@ function build() {
                     <label id="animEaseWrap" class="col-span-2 hidden">${lab}Custom easing</span><input id="animEaseCustom" class="${field} font-mono" placeholder="cubic-bezier(0.2, 0.8, 0.2, 1)" spellcheck="false" disabled></label>
                     <label id="animOnWrap" class="col-span-2 block">${lab}It plays</span><select id="animOn" class="${field}">${TRIGGERS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label></div></div>
                 <div class="shrink-0 border-t border-neutral-200 bg-white p-3">
-                    <fieldset class="flex flex-wrap items-center gap-x-3 gap-y-1"><legend class="sr-only">Add it to</legend>${lab}Add to</span><label class="flex items-center gap-1.5"><input type="radio" name="animScope" value="project" checked class="accent-black"> whole project</label><label class="flex items-center gap-1.5"><input type="radio" name="animScope" value="page" class="accent-black"> this page</label></fieldset>
+                    <p class="text-[11px] text-neutral-500">Added to the project's Tailwind config, for every page.</p>
                     <label class="mt-1.5 flex items-center gap-1.5"><input id="animReduced" type="checkbox" checked class="accent-black"> Respect reduced motion</label>
                     <p id="animErr" class="mt-1 text-red-700 empty:hidden" role="alert"></p>
                     <div class="mt-1 flex justify-end gap-2"><button type="button" data-x class="h-8 rounded-md border border-neutral-200 bg-white px-3 hover:bg-neutral-100">Cancel</button><button type="button" id="animCreate" class="h-8 rounded-md bg-black px-4 font-semibold text-white hover:bg-neutral-800">Add and use</button></div></div></aside></div></div>`;
@@ -134,7 +134,7 @@ function choose(p) {
 }
 
 async function create() {
-    const name = $("animName").value.trim().toLowerCase(), scope = dlg.querySelector('[name="animScope"]:checked').value, s = settings();
+    const name = $("animName").value.trim().toLowerCase(), s = settings();
     const err = (m) => { $("animErr").textContent = m; };
     const chosen = mode === "editor" ? customPreset(name) : preset;
     if (mode === "editor" && editor.problem()) return err(editor.problem());
@@ -143,10 +143,8 @@ async function create() {
     if (!(Number(s.delay || 0) >= 0 && Number(s.delay || 0) <= 60)) return err("Delay must be between 0 and 60 seconds.");
     if (!isEasing(s.ease)) return err("That easing isn't one the browser knows: try ease-out, linear, steps(4) or cubic-bezier(0.2, 0.8, 0.2, 1).");
     if (!data.projectTheme || !data.project) return err("This design is not in a project, so there is no config to add it to.");
-    if (scope === "page" && !data.id) return err("Save the page first, or add it to the project's config.");
     const engine = cleanEngine(data.projectTheme.engine), animation = animationValue(name, chosen, s);
-    const tw = data.twConfig || {};
-    const base = scope === "page" ? (engine === "4" ? tw.css : tw.js) || PAGE_TEMPLATES[engine].text : (engine === "4" ? data.projectTheme.configCss : data.projectTheme.configJs) || TEMPLATES[engine].text;
+    const base = (engine === "4" ? data.projectTheme.configCss : data.projectTheme.configJs) || TEMPLATES[engine].text;
     const r = addAnimation(base, engine, { name, keyframes: chosen.kf, animation });
     if (r.status === "exists" && mode === "editor") return err(`There is already an animation called "${name}" in that config. Pick another name.`);
     if (r.status === "nowhere") return err("Couldn't find where to put it: the config file needs module.exports = { ... }. Add it by hand in the Config dialog.");
@@ -158,9 +156,7 @@ async function create() {
     }
     if (r.status !== "added") return err("That name can't be used.");
     $("animCreate").disabled = true;
-    const saved = scope === "page"
-        ? await applyPage({ js: engine === "4" ? tw.js || "" : r.text, css: engine === "4" ? r.text : tw.css || "", lock: tw.lock || {} }, { reload: false })
-        : await applyProject({ engine, configJs: engine === "4" ? data.projectTheme.configJs || "" : r.text, configCss: engine === "4" ? r.text : data.projectTheme.configCss || "", lock: data.projectTheme.lock || {} }, { reload: false });
+    const saved = await applyProject({ engine, configJs: engine === "4" ? data.projectTheme.configJs || "" : r.text, configCss: engine === "4" ? r.text : data.projectTheme.configCss || "", lock: data.projectTheme.lock || {} }, { reload: false });
     $("animCreate").disabled = false;
     if (!saved.ok) return err(`Not saved: ${saved.message || "something went wrong"}`);
     dlg.close();

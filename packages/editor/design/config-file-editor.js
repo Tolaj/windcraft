@@ -40,7 +40,7 @@ export function mountConfigFileEditor(el, opts, onApply) {
                 <textarea data-ta wrap="off" spellcheck="false" aria-label="Config file" class="cfe-mono cfe-ta min-w-0 flex-1 resize-none border-0 bg-white p-4 text-neutral-900 outline-none"></textarea></div>
                 <div class="max-h-40 shrink-0 overflow-auto border-t border-neutral-200 bg-neutral-50 px-4 py-2" aria-live="polite" aria-label="Checks" data-diag></div></div>
             <div class="cfe-res flex min-w-0 flex-[2] flex-col border-l border-neutral-200 bg-neutral-50"><div class="border-b border-neutral-200 px-4 py-2.5"><p class="font-semibold text-neutral-900">Result</p><p class="mt-0.5 text-neutral-500" aria-live="polite" data-resnote></p></div><div class="min-h-0 flex-1 overflow-auto" data-res></div></div></div>
-        <div class="flex items-center gap-3 border-t border-neutral-200 px-4 py-2.5"><span class="min-w-0 flex-1 truncate text-neutral-500" role="status" aria-live="polite" data-status></span><button type="button" data-reset class="text-neutral-500 underline hover:text-neutral-900">Reset this file</button><button type="button" data-apply class="h-8 rounded-md bg-black px-5 font-semibold text-white hover:bg-neutral-800">Apply</button></div></div>`;
+        <div class="flex items-center gap-3 border-t border-neutral-200 px-4 py-2.5"><span class="min-w-0 flex-1 truncate text-neutral-500" role="status" aria-live="polite" data-status></span><button type="button" data-note class="hidden text-neutral-500 underline hover:text-neutral-900"></button><button type="button" data-reset class="text-neutral-500 underline hover:text-neutral-900">Reset this file</button><button type="button" data-apply class="h-8 rounded-md bg-black px-5 font-semibold text-white hover:bg-neutral-800">Apply</button></div></div>`;
     const q = (s) => el.querySelector(s), ta = q("[data-ta]");
     if (compact) { ["[data-tabs]", ".cfe-res", "[data-apply]"].forEach((sel) => q(sel).classList.add("hidden")); q(".cfe-left").classList.add("flex-1"); }
     let autoTimer = null, tried = "";
@@ -64,7 +64,7 @@ export function mountConfigFileEditor(el, opts, onApply) {
         q("[data-status]").textContent = status[scope];
         q("[data-apply]").textContent = busy ? "Checking…" : scope === "page" ? "Apply to this page" : "Apply to the project";
         const rows = diag[scope].map((d) => `<div class="flex gap-2 py-0.5"><span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full" style="background:${DOT[d.level]}"></span><span class="w-12 shrink-0 font-mono text-neutral-500">${d.line ? `line ${d.line}` : "file"}</span><span class="${d.level === "error" ? "text-red-800" : d.level === "warn" ? "text-amber-800" : "text-neutral-600"}">${esc(d.message)}</span></div>`).join("");
-        q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${scope === "page" ? "Only this page uses this file, on top of the project's. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>; " + (compact ? "it is applied as you type, and each package is checked." : "Apply checks each package.") : "Paste what a plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
+        q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${scope === "page" ? "Only this page uses this file, on top of the project's. " : compact ? "Every page in this project uses this file. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>; " + (compact ? "it is applied as you type, and each package is checked." : "Apply checks each package.") : "Paste what a plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
         gutter();
     }
     function load() { ta.value = texts[scope][engine]; draw(); live(); }
@@ -123,6 +123,7 @@ export function mountConfigFileEditor(el, opts, onApply) {
         if (sc) { texts[scope][engine] = ta.value; scope = sc.dataset.scope; load(); return; }
         const en = e.target.closest("[data-engine]");
         if (en) { texts[scope][engine] = ta.value; engine = en.dataset.engine; load(); return; }
+        if (e.target.closest("[data-note]")) return opts.onNote && opts.onNote();
         if (e.target.closest("[data-apply]")) return apply();
         if (e.target.closest("[data-reset]")) { if (!confirm(`Put ${name(scope, engine)} (${scope === "page" ? "this page" : "whole project"}) back to the blank template?`)) return; texts[scope][engine] = tmpl(scope, engine); diag[scope] = []; load(); }
     });
@@ -136,8 +137,10 @@ export function mountConfigFileEditor(el, opts, onApply) {
     load();
     return {
         set(next) { theme = next.theme; tw = next.tw; if (next.scopes) scopes = next.scopes; engine = cleanEngine(theme.engine); texts = initial(); saved = initial(); locks = { project: theme.lock || {}, page: (tw && tw.lock) || {} }; diag = { project: [], page: [] }; status = { project: "", page: "" }; if (next.scope) scope = next.scope; if (!scopes.includes(scope)) scope = scopes[0]; load(); },
-        /** The page's file as it is in the editor now, as stored (the blank template is nothing): lets the Code panel tell its own save from a change made elsewhere. */
-        current() { const keep = (e) => (texts.page[e] === tmpl("page", e) ? "" : texts.page[e]); return { js: keep("3"), css: keep("4") }; },
+        /** The open file as it is in the editor now, as stored (the blank template is nothing): lets the Code panel tell its own save from a change made elsewhere. */
+        current() { const keep = (e) => (texts[scope][e] === tmpl(scope, e) ? "" : texts[scope][e]); return { js: keep("3"), css: keep("4") }; },
+        /** A link beside Reset (null hides it): the compact editor uses it to reach a file it does not show. */
+        setNote(text) { const b = q("[data-note]"); b.textContent = text || ""; b.classList.toggle("hidden", !text); },
         show(sc) { if (scopes.includes(sc) && sc !== scope) { texts[scope][engine] = ta.value; scope = sc; load(); } },
     };
 }
