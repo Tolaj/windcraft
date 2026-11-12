@@ -186,3 +186,52 @@ test("Interactions: a rule on the selected element (chosen from the list or pick
     await until(page, "b", (i) => document.getElementById(i).classList.contains("hidden"), 8000);
     await ctx.close();
 });
+
+test("Interactions: Change classes rebuilds a drawer menu with no JavaScript written (open adds w-full and removes w-0, close does the reverse)", { skip: skip || false, timeout: 170000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const html = '<div class="p-6"><button id="open" class="p-2 bg-black text-white">open</button><div id="menu" class="w-0 overflow-hidden"><a href="#">Home</a><button id="close" class="p-2 bg-black text-white">close</button></div></div>';
+    assert.equal((await ctx.request.put(`${stack.base}/api/components/${ids.effects}`, { data: { htmlCode: html } })).status(), 200);
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.effects}`);
+    await page.waitForSelector("#codeBtn", { state: "attached" });
+    await page.waitForTimeout(3500);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
+    const rule = async (path, add, remove) => {
+        await page.evaluate((p) => document.getElementById("frame").contentWindow.postMessage({ cmd: "select", paths: [p] }, "*"), path);
+        await page.waitForSelector('[title^="Add an interaction"]');
+        await page.waitForTimeout(500);
+        await page.locator('[title^="Add an interaction"]').click();
+        const card = page.locator(".irule").last();
+        await card.locator("select").nth(1).selectOption("classes");
+        const sel = card.locator("select").nth(2);
+        await sel.selectOption(await sel.evaluate((s) => [...s.options].find((o) => /#menu\b/.test(o.textContent)).value));
+        await card.locator(".cchip").first().waitFor();
+        const chips = (n, text) => card.locator(".cchip").nth(n).locator("input");
+        // Add: type most of the name and take the suggestion; Remove: type it whole and press Enter
+        await chips(0).fill(add.slice(0, -1));
+        await card.locator(".csug button").filter({ hasText: new RegExp(`^${add}$`) }).first().click();
+        await chips(1).fill(remove); await chips(1).press("Enter");
+        await card.locator(".cchip .chip").first().waitFor();
+        await card.getByText("Add this interaction").click();
+        await page.waitForTimeout(700);
+    };
+    await rule([0, 0], "w-full", "w-0");
+    await rule([0, 1, 1], "w-0", "w-full");
+    await page.locator("#codeBtn").click();
+    await page.waitForSelector("#codeMount .cm-content");
+    const code = await page.locator("#codeMount .cm-content").textContent();
+    assert.match(code, /data-wc-do="click classes menu \+w-full\|-w-0"/);
+    assert.match(code, /data-wc-do="click classes menu \+w-0\|-w-full"/);
+    await page.locator('[data-ctab="js"]').click();
+    assert.equal((await page.locator("#codeMount .cm-content").textContent()).trim(), "", "no JavaScript was written");
+    await page.locator('[data-tool="interact"]').first().click();
+    const classesOf = async () => { const f = await frameWith(page, "menu"); return f.evaluate(() => document.getElementById("menu").className); };
+    await until(page, "menu", (i) => document.getElementById(i).classList.contains("w-0"), 12000);
+    await (await frameWith(page, "open")).locator("#open").click();
+    await until(page, "menu", (i) => document.getElementById(i).classList.contains("w-full") && !document.getElementById(i).classList.contains("w-0"), 8000);
+    await (await frameWith(page, "close")).locator("#close").click();
+    await until(page, "menu", (i) => document.getElementById(i).classList.contains("w-0") && !document.getElementById(i).classList.contains("w-full"), 8000);
+    assert.match(await classesOf(), /overflow-hidden/, "its other classes are left alone");
+    await ctx.close();
+});

@@ -735,7 +735,7 @@ export function agentMain() {
         const own = Array.prototype.filter.call(el.childNodes, (n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(" ").trim();
         const label = el.id ? "#" + el.id : own ? own.slice(0, 26) : (el.getAttribute("class") || "").split(/\s+/)[0] || "";
         const children = Array.prototype.map.call(el.children, (c) => walk(c, depth + 1)).filter(Boolean);
-        return { tag, label, path: el === document.body ? [] : pathOf(el), children, locked: el.hasAttribute("data-wc-locked"), hidden: el.classList.contains("hidden"), start: el.getAttribute("data-wc-start") === "hidden" };
+        return { tag, label, path: el === document.body ? [] : pathOf(el), children, locked: el.hasAttribute("data-wc-locked"), hidden: el.classList.contains("hidden"), start: el.getAttribute("data-wc-start") === "hidden", cls: el.getAttribute("class") || "" };
     };
     const tree = () => { count = 0; return walk(document.body, 0); };
     const serialize = () => {

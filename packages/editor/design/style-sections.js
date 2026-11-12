@@ -17,7 +17,8 @@ import { data } from "./editor/base.js";
 import { PropRow } from "./prop-sections.js";
 import { TRIGGERS, readTrigger } from "../../core/animation-triggers.js";
 import { REVEALS } from "../../core/text-effects.js";
-import { parseRules, writeRules, WHEN, DO } from "../../core/interactions.js";
+import { parseRules, writeRules, changeParts, changeFrom, WHEN, DO } from "../../core/interactions.js";
+import { tailwindClasses } from "./tailwind-classes.js";
 
 const SIDES = ["top", "right", "bottom", "left"];
 const CORNERS = [["top-left", "radiusTL", "↖"], ["top-right", "radiusTR", "↗"], ["bottom-right", "radiusBR", "↘"], ["bottom-left", "radiusBL", "↙"]];
@@ -353,7 +354,29 @@ export function AnimationSection({ s, actions }) {
 }
 
 // ── Interactions: "when this is clicked, show that" (the rule lives on the element: core/interactions.js) ────────────────────
-const TARGET_LESS = new Set(["scroll", "copy"]);
+const TARGET_LESS = new Set(["scroll", "copy", "classes"]);
+/** Class names to offer for what has been typed: the target's own first, then Tailwind's (up to 8). A typed variant ("max-md:") carries over to the suggestions. */
+function classSuggestions(text, own, taken) {
+    const t = text.trim();
+    if (!t) return own.filter((c) => !taken.includes(c)).slice(0, 8);
+    const colon = t.lastIndexOf(":"), pre = colon >= 0 ? t.slice(0, colon + 1) : "", rest = t.slice(pre.length);
+    const pool = [...own, ...tailwindClasses().filter((c) => !c.endsWith(":")).map((c) => pre + c)];
+    const out = [];
+    for (const c of pool) if (c.startsWith(t) && !taken.includes(c) && c !== t && !out.includes(c)) { out.push(c); if (out.length >= 8) break; }
+    if (!out.length && rest) for (const c of pool) if (c.includes(rest) && !taken.includes(c) && !out.includes(c)) { out.push(c); if (out.length >= 8) break; }
+    return out;
+}
+/** A row of class names as chips with a box to type the next one (Enter, space or comma adds it; Backspace takes the last off), and suggestions under it. */
+function ClassChips({ label, title, value, own, onChange }) {
+    const [text, setText] = useState("");
+    const add = (v) => { const c = String(v).trim().replace(/[,;|]+$/, ""); setText(""); if (c && !/[\s;|]/.test(c) && !value.includes(c)) onChange([...value, c]); };
+    const sug = text.trim() ? classSuggestions(text, own, value) : [];
+    return html`<div class="cchip" title=${title}><span class="nfl">${label}</span><div class="cbox">
+        ${value.map((c) => html`<span class="chip">${c}<button type="button" aria-label=${`Remove ${c}`} onClick=${() => onChange(value.filter((x) => x !== c))}>×</button></span>`)}
+        <input value=${text} placeholder=${value.length ? "" : "class name"} spellcheck="false" autocomplete="off" onInput=${(e) => setText(e.target.value)}
+            onKeyDown=${(e) => { if (e.key === "Enter" || e.key === " " || e.key === ",") { e.preventDefault(); add(text); } else if (e.key === "Backspace" && !text && value.length) onChange(value.slice(0, -1)); }} onBlur=${() => add(text)} />
+        ${sug.length ? html`<div class="csug">${sug.map((c) => html`<button type="button" onMouseDown=${(e) => { e.preventDefault(); add(c); }}>${c}</button>`)}</div>` : null}</div></div>`;
+}
 /** The page's interactions for the selected element. A rule reads like a sentence: When [Clicked] Do [Show or hide] On [an element]. The element is picked from a list of the page's layers, or by clicking it on the canvas. */
 export function InteractionsSection({ s, actions }) {
     const rules = parseRules((s.attrs || {})["data-wc-do"]);
@@ -374,19 +397,26 @@ export function InteractionsSection({ s, actions }) {
             ${targets.map((t) => html`<option value=${t.key} selected=${Boolean(value) && t.id === value}>${"\u00a0\u00a0".repeat(Math.min(t.depth, 4))}${t.label ? `${t.tag} · ${t.label}` : t.tag}</option>`)}</select></label>
         <${IconBtn} icon=${I.target} title=${picking ? "Cancel: click an element on the canvas" : "Pick it on the canvas"} onClick=${() => (picking ? stopPick() : pick(onPath))} /></div>`;
     const hasStart = (id) => (targets.find((t) => t.id === id) || {}).start;
+    const ownOf = (id) => String((targets.find((t) => t.id === id) || {}).cls || "").split(/\s+/).filter(Boolean);
+    /** The three rows of a "classes" rule: what to add, remove and toggle on the element. `parts` is { add, remove, toggle }; `set(parts)` is called with the changed one. */
+    const classRows = (id, parts, set) => html`${[["add", "Add", "Classes put on the element"], ["remove", "Remove", "Classes taken off it (the ones it has are suggested)"], ["toggle", "Toggle", "Classes turned on if off and off if on"]].map(([k, l, t]) =>
+        html`<${ClassChips} label=${l} title=${t} value=${parts[k]} own=${k === "remove" || k === "toggle" ? ownOf(id) : []} onChange=${(v) => set({ ...parts, [k]: v })} />`)}`;
     return html`<${FSection} title="Interactions" extra=${html`<${IconBtn} icon=${I.plus} title="Add an interaction: when this is clicked, hovered or shown, do something to another element" onClick=${() => setDraft({ when: "click", do: "toggle" })} />`}>
         ${!rules.length && !draft ? html`<p class="muted" style="margin:0 0 4px">Make this do something when it is clicked or hovered: show or hide a menu, scroll to a section, copy some text. They run in Interact and Preview.</p>` : null}
         ${rules.map((r, i) => html`<div class="irule">
             <div class="frow">${whenSel(r.when, (v) => change(i, { when: v }))}<${Remove} title="Remove this interaction" onClick=${() => actions.setRules(rules.filter((_, j) => j !== i))} /></div>
             <div class="frow">${doSel(r.do, (v) => change(i, { do: v }))}<span class="ispace"></span></div>
             ${target(r.to, (path) => change(i, { to: choose(path) }))}
+            ${r.do === "classes" ? classRows(r.to, changeParts(r.change), (parts) => { const next = changeFrom(parts); if (next.length) change(i, { change: next }); }) : null}
             ${!TARGET_LESS.has(r.do) && actions.setStart ? html`<label class="frow ichk" title="The element is hidden when the page opens, and this shows it"><input type="checkbox" checked=${Boolean(hasStart(r.to))} onChange=${(e) => actions.setStart(r.to, e.target.checked)} /> <span>${nameOf(r.to)} starts hidden</span></label>` : null}
         </div>`)}
         ${draft ? html`<div class="irule">
             <div class="frow">${whenSel(draft.when, (v) => setDraft({ ...draft, when: v }))}<${Remove} title="Cancel" onClick=${() => { stopPick(); setDraft(null); }} /></div>
             <div class="frow">${doSel(draft.do, (v) => setDraft({ ...draft, do: v }))}<span class="ispace"></span></div>
-            ${target("", (path) => { actions.setRules([...rules, { when: draft.when, do: draft.do, to: choose(path) }]); setDraft(null); })}
-            <p class="muted" style="margin:2px 0 0">Choose the element it acts on, or click ⌖ and then the element on the canvas.</p>
+            ${target(draft.to || "", (path) => { const id = choose(path); if (draft.do === "classes") setDraft({ ...draft, to: id }); else { actions.setRules([...rules, { when: draft.when, do: draft.do, to: id }]); setDraft(null); } })}
+            ${draft.do === "classes" && draft.to ? html`${classRows(draft.to, draft.parts || { add: [], remove: [], toggle: [] }, (parts) => setDraft({ ...draft, parts }))}
+                <div class="frow"><button type="button" class="nfb" onClick=${() => { const change = changeFrom(draft.parts || {}); if (change.length) { actions.setRules([...rules, { when: draft.when, do: "classes", to: draft.to, change }]); setDraft(null); } }}>Add this interaction</button></div>` : null}
+            <p class="muted" style="margin:2px 0 0">${draft.do === "classes" ? "Choose the element, then the classes to add, remove or toggle on it." : "Choose the element it acts on, or click ⌖ and then the element on the canvas."}</p>
         </div>` : null}
     </${FSection}>`;
 }

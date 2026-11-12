@@ -439,3 +439,16 @@ select.fi, .vbar select { -webkit-appearance: none; appearance: none; padding-ri
 .ichk { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #525252; padding-left: 2px; }
 .ichk input { margin: 0; }
 .irule .ispace { flex: none; width: 24px; height: 24px; }
+
+/* Class chips (Interactions: Change classes) */
+.cchip { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: start; gap: 6px; }
+.cchip > .nfl { padding-top: 5px; color: #8a8a8a; font-size: 11px; }
+.cbox { position: relative; display: flex; flex-wrap: wrap; gap: 4px; min-height: 26px; padding: 3px 4px; border: 1px solid #e0e0e0; border-radius: 5px; background: #fff; }
+.cbox:focus-within { border-color: #111; }
+.cbox input { flex: 1; min-width: 70px; border: 0; outline: 0; background: transparent; font-size: 11px; padding: 2px 3px; }
+.chip { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; padding: 1px 3px 1px 6px; border-radius: 4px; background: #eef2ff; color: #3730a3; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.chip button { border: 0; background: none; color: inherit; font-size: 12px; line-height: 1; padding: 0 3px; cursor: pointer; opacity: .6; }
+.chip button:hover { opacity: 1; }
+.csug { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; margin-top: 2px; max-height: 170px; overflow: auto; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,.12); padding: 3px; }
+.csug button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 3px 6px; border-radius: 4px; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; }
+.csug button:hover { background: #f1f5f9; }

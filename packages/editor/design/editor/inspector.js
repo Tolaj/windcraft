@@ -94,7 +94,7 @@ const panelActions = {
         const self = S.selected ? S.selected.path.join(".") : null;
         (function walk(n, depth) {
             if (!n) return;
-            if (n.tag !== "body" && n.path.join(".") !== self) out.push({ key: n.path.join("."), path: n.path, id: n.label && n.label.startsWith("#") ? n.label.slice(1) : "", tag: n.tag, label: n.label || "", depth, start: Boolean(n.start) });
+            if (n.tag !== "body" && n.path.join(".") !== self) out.push({ key: n.path.join("."), path: n.path, id: n.label && n.label.startsWith("#") ? n.label.slice(1) : "", tag: n.tag, label: n.label || "", depth, start: Boolean(n.start), cls: n.cls || "" });
             (n.children || []).forEach((c) => walk(c, depth + 1));
         })(S.tree, 0);
         return out;
