@@ -19,7 +19,11 @@ setPreviewTheme(project.theme); // the previews are drawn with the project's the
 const FRAME_W = 1280, SNAP = 8;
 const MIN_Z = 0.03, MAX_Z = 2;
 
-const heights = {};
+// measured frame heights are kept between visits, so a long board does not jump about while its frames are measured one by one
+const HEIGHTS_KEY = `wc-board-heights:${project.id}`;
+const heights = (() => { try { return JSON.parse(localStorage.getItem(HEIGHTS_KEY) || "{}"); } catch { return {}; } })();
+let heightsTimer = 0;
+const saveHeights = () => { clearTimeout(heightsTimer); heightsTimer = setTimeout(() => { try { localStorage.setItem(HEIGHTS_KEY, JSON.stringify(heights)); } catch { /* storage full or blocked: the heights are measured again */ } }, 600); };
 const pos = {};
 const view = { x: 40, y: 60, z: 0.2 };
 let selectedId = null;
@@ -103,6 +107,7 @@ function applyView() {
     world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
     world.style.setProperty("--iz", String(1 / view.z));
     $("zoomLabel").textContent = `${Math.round(view.z * 100)}%`;
+    scheduleMounts();
 }
 
 function zoomAt(factor, cx, cy) {
@@ -147,13 +152,30 @@ $("zoomLabel").addEventListener("click", () => zoomAt(1 / view.z, ...center()));
 $("fitBtn").addEventListener("click", fitAll);
 
 // ── Frames ───────────────────────────────────────────────────────────────────
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach((e) => {
-        if (!e.isIntersecting) return;
-        observer.unobserve(e.target);
-        mount(e.target.dataset.id);
-    });
-}, { root: board, rootMargin: "600px" });
+// A live preview (an iframe that loads Tailwind) per frame is too heavy for a project of hundreds of frames, so only the frames near the
+// screen are mounted, nearest first, at most MAX_LIVE at once; zoomed far out they are plain white blocks until you come closer.
+const MAX_LIVE = 40, LIVE_MIN_Z = 0.1;
+let mountTimer = 0;
+function scheduleMounts(delay = 140) { clearTimeout(mountTimer); mountTimer = setTimeout(refreshMounts, delay); }
+function unmount(entry) { if (entry.iframe) { entry.iframe.remove(); entry.iframe = null; } }
+function refreshMounts() {
+    const z = view.z, margin = 400 / z;
+    const x0 = -view.x / z - margin, y0 = -view.y / z - margin, x1 = (board.clientWidth - view.x) / z + margin, y1 = (board.clientHeight - view.y) / z + margin;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const near = [];
+    if (z >= LIVE_MIN_Z) {
+        boardItems().forEach((it) => {
+            const p = pos[it.id];
+            if (!p) return;
+            const w = widthOf(it), h = heightOf(it);
+            if (p.x < x1 && p.x + w > x0 && p.y < y1 && p.y + h > y0) near.push({ id: it.id, d: Math.hypot(p.x + w / 2 - cx, p.y + h / 2 - cy) });
+        });
+    }
+    near.sort((a, b) => a.d - b.d);
+    const keep = new Set(near.slice(0, MAX_LIVE).map((n) => n.id));
+    for (const [id, entry] of wraps) if (entry.iframe && !keep.has(id)) unmount(entry);
+    keep.forEach(mount);
+}
 
 function mount(id) {
     const entry = wraps.get(id);
@@ -174,6 +196,7 @@ window.addEventListener("message", (e) => {
     for (const [id, entry] of wraps) {
         if (entry.iframe && entry.iframe.contentWindow === e.source) {
             heights[id] = Math.max(120, Math.min(6000, e.data.height));
+            saveHeights();
             scheduleLayout();
             return;
         }
@@ -195,10 +218,11 @@ function placeFrames() {
         const p = pos[it.id];
         Object.assign(entry.wrap.style, { left: `${p.x}px`, top: `${p.y}px`, width: `${widthOf(it)}px`, height: `${heightOf(it)}px` });
     });
+    scheduleMounts();
 }
 
 function buildFrames() {
-    observer.disconnect();
+    clearTimeout(mountTimer);
     wraps.clear();
     world.innerHTML = "";
     builtFor = tab === "component" ? "component" : "page";
@@ -206,10 +230,9 @@ function buildFrames() {
         const wrap = document.createElement("div");
         wrap.className = `fwrap${it.id === selectedId ? " sel" : ""}`;
         wrap.dataset.id = it.id;
-        wrap.innerHTML = `<div class="flabel" style="width:${widthOf(it)}px;box-sizing:border-box;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${it.group ? `<i class="fgroup">${esc(it.group)} / </i>` : ""}${esc(it.title)}<span>${it.chip || (it.kind === "section" ? partKind(it) : `v${it.version}`)}</span></div><div class="frame"></div>`;
+        wrap.innerHTML = `<div class="flabel" style="--fw:${widthOf(it)}px">${it.group ? `<i class="fgroup">${esc(it.group)} / </i>` : ""}${esc(it.title)}<span>${it.chip || (it.kind === "section" ? partKind(it) : `v${it.version}`)}</span></div><div class="frame"></div>`;
         world.appendChild(wrap);
         wraps.set(it.id, { wrap, frame: wrap.querySelector(".frame"), iframe: null });
-        observer.observe(wrap);
     });
     placeFrames();
 }

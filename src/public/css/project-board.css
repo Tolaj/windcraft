@@ -7,7 +7,8 @@
 
 /* frames on the board */
 .fwrap { position: absolute; }
-.flabel { position: absolute; left: 0; bottom: 100%; margin-bottom: 6px; white-space: nowrap; font-size: 12px; color: #555; transform-origin: 0 100%; transform: scale(var(--iz, 1)); pointer-events: none; }
+/* the label keeps its size on screen while the board zooms (--iz), so its box is as wide as the frame looks (--fw is the frame width): it is cut short, not laid over its neighbours */
+.flabel { position: absolute; left: 0; bottom: 100%; margin-bottom: 6px; width: calc(var(--fw, 1280px) / var(--iz, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #555; transform-origin: 0 100%; transform: scale(var(--iz, 1)); pointer-events: none; }
 .flabel span { color: #999; margin-left: 6px; }
 .flabel .fgroup { color: #999; font-style: normal; }
 .frame { position: relative; overflow: hidden; background: #fff; border-radius: 2px; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); cursor: pointer; width: 100%; height: 100%; }
