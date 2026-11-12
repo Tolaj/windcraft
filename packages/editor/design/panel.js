@@ -181,7 +181,7 @@ function PagePanel({ page: pg, actions }) {
     const btn = (l, fn) => html`<button type="button" onClick=${fn} class="flex-1 rounded border border-neutral-200 py-1 text-[10px] hover:bg-neutral-50">${l}</button>`;
     const set = (key) => (text) => actions.setPageField(key, text);
     return html`
-        <div class="sec"><div class="secb nopad"><p class="sub first">Frame</p>
+        <div class="sec"><div class="secb nopad">
             <${PageField} row label="Name" value=${pg.name} onCommit=${set("name")} />
             <${Field} label="Group"><${TextInput} value=${pg.group} placeholder="none" list="dl-groups" title="Type to pick a group of this project, or a new name to make one" onCommit=${set("group")} /></${Field}>
             <datalist id="dl-groups">${(pg.groups || []).map((g) => html`<option value=${g} />`)}</datalist>
