@@ -94,6 +94,7 @@ export function init() {
             if (a && ftb.contains(a) && a.matches("input, select")) a.blur();
         }
         if (m.type === "zoomKey") return keyZoom(m.key);
+        if (m.type === "tw-names") { panelStore.set({ animations: Array.isArray(m.animations) ? m.animations.filter((n) => /^[a-z][a-z0-9-]*$/.test(n)) : [] }); return; }
         if (m.type === "wheel") {
             const pos = positions()[S.curKey] || { x: 0, y: 0 };
             return handleWheel({ dx: m.dx, dy: m.dy, zoomKey: m.zoom, cx: view.x + (pos.x + m.x) * view.z, cy: view.y + (pos.y + m.y) * view.z });

@@ -59,6 +59,7 @@ export function agentMain() {
     // shrinks, the frame follows, the selection box drifts, and on a slow machine it never settles. The Interact tool is a separate,
     // live frame with its transitions. The frame never shows a scrollbar either: it follows its content's height, and a scrollbar that
     // appears for a moment takes width, which can cross a breakpoint (xl at exactly 1280) and change the layout under it.
+    let previewTimer = null, previewRestore = null;
     const stillStyle = document.createElement("style");
     stillStyle.setAttribute("data-wc-agent-style", "");
     // Animations (animate-spin, animate-pulse...) are off too: editing shows the design at rest, the Interact tool shows it moving.
@@ -85,10 +86,11 @@ export function agentMain() {
         props.forEach((p) => { o[p] = cs.getPropertyValue(p); });
         const motion = props.filter((p) => p.startsWith("transition") || p.startsWith("animation"));
         if (motion.length) {
+            const was = stillStyle.disabled; // a running animation preview has it off already: put it back as it was, not on
             stillStyle.disabled = true; // only the motion properties change while it is off, and nothing paints before it is back on
             const live = getComputedStyle(el);
             motion.forEach((p) => { o[p] = live.getPropertyValue(p); });
-            stillStyle.disabled = false;
+            stillStyle.disabled = was;
         }
         return o;
     };
@@ -698,6 +700,7 @@ export function agentMain() {
             classes: el.getAttribute("class") || "",
             style: el.getAttribute("style") || "",
             leaf: el.children.length === 0,
+            kids: Array.prototype.filter.call(el.children, (c) => !/^(SCRIPT|STYLE)$/.test(c.tagName)).length, // for "animate the children one after another"
             group: el.hasAttribute("data-wc-group"),
             ownText: Array.prototype.some.call(el.childNodes, (n) => n.nodeType === 3 && n.textContent.trim() !== ""), // text of its own: Typography shows
             text: el.children.length === 0 ? el.textContent : null,
@@ -2740,6 +2743,13 @@ export function agentMain() {
     }, true);
 
     // ── Commands from the editor ────────────────────────────────────────────────────────────
+    const applyAnimation = (el, m) => {
+        const re = new RegExp(m.strip);
+        const cls = [...(el.getAttribute("class") || "").split(/\s+/).filter((t) => t && !re.test(t)), ...(m.classes || [])];
+        if (cls.length) el.setAttribute("class", cls.join(" ")); else el.removeAttribute("class");
+        (m.removeAttrs || []).forEach((n) => el.removeAttribute(n));
+        Object.keys(m.attrs || {}).forEach((k) => el.setAttribute(k, m.attrs[k]));
+    };
     const mutate = {
         setClasses: (el, m) => { m.value ? el.setAttribute("class", m.value) : el.removeAttribute("class"); },
         /** Another tag for the element (div -> section, p -> h2...), if it's one it can validly become: attributes and children move over unchanged. */
@@ -2754,6 +2764,39 @@ export function agentMain() {
             sels = sels.map((x) => (x === el ? next : x));
         },
         setText: (el, m) => { if (el.children.length === 0) el.textContent = m.text; },
+        // wire an element to an animation: the animation's classes replace what was there (m.strip is the pattern of those classes), attributes are set or taken off
+        setAnimation: (el, m) => applyAnimation(el, m),
+        // the same for every child of the element, each with its own --i (0, 1, 2...), so a delay of calc(var(--i) * step) makes them play one after another
+        stagger: (el, m) => { Array.prototype.filter.call(el.children, (c) => !/^(SCRIPT|STYLE)$/.test(c.tagName) && !isOverlay(c)).forEach((c, i) => { applyAnimation(c, m); c.style.setProperty("--i", String(i)); }); },
+        // a heading's text as letters (or words), each its own span with --i, so an entrance can run letter by letter; the element keeps its words in aria-label so readers still get them
+        revealText: (el, m) => {
+            if (el.children.length || !el.textContent.trim()) return; // only plain text
+            const text = el.textContent, by = m.by === "words" ? "words" : "letters";
+            el.setAttribute("aria-label", text.trim().replace(/\s+/g, " ")); el.setAttribute("data-split", by); el.textContent = "";
+            let i = 0;
+            text.split(/(\s+)/).forEach((tok) => {
+                if (!tok) return;
+                if (/^\s+$/.test(tok)) { el.appendChild(document.createTextNode(" ")); return; }
+                const word = document.createElement("span"); word.className = "inline-block whitespace-nowrap"; word.setAttribute("aria-hidden", "true");
+                if (by === "words") { word.textContent = tok; word.style.setProperty("--i", String(i++)); applyAnimation(word, m); }
+                else for (const ch of tok) { const c = document.createElement("span"); c.className = "inline-block"; c.textContent = ch; c.style.setProperty("--i", String(i++)); applyAnimation(c, m); word.appendChild(c); }
+                el.appendChild(word);
+            });
+        },
+        unsplitText: (el) => { if (!el.hasAttribute("data-split")) return; el.textContent = el.getAttribute("aria-label") || el.textContent; el.removeAttribute("data-split"); el.removeAttribute("aria-label"); },
+        // an SVG's lines drawn: each shape's length is measured (--len), dashed to that length, and its offset animated to 0; shape i is delayed by i x gap
+        drawSvg: (el, m) => {
+            const SHAPES = "path,line,polyline,polygon,circle,ellipse,rect";
+            const shapes = el.matches(SHAPES) ? [el] : Array.prototype.slice.call(el.querySelectorAll(SHAPES));
+            shapes.forEach((g, i) => {
+                if (m.clear) { g.style.removeProperty("--len"); g.style.removeProperty("--i"); applyAnimation(g, m); if (!g.getAttribute("style")) g.removeAttribute("style"); return; }
+                let len = 0; try { len = Math.ceil(g.getTotalLength()); } catch (e) { /* not measurable */ }
+                if (!len) return;
+                g.style.setProperty("--len", String(len)); g.style.setProperty("--i", String(i));
+                if (m.outline) { if (!g.getAttribute("stroke")) g.setAttribute("stroke", "currentColor"); g.setAttribute("fill", "none"); }
+                applyAnimation(g, m);
+            });
+        },
         setAttr: (el, m) => { m.value === null ? el.removeAttribute(m.name) : el.setAttribute(m.name, m.value); },
         remove: (el) => { const p = el.parentElement; el.remove(); sels = p && p !== root ? [p] : []; },
         duplicate: (el) => { const c = el.cloneNode(true); el.after(c); if (made.has(el)) markMade(c); sels = [c]; },
@@ -2826,6 +2869,23 @@ export function agentMain() {
         }
         if (m.cmd === "selectAll") { selectAll(); return; }
         if (m.cmd === "select") { if (Array.isArray(m.paths)) setSelection(m.paths.map(elAt).filter(Boolean)); else select(elAt(m.path)); return; } // paths: several at once
+        if (m.cmd === "injectAnim") { // a new animation shows at once, without reloading the design: its keyframes and class, in the page's head (not part of the design's markup)
+            let st = document.querySelector("style[data-wc-anim]");
+            if (!st) { st = document.createElement("style"); st.dataset.wcAnim = ""; document.head.appendChild(st); }
+            st.textContent += String(m.css || "").replace(/<\/style/gi, "");
+            return;
+        }
+        if (m.cmd === "previewAnim") { // the canvas shows a design at rest (see stillStyle); for a few seconds it moves, so an animation can be seen
+            if (previewRestore) { clearTimeout(previewTimer); previewRestore(); } // a preview still running is ended first, so what it held is put back before this one holds it
+            stillStyle.disabled = true;
+            // animations that wait for a scroll or a click (the page's script is not running here) are released for the preview, then put back
+            const held = [];
+            document.querySelectorAll("[data-reveal]").forEach((e) => { held.push([e, "data-reveal", e.getAttribute("data-reveal")]); e.setAttribute("data-reveal", "in"); });
+            document.querySelectorAll("[data-click-anim]").forEach((e) => { held.push([e, "data-play", e.getAttribute("data-play")]); e.setAttribute("data-play", "on"); });
+            previewRestore = () => { previewRestore = null; stillStyle.disabled = false; held.forEach(([e, a, v]) => { if (v === null) e.removeAttribute(a); else e.setAttribute(a, v); }); };
+            previewTimer = setTimeout(() => previewRestore && previewRestore(), Math.min(15000, Math.max(500, Number(m.ms) || 4000)));
+            return;
+        }
         if (m.cmd === "previewState") { shownState = m.state || ""; showState(); redraw(); if (primary() && alive(primary())) post({ type: "info", info: describe(primary()) }); return; }
         if (m.cmd === "deselect") { editing = null; setSelection([], true); post({ type: "body", info: describe(document.body) }); return; } // the page's styling, for the page panel
         if (m.cmd === "hover") { hov = m.path ? elAt(m.path) : null; redraw(); return; }
@@ -2901,6 +2961,15 @@ export function agentMain() {
 
     post({ type: "ready", html: serialize(), tree: tree() });
     // the page panel shows the page's styling from the start: sent again once the styles have loaded, when the values are real
+    // the animations the design's Tailwind config defines (its animation section), so the panel can offer them next to Tailwind's own
+    const BUILTIN_ANIM = ["none", "spin", "ping", "pulse", "bounce"];
+    const postNames = () => {
+        const t = (window.tailwind && window.tailwind.config && window.tailwind.config.theme) || {};
+        const names = Object.keys({ ...(t.animation || {}), ...((t.extend || {}).animation || {}) }).filter((n) => !BUILTIN_ANIM.includes(n));
+        post({ type: "tw-names", animations: names });
+    };
+    postNames();
+    window.addEventListener("load", () => setTimeout(postNames, 300));
     const postBody = () => { if (!primary()) post({ type: "body", info: describe(document.body) }); };
     postBody();
     if (document.readyState === "complete") setTimeout(postBody, 300); else window.addEventListener("load", () => setTimeout(postBody, 100));

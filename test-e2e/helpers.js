@@ -58,7 +58,11 @@ export async function seed() {
     await Component.create({ title: "Home: Header", htmlCode: `<header id="s">header</header>`, category: "landing-page", description: "x", createdBy: user._id, project: project._id, kind: "section", parent: page._id, version: 1 });
     // a logo: an icon beside a brand name, in one link
     const brand = await Component.create({ title: "Brand", htmlCode: `<div class="p-8"><a id="brand" class="flex items-center gap-3 text-2xl font-bold"><span id="ic" class="block h-10 w-10"><svg id="sv" viewBox="0 0 10 10" width="40" height="40"><rect width="10" height="10" fill="black"/></svg></span>[YOUR BRAND]</a></div>`, category: "landing-page", description: "x", createdBy: user._id, project: project._id, kind: "page", version: 1 });
-    return { brand: String(brand._id), project: String(project._id), page: String(page._id), token: "a".repeat(32), email: "e2e@example.test", password: "pw-e2e-1234" };
+    // a page with something below the fold and a list, for scroll triggers and the cascade
+    const scroll = await Component.create({ title: "Scroll", htmlCode: `<div class="h-[1000px] bg-neutral-100">top</div><p id="r1" class="p-4">reveal me</p><ul id="list" class="p-4"><li id="i1">one</li><li id="i2">two</li><li id="i3">three</li></ul>`, category: "landing-page", description: "x", createdBy: user._id, project: project._id, kind: "page", version: 1 });
+    // a page for the effects: a heading, a drawing, and something that follows the scroll
+    const effects = await Component.create({ title: "Effects", htmlCode: `<h1 id="h" class="p-6 text-3xl font-bold">Hello world</h1><svg id="art" viewBox="0 0 100 100" width="200" height="200"><path id="p1" d="M10 10 L90 10 L90 90" fill="black"/><path id="p2" d="M10 90 L90 90"/></svg><div class="h-[420px]"></div><p id="par" class="p-4">follows the scroll</p><div class="h-[600px]"></div>`, category: "landing-page", description: "x", createdBy: user._id, project: project._id, kind: "page", version: 1 });
+    return { effects: String(effects._id), scroll: String(scroll._id), brand: String(brand._id), project: String(project._id), page: String(page._id), token: "a".repeat(32), email: "e2e@example.test", password: "pw-e2e-1234" };
 }
 
 export const PROJECT_FILE = `module.exports = {\n  theme: { extend: { colors: { proj: "#0f766e" } } },\n  plugins: [require("@tailwindcss/typography"), require("preline/plugin")],\n};\n`;

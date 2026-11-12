@@ -12,7 +12,7 @@ import { highlight, checkTags } from "./code-view.js";
 import { TextInput, Field } from "./controls.js";
 import { DesignTop } from "./design-tab.js";
 import { PositionSection, LayoutSection, SpacingSection, ItemSection } from "./figma-sections.js";
-import { TypographySection, BackgroundSection, BorderSection, EffectsSection, TransformSection, MotionSection, InteractionSection, AddBox } from "./style-sections.js";
+import { TypographySection, BackgroundSection, BorderSection, EffectsSection, TransformSection, MotionSection, AnimationSection, InteractionSection, AddBox } from "./style-sections.js";
 import { ClassesSection } from "./classes-section.js";
 
 /** A labelled text field of the page panel: typed freely, committed on Enter or leaving (controls.js TextInput). */
@@ -211,7 +211,7 @@ function PagePanel({ page: pg, actions }) {
  */
 const Styles = ({ k, s, actions, page }) => html`<${TypographySection} key=${`t${k}`} s=${s} actions=${actions} /><${BackgroundSection} key=${`b${k}`} s=${s} actions=${actions} />
     ${!page && html`<${BorderSection} key=${`r${k}`} s=${s} actions=${actions} /><${EffectsSection} key=${`e${k}`} s=${s} actions=${actions} />
-        <${TransformSection} key=${`x${k}`} s=${s} actions=${actions} /><${MotionSection} key=${`n${k}`} s=${s} actions=${actions} /><${InteractionSection} key=${`i${k}`} s=${s} actions=${actions} />`}
+        <${TransformSection} key=${`x${k}`} s=${s} actions=${actions} /><${MotionSection} key=${`n${k}`} s=${s} actions=${actions} /><${AnimationSection} key=${`m${k}`} s=${s} actions=${actions} /><${InteractionSection} key=${`i${k}`} s=${s} actions=${actions} />`}
     <${AddBox} key=${`c${k}`} actions=${actions} />`;
 
 const CLOSE = html`<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>`;

@@ -25,11 +25,16 @@ const sourceOf = (d) => {
     return d.loaded ? { ...d.parsed, markup: d.markup } : d.source;
 };
 
-export function openPreview() {
+export async function openPreview() {
     if (viewer) return;
     const cur = docs.get(S.curKey);
     if (host.previewUrl && data.project && cur && !S.isNew && cur.meta && cur.meta.id) {
-        if (anyDirty() && !confirm("The preview shows the saved version of your pages. Open it without your unsaved changes?")) return;
+        if (anyDirty()) { // the preview is the saved page, so what you changed (an animation on an element, say) is not in it until it is saved
+            if (!confirm("The preview shows the saved version of your pages. Save your changes and open it?")) return;
+            const { save } = await import("./toolbar.js");
+            await save();
+            if (anyDirty()) return; // the save did not go through: the editor says why
+        }
         window.open(host.previewUrl({ projectId: data.project.id, designId: cur.meta.id }), "_blank", "noopener");
         return;
     }

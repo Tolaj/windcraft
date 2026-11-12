@@ -21,6 +21,7 @@ export const panelStore = createStore({
     closed: /** @type {Set<string>} */ (new Set()),
     palette: /** @type {string | null} */ (null),
     docTailwind: true,
+    animations: /** @type {string[]} */ ([]), // the animations the open design's Tailwind config defines (reported by the canvas)
 });
 
 /** The state the panel is drawn from: the store's, plus what is worked out at the time of drawing (the frame's width). */
