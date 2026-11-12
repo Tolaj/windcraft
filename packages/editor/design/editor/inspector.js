@@ -100,19 +100,28 @@ const panelActions = {
         return out;
     },
     // One-click setups (style-sections.js, the wand in Interactions): tabs and a modal, built from the same rules a person would add by hand
-    setupTabs: (panelsPath) => {
+    setupTabs: (panelsPath, active = []) => {
         const sel = S.selected, tabsNode = sel && nodeAt(sel.path), panelsNode = nodeAt(panelsPath);
         const tabs = (tabsNode && tabsNode.children) || [], panels = (panelsNode && panelsNode.children) || [];
         if (tabs.length < 2) return { ok: false, message: "Select the element that holds the tab buttons: it needs two or more." };
         if (tabs.length !== panels.length) return { ok: false, message: `${tabs.length} tabs but ${panels.length} panels: they need to match, one panel for each tab.` };
         const panelIds = idsFor(panels.map((p) => p.path));
-        idsFor(tabs.map((t) => t.path));
+        const tabIds = idsFor(tabs.map((t) => t.path));
         ensureInteractScript();
         tabs.forEach((t, i) => {
-            const keep = parseRules(t.rules).filter((r) => !panelIds.includes(r.to));
-            const rules = [...keep, ...panelIds.map((id, j) => ({ when: "click", do: j === i ? "show" : "hide", to: id }))];
-            cmd({ cmd: "setAttr", path: t.path, name: DO_ATTR, value: writeRules(rules) || null }, "setup");
+            // what a click does: show its own panel, hide the others; and (when a look was chosen for the active tab) take that look itself and take it off the other tabs
+            const ours = (r) => panelIds.includes(r.to) || (r.do === "classes" && tabIds.includes(r.to));
+            const keep = parseRules(t.rules).filter((r) => !ours(r));
+            const panelRules = panelIds.map((id, j) => ({ when: "click", do: j === i ? "show" : "hide", to: id }));
+            const lookRules = active.length ? tabIds.map((id, k) => ({ when: "click", do: "classes", to: id, change: active.map((c) => `${k === i ? "+" : "-"}${c}`) })) : [];
+            cmd({ cmd: "setAttr", path: t.path, name: DO_ATTR, value: writeRules([...keep, ...panelRules, ...lookRules]) || null }, "setup");
         });
+        if (active.length) { // the first tab starts active, the others do not
+            tabs.forEach((t, i) => {
+                const have = String(t.cls || "").split(/\s+/).filter(Boolean).filter((c) => !active.includes(c));
+                cmd({ cmd: "setClasses", path: t.path, value: [...have, ...(i === 0 ? active : [])].join(" ") }, "setup");
+            });
+        }
         panels.forEach((p, j) => cmd({ cmd: "setAttr", path: p.path, name: START_ATTR, value: j === 0 ? null : "hidden" }, "setup")); // the first panel shows, the rest wait
         return { ok: true };
     },
@@ -122,9 +131,11 @@ const panelActions = {
         if (modalNode.path.join(".") === openNode.path.join(".")) return { ok: false, message: "The modal can't be the button that opens it." };
         const [modalId] = idsFor([modalNode.path]);
         ensureInteractScript();
-        const add = (node, rule) => { const keep = parseRules(node.rules).filter((r) => !(r.to === rule.to && r.do === rule.do && r.when === rule.when)); cmd({ cmd: "setAttr", path: node.path, name: DO_ATTR, value: writeRules([...keep, rule]) }, "setup"); };
-        add(openNode, { when: "click", do: "show", to: modalId });
-        if (closeNode) add(closeNode, { when: "click", do: "hide", to: modalId });
+        // one write per element, from what it has now (two writes from the same snapshot would undo each other)
+        const add = (node, rules) => { const keep = parseRules(node.rules).filter((r) => !rules.some((n) => n.to === r.to && n.do === r.do && n.when === r.when)); cmd({ cmd: "setAttr", path: node.path, name: DO_ATTR, value: writeRules([...keep, ...rules]) }, "setup"); };
+        add(openNode, [{ when: "click", do: "show", to: modalId }]);
+        add(modalNode, [{ when: "backdrop", do: "hide", to: modalId }]); // a click on the backdrop (not on what is inside) closes it
+        if (closeNode) add(closeNode, [{ when: "click", do: "hide", to: modalId }]);
         cmd({ cmd: "setAttr", path: modalNode.path, name: START_ATTR, value: "hidden" }, "setup"); // closed when the page opens
         return { ok: true };
     },

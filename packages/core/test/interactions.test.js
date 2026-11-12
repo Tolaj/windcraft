@@ -93,3 +93,15 @@ test("Go to page: the target is a page id, and the script asks the player to swi
     assert.deepEqual(asked, [id]);
     assert.equal(prevented, 1, "a link with a real href does not also navigate");
 });
+
+test("a rule can wait for a click on the element itself (its backdrop)", () => {
+    const classes = (init) => { const s = new Set(init); return { toggle: (c, f) => { const on = f === undefined ? !s.has(c) : f; on ? s.add(c) : s.delete(c); }, contains: (c) => s.has(c), add: (c) => s.add(c) }; };
+    const modal = { tagName: "DIV", classList: classes([]), handlers: {}, getAttribute: (n) => (n === "data-wc-do" ? "backdrop hide modal" : null), addEventListener(ev, fn) { this.handlers[ev] = fn; } };
+    const doc = { getElementById: (i) => (i === "modal" ? modal : null), querySelectorAll: (q) => (q === "[data-wc-do]" ? [modal] : []) };
+    new Function("document", "navigator", INTERACT_SCRIPT)(doc, {});
+    modal.handlers.click({ target: { not: "the modal" } }); // a click inside its content
+    assert.equal(modal.classList.contains("hidden"), false, "a click on what is inside does not close it");
+    modal.handlers.click({ target: modal });
+    assert.equal(modal.classList.contains("hidden"), true, "a click on the backdrop itself does");
+    assert.deepEqual(parseRules("backdrop hide modal").map((r) => r.when), ["backdrop"]);
+});
