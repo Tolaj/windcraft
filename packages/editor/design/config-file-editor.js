@@ -40,10 +40,30 @@ export function mountConfigFileEditor(el, opts, onApply) {
                 <textarea data-ta wrap="off" spellcheck="false" aria-label="Config file" class="cfe-mono cfe-ta min-w-0 flex-1 resize-none border-0 bg-white p-4 text-neutral-900 outline-none"></textarea></div>
                 <div class="max-h-40 shrink-0 overflow-auto border-t border-neutral-200 bg-neutral-50 px-4 py-2" aria-live="polite" aria-label="Checks" data-diag></div></div>
             <div class="cfe-res flex min-w-0 flex-[2] flex-col border-l border-neutral-200 bg-neutral-50"><div class="border-b border-neutral-200 px-4 py-2.5"><p class="font-semibold text-neutral-900">Result</p><p class="mt-0.5 text-neutral-500" aria-live="polite" data-resnote></p></div><div class="min-h-0 flex-1 overflow-auto" data-res></div></div></div>
-        <div class="flex items-center gap-3 border-t border-neutral-200 px-4 py-2.5"><span class="min-w-0 flex-1 truncate text-neutral-500" role="status" aria-live="polite" data-status></span><button type="button" data-note class="hidden text-neutral-500 underline hover:text-neutral-900"></button><button type="button" data-reset class="text-neutral-500 underline hover:text-neutral-900">Reset this file</button><button type="button" data-apply class="h-8 rounded-md bg-black px-5 font-semibold text-white hover:bg-neutral-800">Apply</button></div></div>`;
-    const q = (s) => el.querySelector(s), ta = q("[data-ta]");
+        <div class="flex items-center gap-3 border-t border-neutral-200 px-4 py-2.5"><span class="min-w-0 flex-1 truncate text-neutral-500" role="status" aria-live="polite" data-status></span><button type="button" data-note class="hidden text-neutral-500 underline hover:text-neutral-900"></button><button type="button" data-info title="Show the custom and default values" aria-label="Show the custom and default values" style="width:20px;height:20px;border:1px solid #a3a3a3;border-radius:9999px;font:italic 12px Georgia,serif;line-height:1" class="hidden shrink-0 items-center justify-center text-neutral-500 hover:text-neutral-900">i</button><button type="button" data-reset class="text-neutral-500 underline hover:text-neutral-900">Reset this file</button><button type="button" data-apply class="h-8 rounded-md bg-black px-5 font-semibold text-white hover:bg-neutral-800">Apply</button></div></div>`;
+    let infoDlg = null; // the dialog behind the "i" button (compact only)
+    const q = (s) => el.querySelector(s) || (infoDlg && infoDlg.querySelector(s)), ta = q("[data-ta]");
     if (compact) { ["[data-tabs]", ".cfe-res", "[data-apply]"].forEach((sel) => q(sel).classList.add("hidden")); q(".cfe-left").classList.add("flex-1"); }
     let autoTimer = null, tried = "";
+    // compact: the result column is not beside the file; the "i" button shows it (what is custom and what is Tailwind's default) in a dialog
+    if (compact) q("[data-info]").classList.replace("hidden", "flex");
+    function showInfo() {
+        if (!infoDlg) {
+            infoDlg = document.createElement("dialog");
+            infoDlg.className = "m-auto h-[min(80vh,640px)] w-[min(720px,94vw)] rounded-xl border border-neutral-200 p-0 shadow-[0_16px_48px_rgba(0,0,0,.2)] backdrop:bg-black/40";
+            infoDlg.innerHTML = `<div class="flex h-full min-h-0 flex-col bg-white text-xs"><div class="flex items-center justify-between border-b border-neutral-200 px-5 py-3"><div><h3 class="text-sm font-semibold text-neutral-900">Tailwind config values</h3><p class="mt-0.5 text-[11px] text-neutral-500">Sections you changed are marked and open; the rest are Tailwind's defaults.</p></div><button type="button" data-close aria-label="Close" class="rounded px-2 py-1 text-neutral-500 hover:bg-neutral-100">Close</button></div><div class="min-h-0 flex-1 overflow-hidden" data-slot></div></div>`;
+            document.body.appendChild(infoDlg);
+            infoDlg.addEventListener("click", (e) => { if (e.target === infoDlg || e.target.closest("[data-close]")) infoDlg.close(); });
+            infoDlg.addEventListener("keydown", (e) => e.stopPropagation());
+            infoDlg.addEventListener("close", () => { const r = infoDlg.querySelector(".cfe-res"); if (r) { r.classList.add("hidden"); el.querySelector(".cfe-cols").appendChild(r); } });
+        }
+        const res = q(".cfe-res") || infoDlg.querySelector(".cfe-res");
+        res.classList.remove("hidden"); res.classList.add("h-full", "border-l-0");
+        infoDlg.querySelector("[data-slot]").appendChild(res);
+        infoDlg.showModal();
+        q("[data-resnote]").textContent = "Working it out…";
+        showResult(++seq); // worked out from the file as it is now
+    }
     const dirty = (sc) => texts[sc][engine] !== saved[sc][engine];
 
     function tabs() {
@@ -64,7 +84,8 @@ export function mountConfigFileEditor(el, opts, onApply) {
         q("[data-status]").textContent = status[scope];
         q("[data-apply]").textContent = busy ? "Checking…" : scope === "page" ? "Apply to this page" : "Apply to the project";
         const rows = diag[scope].map((d) => `<div class="flex gap-2 py-0.5"><span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full" style="background:${DOT[d.level]}"></span><span class="w-12 shrink-0 font-mono text-neutral-500">${d.line ? `line ${d.line}` : "file"}</span><span class="${d.level === "error" ? "text-red-800" : d.level === "warn" ? "text-amber-800" : "text-neutral-600"}">${esc(d.message)}</span></div>`).join("");
-        q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${scope === "page" ? "Only this page uses this file, on top of the project's. " : compact ? "Every page in this project uses this file. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>; " + (compact ? "it is applied as you type, and each package is checked." : "Apply checks each package.") : "Paste what a plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
+        const hint = compact && engine === "3" ? `Every page uses this file. Add a plugin with <code>require("@tailwindcss/typography")</code> in <code>plugins</code>. It applies as you type.` : "";
+        q("[data-diag]").innerHTML = rows || (hint ? `<p class="truncate text-neutral-500" title="Every page uses this file. Add a plugin with require(&quot;@tailwindcss/typography&quot;) in plugins. It applies as you type.">${hint}</p>` : null) || `<p class="text-neutral-500">${scope === "page" ? "Only this page uses this file, on top of the project's. " : compact ? "Every page in this project uses this file. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>; " + (compact ? "it is applied as you type, and each package is checked." : "Apply checks each package.") : "Paste what a plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
         gutter();
     }
     function load() { ta.value = texts[scope][engine]; draw(); live(); }
@@ -123,6 +144,7 @@ export function mountConfigFileEditor(el, opts, onApply) {
         if (sc) { texts[scope][engine] = ta.value; scope = sc.dataset.scope; load(); return; }
         const en = e.target.closest("[data-engine]");
         if (en) { texts[scope][engine] = ta.value; engine = en.dataset.engine; load(); return; }
+        if (e.target.closest("[data-info]")) return showInfo();
         if (e.target.closest("[data-note]")) return opts.onNote && opts.onNote();
         if (e.target.closest("[data-apply]")) return apply();
         if (e.target.closest("[data-reset]")) { if (!confirm(`Put ${name(scope, engine)} (${scope === "page" ? "this page" : "whole project"}) back to the blank template?`)) return; texts[scope][engine] = tmpl(scope, engine); diag[scope] = []; load(); }
