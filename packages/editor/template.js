@@ -11,6 +11,7 @@ export const editorHtml = `<div class="flex h-full flex-col">
                             stroke-linecap="round">
                             <path d="M12 5v14M5 12h14" />
                         </svg></button></div>
+                <div data-group-row class="mx-2 mb-1 hidden"><select data-group-select class="fi" title="Show the frames of one group"></select></div>
                 <div id="pagesList" class="px-1"></div>
                 <div class="mx-2 my-2 h-px bg-neutral-200"></div>
                 <div id="layersHead" class="sec2"><span>Layers</span></div>
@@ -57,6 +58,7 @@ export const editorHtml = `<div class="flex h-full flex-col">
                             </svg>
                         </button>
                         <div id="designsMenu" class="pop absolute left-0 top-10 z-40 hidden w-64 p-1">
+                            <div data-group-row class="hidden p-1"><select data-group-select class="fi" title="Show the frames of one group"></select></div>
                             <div id="designs" class="max-h-72 overflow-auto text-[12px]"></div>
                             <button id="newDesignBtn" type="button"
                                 class="mt-1 flex h-8 w-full items-center gap-2 rounded-lg border-t border-neutral-100 px-2 text-left text-[12px] font-medium text-neutral-700 hover:bg-neutral-100">+

@@ -119,6 +119,72 @@ function setRole(key) {
     }
 }
 
+/** A frame that came from the server (not loaded yet: its code is parsed when it is opened or first drawn). */
+const planeDoc = (it) => ({
+    key: it.id, kind: it.kind, parent: it.parent, board: it.board, frameW: it.frameW || null, source: it.htmlCode, loaded: false, isNew: false, height: 0,
+    meta: { id: it.id, title: it.title, group: it.group || "", version: it.version, category: it.category, description: it.description, tags: it.tags, isPublished: it.isPublished, useAsReference: it.useAsReference !== false, project: data.project, twConfig: it.twConfig || "" },
+});
+
+// ── Groups: a large project is on the canvas one group at a time ─────────────
+const ALL_MAX = 60; // as on the server (services/plane.service.js): a project of this many frames or fewer is shown whole
+const groupLabel = (name) => name || "No group";
+const groupsTotal = () => (data.groups || []).reduce((n, g) => n + g.count, 0);
+/** The switcher is offered where the host can load a group and the project has more than one. */
+const canSwitchGroups = () => Boolean(host.loadFrames && data.project && (data.groups || []).length > 1);
+/** Fills both group dropdowns (the Frames list and the frame menu) from data.groups; hides them when there is nothing to switch. */
+export function renderGroupSwitchers() {
+    const on = canSwitchGroups();
+    const groups = data.groups || [];
+    const cur = data.planeGroup === null || data.planeGroup === undefined ? "all" : `g:${data.planeGroup}`;
+    const opts = groups.map((g) => ({ v: `g:${g.name}`, text: `${groupLabel(g.name)} · ${g.count}` }));
+    if (groupsTotal() <= ALL_MAX) opts.unshift({ v: "all", text: `All frames · ${groupsTotal()}` });
+    if (!opts.some((o) => o.v === cur)) opts.push({ v: cur, text: `${groupLabel(cur.slice(2))} · 0` }); // a group the last frame left stays shown until you switch
+    document.querySelectorAll("[data-group-select]").forEach((sel) => {
+        const row = sel.closest("[data-group-row]");
+        row.classList.toggle("hidden", !on);
+        if (!on) return;
+        sel.innerHTML = opts.map((o) => `<option value="${esc(o.v)}">${esc(o.text)}</option>`).join("");
+        sel.value = cur;
+    });
+}
+/** A frame moved from one group to another: the counts in the list follow (a group with no frame left is gone from it). */
+function noteGroupMove(from, to) {
+    if (from === to) return;
+    const groups = data.groups || (data.groups = []);
+    const old = groups.find((g) => g.name === from);
+    if (old && --old.count <= 0) groups.splice(groups.indexOf(old), 1);
+    const now = groups.find((g) => g.name === to);
+    if (now) now.count += 1; else groups.push({ name: to, count: 1 });
+}
+let switchingGroup = false;
+/** Puts another group's frames on the canvas, in place (no reload). `value` is "all" or "g:<name>". Unsaved work stops it: frames not saved would be lost. */
+export async function switchGroup(value) {
+    if (switchingGroup) return;
+    const target = value === "all" ? null : value.slice(2);
+    if ((data.planeGroup ?? null) === target) return;
+    const back = () => renderGroupSwitchers();
+    if (anyDirty()) { alert("Save your changes before you switch group: a frame you have not saved would be lost."); return back(); }
+    if ([...docs.values()].some((d) => d.isNew) && !confirm("The new empty frame is not saved. Switch group and drop it?")) return back();
+    switchingGroup = true;
+    flushBoard(); // positions dragged a moment ago are saved first
+    let r;
+    try { r = await host.loadFrames(data.project.id, target); } catch (err) { switchingGroup = false; alert(err.message || "Could not load that group"); return back(); }
+    const frames = r.frames || [];
+    const first = frames.find((f) => f.kind !== "section") || frames[0];
+    if (!first) { switchingGroup = false; alert("That group has no frames."); return back(); }
+    const oldKey = S.curKey, ids = new Set(frames.map((f) => f.id));
+    frames.forEach((it) => { if (!docs.has(it.id)) { docs.set(it.id, planeDoc(it)); makeWrap(it.id); } }); // a frame already here (the one being edited) keeps its live state
+    data.groups = r.groups; data.planeGroup = r.group; data.planeTruncated = r.truncated;
+    setFramesSel([]);
+    activate(first.id); // the live frame moves to the group's first frame (the old one stays over its place until the switch has painted)
+    const drop = (k) => { const en = wraps.get(k); if (en) { io.unobserve(en.wrap); en.wrap.remove(); wraps.delete(k); } docs.delete(k); };
+    [...docs.keys()].filter((k) => !ids.has(k) && k !== oldKey).forEach(drop);
+    docs.forEach((_, k) => setRole(k));
+    const finish = () => { if (!ids.has(oldKey)) drop(oldKey); refreshLabels(); renderDesigns(); layout(); S.viewTouched = true; fitTo([...ids], 1); switchingGroup = false; };
+    const started = Date.now();
+    const wait = setInterval(() => { if (!S.switching || Date.now() - started > 4000) { clearInterval(wait); finish(); } }, 80);
+}
+
 export function refreshLabels() {
     docs.forEach((d, key) => {
         const en = wraps.get(key);
@@ -147,6 +213,7 @@ export function buildWraps() {
 
 // the designs list
 export function renderDesigns() {
+    renderGroupSwitchers();
     headingState.prev = "";
     const list = [...docs.values()];
     const pages = list.filter((d) => d.kind !== "section" || !list.some((p) => p.key === d.parent));
@@ -308,7 +375,8 @@ function startRename(key) {
 export async function setPageGroup(key, text) {
     const d = docs.get(key);
     const next = normalizeGroup(text), prev = pageGroupOf(key);
-    const apply = (g) => { d.meta.group = g; if (key === S.curKey) data.group = g; refreshLabels(); renderDesigns(); layout(); renderInspector(); };
+    const saved = Boolean(d.meta.id) && !(key === S.curKey ? S.isNew : d.isNew); // only a saved frame is in the group counts
+    const apply = (g) => { const from = pageGroupOf(key); d.meta.group = g; if (key === S.curKey) data.group = g; if (saved) noteGroupMove(from, g); refreshLabels(); renderDesigns(); layout(); renderInspector(); };
     if (next === prev) return renderInspector();
     apply(next);
     const isNewDoc = key === S.curKey ? S.isNew : d.isNew;
@@ -486,10 +554,12 @@ export function init() {
     docs.set(S.curKey, { key: S.curKey, meta: takeMeta(), kind: data.kind || (data.project ? "page" : "component"), parent: data.parent || null, board: data.board || null, frameW: data.frameW || null, parsed: S.parsed, markup: model.markup, history: S.history, hIndex: S.hIndex, isNew: S.isNew, savedMarkup: S.savedMarkup, savedExtras: extrasOf(S.parsed), height: 0, loaded: true });
     (data.plane || []).forEach((it) => {
         if (it.id === S.curKey) return;
-        docs.set(it.id, {
-            key: it.id, kind: it.kind, parent: it.parent, board: it.board, frameW: it.frameW || null, source: it.htmlCode, loaded: false, isNew: false, height: 0,
-            meta: { id: it.id, title: it.title, group: it.group || "", version: it.version, category: it.category, description: it.description, tags: it.tags, isPublished: it.isPublished, useAsReference: it.useAsReference !== false, project: data.project, twConfig: it.twConfig || "" },
-        });
+        docs.set(it.id, planeDoc(it));
+    });
+    document.addEventListener("change", (e) => {
+        if (!e.target.matches || !e.target.matches("[data-group-select]")) return;
+        $("designsMenu").classList.add("hidden");
+        switchGroup(e.target.value);
     });
     $("designs").addEventListener("click", (e) => {
         if (e.target.closest("[data-pedit]")) { $("detailsBtn").click(); return; }

@@ -33,7 +33,7 @@ export const insp = $("inspector");
 /** The selected page's own properties, for the panel. */
 function pageInfo() {
     const d = docs.get(S.curKey), p = positions()[S.curKey] || { x: 0, y: 0 };
-    return { name: data.title || "", group: data.group || "", w: widthOf(d), h: heightOfDoc(d), auto: !(d.board && d.board.h), empty: model.markup.trim() === "", x: Math.round(p.x), y: Math.round(p.y), version: data.version, isNew: S.isNew, project: data.project && data.project.name };
+    return { name: data.title || "", group: data.group || "", w: widthOf(d), h: heightOfDoc(d), auto: !(d.board && d.board.h), empty: model.markup.trim() === "", x: Math.round(p.x), y: Math.round(p.y), version: data.version, isNew: S.isNew, project: data.project && data.project.name, groups: (data.groups || []).map((g) => g.name).filter(Boolean) };
 }
 /** A page panel field (name, size, position) typed by the user: applied if it makes sense, otherwise the panel shows the old value again. */
 function setPageField(key, text) {

@@ -59,6 +59,12 @@ export const appHost = {
         if (!res.ok || !body.success) throw new Error(body.message || `Could not save the setting (the server answered ${res.status})`);
         return { autoParts: body.data.autoParts };
     },
+    loadFrames: async (id, group) => {
+        const res = await fetch(`/api/projects/${id}/frames?group=${group === null ? "__all" : encodeURIComponent(group)}`);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.success) throw new Error(body.message || `Could not load the frames (the server answered ${res.status})`);
+        return body.data;
+    },
     projectUrl: (id) => `/projects/${id}`,
     previewUrl: ({ projectId, designId }) => `/prototype/${projectId}?page=${designId}`, // the prototype page (its own tab)
     showDesign: (id) => window.history.replaceState({}, "", id ? `/design/${id}` : "/design/new"),

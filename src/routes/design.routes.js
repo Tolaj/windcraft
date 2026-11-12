@@ -7,6 +7,7 @@ import FigmaDraft from "../models/figmaDraft.model.js";
 import { figmaSourceInfo, updateFromFigma } from "../services/figma-update.service.js";
 import { publicBase } from "../utils/publicUrl.js";
 import { resolveProject } from "../services/project.service.js";
+import { planeOf, boardOf } from "../services/plane.service.js";
 import { normalizeTheme, pageTheme } from "@windcraft/core/theme.js";
 
 const router = express.Router();
@@ -20,10 +21,6 @@ const categoryGroups = () => {
 const safeJson = (obj) => JSON.stringify(obj).replace(/</g, "\\u003c").replace(/[\u2028\u2029]/g, "");
 
 const projectList = async (userId) => (await Project.find({ owner: userId }).select("name autoParts").sort("name").lean()).map((p) => ({ id: String(p._id), name: p.name, autoParts: p.autoParts !== false }));
-
-const boardOf = (c) => (c.board && Number.isFinite(c.board.x) && Number.isFinite(c.board.y)
-    ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) }
-    : null);
 
 const renderEditor = (res, data, title) =>
     res.render("main/design", {
@@ -72,15 +69,11 @@ router.get("/:id", async (req, res) => {
         if (!c) { await wait(600); c = await retry(find); } // a design saved a moment ago may not be readable everywhere yet
         if (!c) return notFound(req, res);
         const projects = await optional("the project list", () => projectList(req.session.user.id), []);
-        // Everything in the same project shares one infinite plane with this design. The parts saved from a page (its sections) are not here: they are listed in the
-        // project's Components tab, not as frames of their own in the editor (unless one of them is the design being opened).
-        const plane = c.project ? (await retry(() => Component.find({ createdBy: req.session.user.id, project: c.project, $or: [{ kind: { $ne: "section" } }, { _id: c._id }] })
-            .select("title htmlCode version category description tags isPublished useAsReference kind parent board group frameW twConfig")
-            .sort("order createdAt").limit(60).lean())).map((p) => ({
-            id: String(p._id), title: p.title, group: p.group || "", frameW: p.frameW || null, version: p.version || 1, kind: p.kind, parent: p.parent ? String(p.parent) : null,
-            board: boardOf(p), category: p.category, description: p.description, tags: p.tags || [], isPublished: p.isPublished, useAsReference: p.useAsReference !== false, twConfig: p.twConfig || null,
-            htmlCode: String(p._id) === String(c._id) ? "" : p.htmlCode,
-        })) : [];
+        // The frames of the same project share one infinite plane with this design: all of them in a small project, in a larger one the design's own group
+        // (the list of groups, with their counts, always comes with it, to switch between them). The parts saved from a page (its sections) are not here: they
+        // are listed in the project's Parts tab, not as frames of their own in the editor (unless one of them is the design being opened).
+        const pl = c.project ? await retry(() => planeOf(req.session.user.id, c.project, { currentId: c._id, ownGroup: c.group || "" })) : null;
+        const plane = pl ? pl.frames : [];
         const proj = c.project ? await optional("the project theme", () => Project.findOne({ _id: c.project, owner: req.session.user.id }).select("theme").lean(), null) : null;
         renderEditor(res, {
             theme: pageTheme(proj && proj.theme, c.twConfig), projectTheme: normalizeTheme(proj && proj.theme), twConfig: c.twConfig || null,
@@ -89,6 +82,7 @@ router.get("/:id", async (req, res) => {
             id: String(c._id), title: c.title, group: c.group || "", frameW: c.frameW || null, version: c.version || 1, htmlCode: c.htmlCode,
             category: c.category, description: c.description, tags: c.tags || [], isPublished: c.isPublished, useAsReference: c.useAsReference !== false,
             kind: c.kind, parent: c.parent ? String(c.parent) : null, board: boardOf(c), plane,
+            groups: pl ? pl.groups : [], planeGroup: pl ? pl.group : null, planeTruncated: pl ? pl.truncated : false,
         }, c.title);
     } catch (error) {
         console.error("Design page error:", error);
