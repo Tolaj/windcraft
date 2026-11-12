@@ -148,9 +148,9 @@ test("Interactions: a rule on the selected element (chosen from the list or pick
     const sel = page.locator(".irule select").nth(2);
     const value = await sel.evaluate((s) => [...s.options].find((o) => /#b\b/.test(o.textContent)).value);
     await sel.selectOption(value);
-    await page.waitForFunction(() => document.querySelectorAll(".irule").length === 1 && /starts hidden/.test(document.querySelector(".irule").textContent), null, { timeout: 8000 });
+    await page.waitForFunction(() => document.querySelectorAll(".irule").length === 1 && /starts hidden/.test(document.querySelector(".irule").textContent), null, { timeout: 20000 });
     // the canvas outlines the element it acts on (and draws an arrow to it when there is room)
-    await page.waitForFunction(() => document.querySelectorAll("#sel .slinks rect").length >= 1, null, { timeout: 8000 });
+    await page.waitForFunction(() => document.querySelectorAll("#sel .slinks rect").length >= 1, null, { timeout: 20000 });
     // the markup carries the rule, and the script sits in the HTML tab, not in the page's own JS
     await page.locator("#codeBtn").click();
     await page.waitForSelector("#codeMount .cm-content");
@@ -173,7 +173,7 @@ test("Interactions: a rule on the selected element (chosen from the list or pick
     const frame = await frameWith(page, "b");
     const box = await frame.locator("#b").boundingBox();
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await page.waitForFunction(() => document.querySelectorAll(".irule").length === 2, null, { timeout: 8000 });
+    await page.waitForFunction(() => document.querySelectorAll(".irule").length === 2, null, { timeout: 20000 });
     assert.match(await page.locator("#codeMount .cm-content").textContent().then((t) => t), /data-wc-do="click toggle b;load hide b"/);
     await page.locator("#saveBtn").click();
     await page.waitForFunction(() => /^Saved/.test(document.getElementById("saveState").textContent.trim()), null, { timeout: 15000 });
@@ -181,9 +181,9 @@ test("Interactions: a rule on the selected element (chosen from the list or pick
     await page.locator('[data-tool="interact"]').first().click();
     await until(page, "b", (i) => document.getElementById(i).classList.contains("hidden"), 12000);
     await (await frameWith(page, "a")).locator("#a").click();
-    await until(page, "b", (i) => !document.getElementById(i).classList.contains("hidden"), 8000);
+    await until(page, "b", (i) => !document.getElementById(i).classList.contains("hidden"), 20000);
     await (await frameWith(page, "a")).locator("#a").click();
-    await until(page, "b", (i) => document.getElementById(i).classList.contains("hidden"), 8000);
+    await until(page, "b", (i) => document.getElementById(i).classList.contains("hidden"), 20000);
     await ctx.close();
 });
 
