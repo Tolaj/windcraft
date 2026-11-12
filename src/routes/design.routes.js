@@ -6,7 +6,7 @@ import Project from "../models/project.model.js";
 import FigmaDraft from "../models/figmaDraft.model.js";
 import { figmaSourceInfo, updateFromFigma } from "../services/figma-update.service.js";
 import { publicBase } from "../utils/publicUrl.js";
-import { resolveProject } from "../services/project.service.js";
+import { resolveProject, publishState } from "../services/project.service.js";
 import { planeOf, boardOf } from "../services/plane.service.js";
 import { normalizeTheme, pageTheme } from "@windcraft/core/theme.js";
 
@@ -59,6 +59,9 @@ const optional = async (what, fn, fallback) => {
 /** The design exists but the server couldn't get it ready: a loading page that tries again, not a "not found". */
 const stillOpening = (req, res) => res.status(503).set("Retry-After", "2").render("design-opening", { layout: "canvas", title: "Opening the editor", user: req.session.user });
 
+/** The project as the editor gets it, with whether all its frames are in the gallery (the "Publish" switch). */
+const withPublished = async (userId, projectId, project) => (project ? { ...project, published: (await publishState(userId, projectId)).published } : project);
+
 router.get("/:id", async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return notFound(req, res);
     try {
@@ -77,7 +80,7 @@ router.get("/:id", async (req, res) => {
         const proj = c.project ? await optional("the project theme", () => Project.findOne({ _id: c.project, owner: req.session.user.id }).select("theme").lean(), null) : null;
         renderEditor(res, {
             theme: pageTheme(proj && proj.theme, c.twConfig), projectTheme: normalizeTheme(proj && proj.theme), twConfig: c.twConfig || null,
-            project: c.project ? projects.find((p) => p.id === String(c.project)) || null : null, projects,
+            project: c.project ? await withPublished(req.session.user.id, c.project, projects.find((p) => p.id === String(c.project)) || null) : null, projects,
             figmaSource: await optional("the Figma data", () => figmaSourceInfo(c._id), null),
             id: String(c._id), title: c.title, group: c.group || "", frameW: c.frameW || null, version: c.version || 1, htmlCode: c.htmlCode,
             category: c.category, description: c.description, tags: c.tags || [], isPublished: c.isPublished, useAsReference: c.useAsReference !== false,
