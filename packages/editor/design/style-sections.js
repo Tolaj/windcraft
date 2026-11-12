@@ -17,6 +17,7 @@ import { data } from "./editor/base.js";
 import { PropRow } from "./prop-sections.js";
 import { TRIGGERS, readTrigger } from "../../core/animation-triggers.js";
 import { REVEALS } from "../../core/text-effects.js";
+import { parseRules, writeRules, WHEN, DO } from "../../core/interactions.js";
 
 const SIDES = ["top", "right", "bottom", "left"];
 const CORNERS = [["top-left", "radiusTL", "↖"], ["top-right", "radiusTR", "↗"], ["bottom-right", "radiusBR", "↘"], ["bottom-left", "radiusBL", "↙"]];
@@ -351,6 +352,45 @@ export function AnimationSection({ s, actions }) {
     </${FSection}>`;
 }
 
+// ── Interactions: "when this is clicked, show that" (the rule lives on the element: core/interactions.js) ────────────────────
+const TARGET_LESS = new Set(["scroll", "copy"]);
+/** The page's interactions for the selected element. A rule reads like a sentence: When [Clicked] Do [Show or hide] On [an element]. The element is picked from a list of the page's layers, or by clicking it on the canvas. */
+export function InteractionsSection({ s, actions }) {
+    const rules = parseRules((s.attrs || {})["data-wc-do"]);
+    const targets = actions.interactionTargets ? actions.interactionTargets() : [];
+    const [draft, setDraft] = useState(/** @type {{ when: string, do: string } | null} */ (null));
+    const [picking, setPicking] = useState(false);
+    const nameOf = (id) => { const t = targets.find((x) => x.id === id); return t ? `${t.tag} · ${t.label || "(no name)"}` : `#${id} (not on this page)`; };
+    const choose = (path) => actions.targetId(path);
+    const change = (i, patch) => actions.setRules(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+    const pick = (done) => { setPicking(true); actions.pickTarget((path) => { setPicking(false); if (path) done(path); }); };
+    const stopPick = () => { setPicking(false); actions.cancelPick(); };
+    const whenSel = (v, onChange) => html`<label class="nf src-tw" title="What starts it"><span class="nfl">When</span><select class="nfs wide" onChange=${(e) => onChange(e.target.value)}>${WHEN.map(([k, l]) => html`<option value=${k} selected=${k === v}>${l}</option>`)}</select></label>`;
+    const doSel = (v, onChange) => html`<label class="nf src-tw" title="What it does"><span class="nfl">Do</span><select class="nfs wide" onChange=${(e) => onChange(e.target.value)}>${DO.map(([k, l]) => html`<option value=${k} selected=${k === v}>${l}</option>`)}</select></label>`;
+    const target = (value, onPath) => html`<div class="frow"><label class="nf src-tw" title="The element it acts on"><span class="nfl">On</span>
+        <select class="nfs wide" onChange=${(e) => { if (e.target.value) onPath(targets.find((t) => t.key === e.target.value).path); }}>
+            <option value="" selected=${!value}>Choose an element…</option>
+            ${value && !targets.some((t) => t.id === value) ? html`<option value="" selected>${nameOf(value)}</option>` : null}
+            ${targets.map((t) => html`<option value=${t.key} selected=${t.id === value}>${"\u00a0\u00a0".repeat(Math.min(t.depth, 4))}${t.tag} · ${t.label || "(no name)"}</option>`)}</select></label>
+        <${IconBtn} icon=${I.target} title=${picking ? "Cancel: click an element on the canvas" : "Pick it on the canvas"} onClick=${() => (picking ? stopPick() : pick(onPath))} /></div>`;
+    const hasStart = (id) => (targets.find((t) => t.id === id) || {}).start;
+    return html`<${FSection} title="Interactions" extra=${html`<${IconBtn} icon=${I.plus} title="Add an interaction: when this is clicked, hovered or shown, do something to another element" onClick=${() => setDraft({ when: "click", do: "toggle" })} />`}>
+        ${!rules.length && !draft ? html`<p class="muted" style="margin:0 0 4px">Make this do something when it is clicked or hovered: show or hide a menu, scroll to a section, copy some text. They run in Interact and Preview.</p>` : null}
+        ${rules.map((r, i) => html`<div class="irule">
+            <div class="frow">${whenSel(r.when, (v) => change(i, { when: v }))}<${Remove} title="Remove this interaction" onClick=${() => actions.setRules(rules.filter((_, j) => j !== i))} /></div>
+            <div class="frow">${doSel(r.do, (v) => change(i, { do: v }))}</div>
+            ${target(r.to, (path) => change(i, { to: choose(path) }))}
+            ${!TARGET_LESS.has(r.do) && actions.setStart ? html`<label class="frow ichk" title="The element is hidden when the page opens, and this shows it"><input type="checkbox" checked=${Boolean(hasStart(r.to))} onChange=${(e) => actions.setStart(r.to, e.target.checked)} /> <span>${nameOf(r.to)} starts hidden</span></label>` : null}
+        </div>`)}
+        ${draft ? html`<div class="irule">
+            <div class="frow">${whenSel(draft.when, (v) => setDraft({ ...draft, when: v }))}<${Remove} title="Cancel" onClick=${() => { stopPick(); setDraft(null); }} /></div>
+            <div class="frow">${doSel(draft.do, (v) => setDraft({ ...draft, do: v }))}</div>
+            ${target("", (path) => { actions.setRules([...rules, { when: draft.when, do: draft.do, to: choose(path) }]); setDraft(null); })}
+            <p class="muted" style="margin:2px 0 0">Choose the element it acts on, or click ⌖ and then the element on the canvas.</p>
+        </div>` : null}
+    </${FSection}>`;
+}
+
 const INTERACTION = [
     { p: "cursor", l: "Cursor", t: "select", o: ["auto", "default", "pointer", "text", "move", "not-allowed", "grab", "grabbing", "crosshair", "help", "wait"] },
     { p: "pointer-events", l: "Pointer", t: "select", o: ["auto", "none"] },
@@ -363,7 +403,7 @@ export function InteractionSection({ s, actions }) {
     const [added, setAdded] = useState(/** @type {string[]} */ ([]));
     const rows = INTERACTION.filter((c) => (has(s, c.p) && shownOf(s, c.p, srcOf(s, c.p)) !== "initial") || added.includes(c.p));
     const left = INTERACTION.filter((c) => !rows.includes(c));
-    return html`<${FSection} title="Interaction" extra=${html`<${AddMenu} title="Add a setting" items=${left.map((c) => [c.p, c.l])} onPick=${(p) => setAdded([...added, p])} />`}>
+    return html`<${FSection} title="Cursor and pointer" extra=${html`<${AddMenu} title="Add a setting" items=${left.map((c) => [c.p, c.l])} onPick=${(p) => setAdded([...added, p])} />`}>
         ${rows.map((c) => html`<${PropRow} s=${s} actions=${actions} c=${c} onCancel=${added.includes(c.p) ? () => setAdded(added.filter((p) => p !== c.p)) : null} />`)}
     </${FSection}>`;
 }

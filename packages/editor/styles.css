@@ -432,3 +432,9 @@ select.fi, .vbar select { -webkit-appearance: none; appearance: none; padding-ri
 .ctab:hover { color: #171717; }
 .ctab.is-on { color: #171717; font-weight: 500; border-bottom-color: #171717; }
 .ctab .ck { font-size: 10px; font-weight: 400; color: #a3a3a3; }
+
+/* Interactions (a rule: when, do, on): a small card each */
+.irule { border: 1px solid #e5e5e5; border-radius: 8px; padding: 6px; margin: 0 0 6px; background: #fafafa; }
+.irule .frow:last-child { margin-bottom: 0; }
+.ichk { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #525252; margin-top: 4px; }
+.ichk input { margin: 0; }

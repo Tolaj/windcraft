@@ -212,6 +212,7 @@ export function agentMain() {
             rh: corners.map((c) => c[0]), rv: corners.map((c) => c[1]), r0: corners[0][0],
         };
     };
+    let picking = false;
     function redraw() {
         sels = sels.filter(alive);
         const el = primary();
@@ -226,8 +227,13 @@ export function agentMain() {
             else if (gesture.type !== "gap" && gesture.type !== "reorder") label = sels.length > 1 ? `${sels.length} selected` : `${g.w} × ${g.h}`; // a gap or padding drag has its own label
         }
         const bbox = el && el !== document.body && alive(el) ? pageRect(el) : null;
-        const data = JSON.stringify({ items, handles, label, bbox, at });
-        if (data !== lastOverlay) { lastOverlay = data; post({ type: "overlay", items, handles, label, bbox, at }); }
+        // an element with interaction rules shows what they act on: the boxes of the elements they name, joined to it by an arrow (drawn in the editor)
+        const links = [];
+        if (el && el !== document.body && sels.length === 1 && el.getAttribute("data-wc-do")) {
+            el.getAttribute("data-wc-do").split(";").forEach((r) => { const p = r.trim().split(/\s+/); const t = p.length === 3 && document.getElementById(p[2]); if (t && t !== el && !links.some((l) => l.id === p[2])) links.push({ id: p[2], ...pageRect(t) }); });
+        }
+        const data = JSON.stringify({ items, handles, label, bbox, at, links });
+        if (data !== lastOverlay) { lastOverlay = data; post({ type: "overlay", items, handles, label, bbox, at, links }); }
         place(hoverBox, tool === "move" && hov && hov !== document.body && !sels.includes(hov) ? hov : null); // not the page itself
         drawKids();
         drawGapHandles();
@@ -729,7 +735,7 @@ export function agentMain() {
         const own = Array.prototype.filter.call(el.childNodes, (n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(" ").trim();
         const label = el.id ? "#" + el.id : own ? own.slice(0, 26) : (el.getAttribute("class") || "").split(/\s+/)[0] || "";
         const children = Array.prototype.map.call(el.children, (c) => walk(c, depth + 1)).filter(Boolean);
-        return { tag, label, path: el === document.body ? [] : pathOf(el), children, locked: el.hasAttribute("data-wc-locked"), hidden: el.classList.contains("hidden") };
+        return { tag, label, path: el === document.body ? [] : pathOf(el), children, locked: el.hasAttribute("data-wc-locked"), hidden: el.classList.contains("hidden"), start: el.getAttribute("data-wc-start") === "hidden" };
     };
     const tree = () => { count = 0; return walk(document.body, 0); };
     const serialize = () => {
@@ -2136,6 +2142,12 @@ export function agentMain() {
         if (editing) finishEdit(); else dropTextSelection();
         try { root.setPointerCapture(e.pointerId); } catch (err) { /* capture is optional */ }
         e.preventDefault();
+        if (picking) { // the click names the element an interaction acts on: it is not a selection
+            picking = false; root.style.cursor = "";
+            const t = hitAt(e.clientX, e.clientY);
+            post({ type: "picked", path: t === document.body ? [] : pathOf(t) });
+            return;
+        }
 
         if (tool === "hand") { gesture = { type: "pan", sx: e.clientX, sy: e.clientY, moved: false }; root.style.cursor = "grabbing"; return; }
         if (DRAW.has(tool)) {
@@ -2889,6 +2901,7 @@ export function agentMain() {
         if (m.cmd === "previewState") { shownState = m.state || ""; showState(); redraw(); if (primary() && alive(primary())) post({ type: "info", info: describe(primary()) }); return; }
         if (m.cmd === "deselect") { editing = null; setSelection([], true); post({ type: "body", info: describe(document.body) }); return; } // the page's styling, for the page panel
         if (m.cmd === "hover") { hov = m.path ? elAt(m.path) : null; redraw(); return; }
+        if (m.cmd === "pickTarget") { picking = Boolean(m.on); root.style.cursor = picking ? "crosshair" : ""; return; } // an interaction's target: the next click names an element
         if (m.cmd === "tool") { setTool(m.tool, true); return; }
         if (m.cmd === "cssProps") { cssProps = m.props || []; return; }
         if (m.cmd === "hstart") { beginHandle(m.hd, m.e); return; }

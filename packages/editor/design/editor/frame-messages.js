@@ -158,6 +158,10 @@ export function init() {
         } else if (m.type === "typing") {
             model.markup = m.html;
             updateChrome();
+        } else if (m.type === "picked") { // the element clicked for an interaction's target (the panel asked for it)
+            const done = S.pickCb;
+            S.pickCb = null;
+            if (done) done(m.path);
         } else if (m.type === "overlay") {
             S.selData = m;
             renderSel();

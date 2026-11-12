@@ -75,6 +75,29 @@ function outline(it, z, ox, oy) {
  * data: what the agent posted ({ items, handles, label, bbox, at }), in the frame's own coordinates.
  * view: { zoom, ox, oy }: the zoom, and where the frame's top-left corner is on screen (relative to the canvas).
  */
+/** A dashed arrow from the selected element to each element its interaction rules act on, and a dashed outline round each of those (data.links: their boxes). */
+function linksSvg(data, z, ox, oy) {
+    const from = data.bbox;
+    if (!from || !data.links || !data.links.length) return "";
+    const R = (r) => ({ x: ox + r.x * z, y: oy + r.y * z, w: r.w * z, h: r.h * z });
+    const edge = (r, dx, dy) => { // where a line from the centre of r towards (dx, dy) leaves the box
+        const t = Math.min(dx ? r.w / 2 / Math.abs(dx) : Infinity, dy ? r.h / 2 / Math.abs(dy) : Infinity);
+        return { x: r.x + r.w / 2 + dx * t, y: r.y + r.h / 2 + dy * t };
+    };
+    const a = R(from), ac = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
+    const parts = data.links.map((l) => {
+        const b = R(l), bc = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+        const dx = bc.x - ac.x, dy = bc.y - ac.y;
+        if (!dx && !dy) return "";
+        const p0 = edge(a, dx, dy), p1 = edge(b, -dx, -dy);
+        const len = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1, ux = (p1.x - p0.x) / len, uy = (p1.y - p0.y) / len;
+        const head = `${round(p1.x)},${round(p1.y)} ${round(p1.x - ux * 9 + uy * 4.5)},${round(p1.y - uy * 9 - ux * 4.5)} ${round(p1.x - ux * 9 - uy * 4.5)},${round(p1.y - uy * 9 + ux * 4.5)}`;
+        return `<rect x="${round(b.x)}" y="${round(b.y)}" width="${round(b.w)}" height="${round(b.h)}" fill="rgba(55,138,221,.08)" stroke="#378ADD" stroke-width="1.5" stroke-dasharray="5 4"/>`
+            + (len > 12 ? `<line x1="${round(p0.x)}" y1="${round(p0.y)}" x2="${round(p1.x - ux * 6)}" y2="${round(p1.y - uy * 6)}" stroke="#378ADD" stroke-width="1.5" stroke-dasharray="5 4"/><circle cx="${round(p0.x)}" cy="${round(p0.y)}" r="3" fill="#378ADD"/><polygon points="${head}" fill="#378ADD"/>` : "");
+    }).join("");
+    return `<svg class="slinks" style="position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;pointer-events:none">${parts}</svg>`;
+}
+
 export function selectionHtml(data, { zoom: z, ox, oy }) {
     if (!data || !data.items || !data.items.length) return { lines: "", html: "", label: "" };
     const boxes = data.items.map((it) => {
@@ -89,6 +112,7 @@ export function selectionHtml(data, { zoom: z, ox, oy }) {
         : data.label && data.bbox
             ? `<div class="slabel" style="left:${round(ox + (data.bbox.x + data.bbox.w / 2) * z)}px;top:${round(oy + (data.bbox.y + data.bbox.h) * z + 8)}px;">${esc(data.label)}</div>`
             : "";
+    const arrows = linksSvg(data, z, ox, oy);
     const lines = `<svg class="sout">${data.items.map((it) => outline(it, z, ox, oy)).join("")}</svg>`;
-    return { lines, html: boxes, label };
+    return { lines, html: boxes + arrows, label };
 }

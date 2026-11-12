@@ -127,3 +127,59 @@ test("the Config tab holds the project's Tailwind file, which applies by itself;
     assert.equal(await page.locator("#codeFormat").isVisible(), true);
     await ctx.close();
 });
+
+test("Interactions: a rule on the selected element (chosen from the list or picked on the canvas), an arrow to its target, and it works in Interact", { skip: skip || false, timeout: 170000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    await page.waitForSelector("#codeBtn", { state: "attached" });
+    await page.waitForTimeout(3500);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
+    // select the first button (the outer box's first child) the way the layers panel does
+    await page.evaluate(() => document.getElementById("frame").contentWindow.postMessage({ cmd: "select", paths: [[0, 0]] }, "*"));
+    await page.waitForSelector('[title^="Add an interaction"]');
+    assert.equal(await page.locator("#inspector").textContent().then((t) => /Interactions/.test(t)), true, "the panel has an Interactions section");
+    await page.locator('[title^="Add an interaction"]').click();
+    // When: Clicked, Do: Show or hide (the defaults); On: the other button, from the list
+    const sel = page.locator(".irule select").nth(2);
+    const value = await sel.evaluate((s) => [...s.options].find((o) => /#b\b/.test(o.textContent)).value);
+    await sel.selectOption(value);
+    await page.waitForFunction(() => document.querySelectorAll(".irule").length === 1 && /starts hidden/.test(document.querySelector(".irule").textContent), null, { timeout: 8000 });
+    // the canvas outlines the element it acts on (and draws an arrow to it when there is room)
+    await page.waitForFunction(() => document.querySelectorAll("#sel .slinks rect").length >= 1, null, { timeout: 8000 });
+    // the markup carries the rule, and the script sits in the HTML tab, not in the page's own JS
+    await page.locator("#codeBtn").click();
+    await page.waitForSelector("#codeMount .cm-content");
+    const html = await page.locator("#codeMount .cm-content").textContent();
+    assert.match(html, /data-wc-do="click toggle b"/);
+    assert.match(html, /wc-interact/);
+    await page.locator('[data-ctab="js"]').click();
+    assert.doesNotMatch(await page.locator("#codeMount .cm-content").textContent(), /wc-interact/, "the editor's script is not the page's own JavaScript");
+    await page.locator('[data-ctab="html"]').click();
+    // starts hidden: set on the target
+    await page.locator(".irule .ichk input").check();
+    await page.waitForTimeout(900);
+    assert.match(await page.locator("#codeMount .cm-content").textContent(), /data-wc-start="hidden"/);
+    // a second rule, with the target picked on the canvas: when the page loads, hide it
+    await page.locator('[title^="Add an interaction"]').click();
+    const rules = page.locator(".irule");
+    await rules.last().locator("select").nth(0).selectOption("load");
+    await rules.last().locator("select").nth(1).selectOption("hide");
+    await rules.last().locator('[title^="Pick it on the canvas"]').click();
+    const frame = await frameWith(page, "b");
+    const box = await frame.locator("#b").boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForFunction(() => document.querySelectorAll(".irule").length === 2, null, { timeout: 8000 });
+    assert.match(await page.locator("#codeMount .cm-content").textContent().then((t) => t), /data-wc-do="click toggle b;load hide b"/);
+    await page.locator("#saveBtn").click();
+    await page.waitForFunction(() => /^Saved/.test(document.getElementById("saveState").textContent.trim()), null, { timeout: 15000 });
+    // Interact: it starts hidden; clicking the first button shows it, and again hides it
+    await page.locator('[data-tool="interact"]').first().click();
+    await until(page, "b", (i) => document.getElementById(i).classList.contains("hidden"), 12000);
+    await (await frameWith(page, "a")).locator("#a").click();
+    await until(page, "b", (i) => !document.getElementById(i).classList.contains("hidden"), 8000);
+    await (await frameWith(page, "a")).locator("#a").click();
+    await until(page, "b", (i) => document.getElementById(i).classList.contains("hidden"), 8000);
+    await ctx.close();
+});
