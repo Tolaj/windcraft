@@ -79,8 +79,8 @@ test("the parts saved from a page are not in the editor's pages list or on its c
     await page.goto(`${stack.base}/projects/${ids.project}`);
     await page.waitForTimeout(2500);
     assert.ok(!/Header/.test(await page.textContent("#outline")), "the project's Pages tab lists pages only");
-    assert.equal(await page.$$eval(".fwrap", (w) => w.length), 2, "and its board has a frame for each of the two pages, none for the part");
-    assert.match(await page.textContent("#projStats"), /^2 pages ·/);
+    assert.equal(await page.$$eval(".fwrap", (w) => w.length), 3, "and its board has a frame for each of the three pages, none for the part");
+    assert.match(await page.textContent("#projStats"), /^3 pages ·/);
     await page.close();
 });
 
@@ -266,4 +266,54 @@ test("an animation made in the keyframe editor is written into the config as key
     assert.match(file, /"0%": \{[^}]*"transform": "translateY\(30px\)"/);
     assert.match(file, /"60%": \{[^}]*"transform": "scale\(1\.2\)"/);
     await page.close();
+});
+
+const pick = async (page, frame, sel) => { const b = await frame.locator(sel).boundingBox(); await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(600); };
+const standalone = async (id) => (await (await ctx.request.get(`${stack.base}/api/components/${id}/export?format=standalone`)).json()).code;
+
+test("an animation that waits for a scroll plays when scrolled into view, and a list's children play one after another", { skip: skip || false, timeout: 170000 }, async () => {
+    const page = await ctx.newPage();
+    await page.setViewportSize({ width: 1500, height: 1500 });
+    await page.goto(`${stack.base}/design/${ids.scroll}`);
+    await page.waitForSelector("#inspector", { state: "attached" });
+    await page.waitForTimeout(3500);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
+    const frame = await frameWith(page, "r1");
+    // 1. the paragraph: Tailwind's pulse, on scroll
+    await pick(page, frame, "#r1");
+    await page.locator("#inspector select", { has: page.locator('option[value="pulse"]') }).first().selectOption("pulse");
+    await page.waitForTimeout(400);
+    await page.locator("#inspector select", { has: page.locator('option[value="scroll-repeat"]') }).first().selectOption("scroll"); // the "When" select (the overflow select also has a "scroll")
+    await page.waitForTimeout(600);
+    const r1 = await frame.evaluate(() => ({ cls: document.getElementById("r1").className, reveal: document.getElementById("r1").getAttribute("data-reveal") }));
+    assert.match(r1.cls, /animate-pulse/);
+    assert.match(r1.cls, /\[animation-play-state:paused\]/);
+    assert.equal(r1.reveal, "", "the element is marked for the reveal script");
+    // 2. the list: its three children, 100 ms apart, on load
+    await pick(page, frame, "#i2"); // a click picks the top level: the list
+    await page.locator("#inspector select", { has: page.locator('option[value="pulse"]') }).last().selectOption("pulse");
+    await page.locator("#inspector input[title^='Milliseconds']").fill("100").catch(() => {});
+    await page.click("text=Animate the 3 children");
+    await page.waitForTimeout(600);
+    const kids = await frame.evaluate(() => [...document.querySelectorAll("#list li")].map((l) => [l.className, l.style.getPropertyValue("--i")]));
+    assert.deepEqual(kids.map((k) => k[1]), ["0", "1", "2"], "each child carries its place");
+    assert.ok(kids.every((k) => /animate-pulse/.test(k[0]) && /\[animation-delay:calc\(var\(--i\)\*\d+ms\)\]/.test(k[0])));
+    // 3. saved and exported, it behaves: held until scrolled to, then running; the third child is delayed by two gaps
+    await page.keyboard.press("Control+s"); await page.waitForTimeout(1500);
+    const code = await standalone(ids.scroll);
+    assert.match(code, /wc-motion/, "the page carries its small motion script");
+    assert.match(code, /data-reveal/);
+    const out = await ctx.newPage();
+    await out.setViewportSize({ width: 1280, height: 800 });
+    await out.setContent(code, { waitUntil: "networkidle" });
+    await out.waitForTimeout(1500);
+    const before = await out.evaluate(() => getComputedStyle(document.getElementById("r1")).animationPlayState);
+    assert.equal(before, "paused", "below the fold, it waits");
+    await out.evaluate(() => document.getElementById("r1").scrollIntoView());
+    await out.waitForTimeout(900);
+    const after = await out.evaluate(() => ({ state: getComputedStyle(document.getElementById("r1")).animationPlayState, reveal: document.getElementById("r1").getAttribute("data-reveal") }));
+    assert.deepEqual(after, { state: "running", reveal: "in" }, "scrolled into view, it runs");
+    const delays = await out.evaluate(() => [...document.querySelectorAll("#list li")].map((l) => getComputedStyle(l).animationDelay));
+    assert.equal(delays[0], "0s"); assert.notEqual(delays[2], "0s", "later children are delayed");
+    await out.close(); await page.close();
 });

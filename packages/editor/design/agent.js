@@ -59,7 +59,7 @@ export function agentMain() {
     // shrinks, the frame follows, the selection box drifts, and on a slow machine it never settles. The Interact tool is a separate,
     // live frame with its transitions. The frame never shows a scrollbar either: it follows its content's height, and a scrollbar that
     // appears for a moment takes width, which can cross a breakpoint (xl at exactly 1280) and change the layout under it.
-    let previewTimer = null;
+    let previewTimer = null, previewRestore = null;
     const stillStyle = document.createElement("style");
     stillStyle.setAttribute("data-wc-agent-style", "");
     // Animations (animate-spin, animate-pulse...) are off too: editing shows the design at rest, the Interact tool shows it moving.
@@ -700,6 +700,7 @@ export function agentMain() {
             classes: el.getAttribute("class") || "",
             style: el.getAttribute("style") || "",
             leaf: el.children.length === 0,
+            kids: Array.prototype.filter.call(el.children, (c) => !/^(SCRIPT|STYLE)$/.test(c.tagName)).length, // for "animate the children one after another"
             group: el.hasAttribute("data-wc-group"),
             ownText: Array.prototype.some.call(el.childNodes, (n) => n.nodeType === 3 && n.textContent.trim() !== ""), // text of its own: Typography shows
             text: el.children.length === 0 ? el.textContent : null,
@@ -2742,6 +2743,13 @@ export function agentMain() {
     }, true);
 
     // ── Commands from the editor ────────────────────────────────────────────────────────────
+    const applyAnimation = (el, m) => {
+        const re = new RegExp(m.strip);
+        const cls = [...(el.getAttribute("class") || "").split(/\s+/).filter((t) => t && !re.test(t)), ...(m.classes || [])];
+        if (cls.length) el.setAttribute("class", cls.join(" ")); else el.removeAttribute("class");
+        (m.removeAttrs || []).forEach((n) => el.removeAttribute(n));
+        Object.keys(m.attrs || {}).forEach((k) => el.setAttribute(k, m.attrs[k]));
+    };
     const mutate = {
         setClasses: (el, m) => { m.value ? el.setAttribute("class", m.value) : el.removeAttribute("class"); },
         /** Another tag for the element (div -> section, p -> h2...), if it's one it can validly become: attributes and children move over unchanged. */
@@ -2756,6 +2764,10 @@ export function agentMain() {
             sels = sels.map((x) => (x === el ? next : x));
         },
         setText: (el, m) => { if (el.children.length === 0) el.textContent = m.text; },
+        // wire an element to an animation: the animation's classes replace what was there (m.strip is the pattern of those classes), attributes are set or taken off
+        setAnimation: (el, m) => applyAnimation(el, m),
+        // the same for every child of the element, each with its own --i (0, 1, 2...), so a delay of calc(var(--i) * step) makes them play one after another
+        stagger: (el, m) => { Array.prototype.filter.call(el.children, (c) => !/^(SCRIPT|STYLE)$/.test(c.tagName) && !isOverlay(c)).forEach((c, i) => { applyAnimation(c, m); c.style.setProperty("--i", String(i)); }); },
         setAttr: (el, m) => { m.value === null ? el.removeAttribute(m.name) : el.setAttribute(m.name, m.value); },
         remove: (el) => { const p = el.parentElement; el.remove(); sels = p && p !== root ? [p] : []; },
         duplicate: (el) => { const c = el.cloneNode(true); el.after(c); if (made.has(el)) markMade(c); sels = [c]; },
@@ -2835,9 +2847,14 @@ export function agentMain() {
             return;
         }
         if (m.cmd === "previewAnim") { // the canvas shows a design at rest (see stillStyle); for a few seconds it moves, so an animation can be seen
+            if (previewRestore) { clearTimeout(previewTimer); previewRestore(); } // a preview still running is ended first, so what it held is put back before this one holds it
             stillStyle.disabled = true;
-            clearTimeout(previewTimer);
-            previewTimer = setTimeout(() => { stillStyle.disabled = false; }, Math.min(15000, Math.max(500, Number(m.ms) || 4000)));
+            // animations that wait for a scroll or a click (the page's script is not running here) are released for the preview, then put back
+            const held = [];
+            document.querySelectorAll("[data-reveal]").forEach((e) => { held.push([e, "data-reveal", e.getAttribute("data-reveal")]); e.setAttribute("data-reveal", "in"); });
+            document.querySelectorAll("[data-click-anim]").forEach((e) => { held.push([e, "data-play", e.getAttribute("data-play")]); e.setAttribute("data-play", "on"); });
+            previewRestore = () => { previewRestore = null; stillStyle.disabled = false; held.forEach(([e, a, v]) => { if (v === null) e.removeAttribute(a); else e.setAttribute(a, v); }); };
+            previewTimer = setTimeout(() => previewRestore && previewRestore(), Math.min(15000, Math.max(500, Number(m.ms) || 4000)));
             return;
         }
         if (m.cmd === "previewState") { shownState = m.state || ""; showState(); redraw(); if (primary() && alive(primary())) post({ type: "info", info: describe(primary()) }); return; }

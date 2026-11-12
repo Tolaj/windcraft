@@ -11,6 +11,7 @@ import { TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
 import { requiresOf, kindOf, OFFICIAL, TEMPLATES, hasTw } from "../../../core/config-file.js";
 import { openConfig } from "./config-dialog.js";
 import { newAnimation } from "./animation-dialog.js";
+import { triggerPlan, WIRING, ATTRS, delayClass, hasMotionScript, MOTION_SCRIPT } from "../../../core/animation-triggers.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
@@ -89,10 +90,22 @@ const panelActions = {
     setTag: (tag) => { if (S.selected) cmd({ cmd: "setTag", path: S.selected.path, tag }); },
     setTab: (tab) => panelStore.set({ tab }),
     openConfig,
-    newAnimation: () => newAnimation(({ name, hover, classes }) => {
-        if (hover) panelActions.addClasses(classes.join(" ")); // a hover effect is a variant class: hover:animate-lift
-        else { panelActions.applyValue("animation", name); if (classes[1]) panelActions.addClasses(classes[1]); } // the animation (one at a time), then motion-reduce
-    }),
+    newAnimation: () => newAnimation(({ name, trigger, reducedMotion }) => panelActions.setAnimation(name, trigger, reducedMotion)),
+    // wire the selected element to an animation on a trigger (one history step); scroll and click bring the page a small script, once
+    setAnimation: (name, trigger = "load", reducedMotion = true) => {
+        if (!S.selected) return;
+        const plan = triggerPlan(name, trigger, { reducedMotion });
+        cmd({ cmd: "setAnimation", path: S.selected.path, strip: WIRING.source, classes: plan.classes, removeAttrs: ATTRS, attrs: plan.attrs });
+        if (plan.needsScript) ensureMotionScript();
+    },
+    clearAnimation: () => { if (S.selected) cmd({ cmd: "setAnimation", path: S.selected.path, strip: WIRING.source, classes: [], removeAttrs: ATTRS, attrs: {} }); },
+    // every child of the selected element plays the animation, child i delayed by i x gap (each child carries --i)
+    staggerChildren: ({ name, trigger = "load", step = 80, clear = false, reducedMotion = true }) => {
+        if (!S.selected) return;
+        const plan = clear ? { classes: [], attrs: {}, needsScript: false } : triggerPlan(name, trigger, { reducedMotion });
+        cmd({ cmd: "stagger", path: S.selected.path, strip: WIRING.source, classes: clear ? [] : [...plan.classes, delayClass(step)], removeAttrs: ATTRS, attrs: plan.attrs });
+        if (plan.needsScript) ensureMotionScript();
+    },
     previewAnim: () => send({ cmd: "previewAnim", ms: 4000 }),
     closePanel: () => setPanel(false),
     // a breakpoint picked: the frame goes to its width, so what is edited is what is seen; All sizes leaves the frame as it is
@@ -159,6 +172,10 @@ const bodyActions = Object.fromEntries(Object.entries(panelActions).map(([k, f])
     S.selected = S.pageBody;
     try { return f(...a); } finally { S.selected = null; }
 }]));
+/** The page needs its motion script (scroll and click triggers) once: added to the design's scripts, saved and exported with it. */
+function ensureMotionScript() {
+    if (S.parsed && !hasMotionScript(S.parsed.scripts)) S.parsed.scripts.push({ src: "", type: "", defer: false, text: MOTION_SCRIPT });
+}
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
 export function renderInspector() {
     const ui = { ...panelStore.get(), frameW: curWidth() }; // the panel's state, and the frame's width (for the Screen chips)

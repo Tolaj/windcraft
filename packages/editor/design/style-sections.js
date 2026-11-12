@@ -15,6 +15,7 @@ import { twShown } from "../../core/prop-tailwind.js";
 import { brandScale, normalizeTheme } from "../../core/theme.js";
 import { data } from "./editor/base.js";
 import { PropRow } from "./prop-sections.js";
+import { TRIGGERS, readTrigger } from "../../core/animation-triggers.js";
 
 const SIDES = ["top", "right", "bottom", "left"];
 const CORNERS = [["top-left", "radiusTL", "↖"], ["top-right", "radiusTR", "↗"], ["bottom-right", "radiusBR", "↘"], ["bottom-left", "radiusBL", "↙"]];
@@ -283,23 +284,36 @@ export const TransformSection = ({ s, actions }) => html`<${GroupsSection} s=${s
 export const MotionSection = ({ s, actions }) => html`<${GroupsSection} s=${s} actions=${actions} title="Motion" addTitle="Add a transition"
     groups=${[["transition", "Transition", "select"], ["duration", "Time"], ["delay", "Delay"], ["ease", "Easing", "select"]]} />`;
 
-const BUILTIN_ANIMATIONS = [["none", "None"], ["spin", "Spin"], ["ping", "Ping"], ["pulse", "Pulse"], ["bounce", "Bounce"]];
-/** Animation: Tailwind's own (spin, ping, pulse, bounce) and the ones the config defines, as an animate-* class. Written at the panel's breakpoint and state, so hover:animate-bounce is one pick. */
+const BUILTIN_ANIMATIONS = [["spin", "Spin"], ["ping", "Ping"], ["pulse", "Pulse"], ["bounce", "Bounce"]];
+/** The animation select: Tailwind's own and the ones the config defines. */
+const AnimationSelect = ({ value, custom, onChange }) => {
+    const known = BUILTIN_ANIMATIONS.some(([v]) => v === value) || custom.includes(value);
+    return html`<select class="nfs wide" onChange=${(e) => onChange(e.target.value)}>
+        <option value="" selected=${!value}>–</option>
+        <optgroup label="Tailwind">${BUILTIN_ANIMATIONS.map(([v, l]) => html`<option value=${v} selected=${v === value}>${l}</option>`)}</optgroup>
+        ${custom.length ? html`<optgroup label="Your animations">${custom.map((v) => html`<option value=${v} selected=${v === value}>${v}</option>`)}</optgroup>` : null}
+        ${value && !known ? html`<option value=${value} selected>${value}</option>` : null}</select>`;
+};
+/** Animation: which animation an element plays, and WHEN (on load, hover, focus, scrolled into view, clicked), then the cascade of a container's children. All of it is Tailwind classes
+ *  (plus a few lines of script for scroll and click, added to the page once). Tailwind's own animations and the config's are one list. */
 export function AnimationSection({ s, actions }) {
     const ui = useUi();
-    const cur = val(s, "animation", ui), custom = ui.animations || [];
-    const known = BUILTIN_ANIMATIONS.some(([v]) => v === cur) || custom.includes(cur);
-    return html`<${FSection} title="Animation" extra=${html`<${IconBtn} icon=${I.plus} title="Make a new animation (keyframes go into your Tailwind config)" onClick=${actions.newAnimation} />`}>
-        <div class="frow"><label class=${`nf ${cur ? "src-tw" : "unset"}`} title="animate-* class">
-            <span class="nfl">Play</span>
-            <select class="nfs wide" onChange=${(e) => actions.applyValue("animation", e.target.value)}>
-                <option value="" selected=${!cur}>–</option>
-                <optgroup label="Tailwind">${BUILTIN_ANIMATIONS.map(([v, l]) => html`<option value=${v} selected=${v === cur}>${l}</option>`)}</optgroup>
-                ${custom.length ? html`<optgroup label="Your animations">${custom.map((v) => html`<option value=${v} selected=${v === cur}>${v}</option>`)}</optgroup>` : null}
-                ${cur && !known ? html`<option value=${cur} selected>${cur}</option>` : null}
-            </select></label>
-            ${cur ? html`<${Remove} title="Remove the animation" onClick=${() => actions.applyValue("animation", "")} />` : null}</div>
-        ${cur ? html`<div class="frow"><button type="button" class="nfs wide" style="cursor:pointer;text-align:center" title="The editor shows designs at rest; this lets the animation run for a few seconds" onClick=${actions.previewAnim}>Preview the animation</button></div>` : null}
+    const t = readTrigger(s.classes, s.attrs || {}), custom = ui.animations || [];
+    const [st, setSt] = useState({ name: "", trigger: "scroll", step: 80 });
+    const stName = st.name || t?.name || custom[0] || "pulse";
+    return html`<${FSection} title="Animation" extra=${html`<${IconBtn} icon=${I.plus} title="Make a new animation, or pick one from the library (the keyframes go into your Tailwind config)" onClick=${actions.newAnimation} />`}>
+        <div class="frow"><label class=${`nf ${t ? "src-tw" : "unset"}`} title="The animation this element plays">
+            <span class="nfl">Play</span><${AnimationSelect} value=${t?.name || ""} custom=${custom} onChange=${(v) => (v ? actions.setAnimation(v, t?.trigger || "load") : actions.clearAnimation())} /></label>
+            ${t ? html`<${Remove} title="Remove the animation" onClick=${actions.clearAnimation} />` : null}</div>
+        ${t ? html`<div class="frow"><label class="nf src-tw" title="When it plays"><span class="nfl">When</span>
+            <select class="nfs wide" onChange=${(e) => actions.setAnimation(t.name, e.target.value)}>${TRIGGERS.map(([v, l]) => html`<option value=${v} selected=${v === t.trigger}>${l}</option>`)}</select></label></div>
+            <div class="frow"><button type="button" class="nfs wide" style="cursor:pointer;text-align:center" title="The editor shows designs at rest; this lets the animation run for a few seconds (hover and focus need the pointer)" onClick=${actions.previewAnim}>Preview the animation</button></div>` : null}
+        ${s.kids >= 2 ? html`<div class="fsech" style="margin-top:8px"><span>Children, one after another</span></div>
+            <div class="frow"><label class="nf" title="The animation each child plays"><span class="nfl">Play</span><${AnimationSelect} value=${stName} custom=${custom} onChange=${(v) => setSt({ ...st, name: v })} /></label></div>
+            <div class="frow"><label class="nf" title="When each child plays"><span class="nfl">When</span><select class="nfs wide" onChange=${(e) => setSt({ ...st, trigger: e.target.value })}>${TRIGGERS.map(([v, l]) => html`<option value=${v} selected=${v === st.trigger}>${l}</option>`)}</select></label></div>
+            <div class="frow"><${NumField} label="Gap" title="Milliseconds between one child and the next" value=${String(st.step)} onCommit=${(v) => setSt({ ...st, step: Math.max(0, Math.min(2000, Number(v) || 0)) })} /><span class="nfl" style="width:auto">ms</span></div>
+            <div class="frow"><button type="button" class="nfs wide" style="cursor:pointer;text-align:center" onClick=${() => actions.staggerChildren({ name: stName, trigger: st.trigger, step: st.step })}>Animate the ${s.kids} children</button>
+                <button type="button" class="nfs" style="cursor:pointer" title="Take the animation off every child" onClick=${() => actions.staggerChildren({ clear: true })}>Clear</button></div>` : null}
     </${FSection}>`;
 }
 

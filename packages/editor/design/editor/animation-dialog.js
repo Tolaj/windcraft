@@ -1,6 +1,7 @@
 import { addAnimation } from "../../../core/config-edit.js";
 import { TEMPLATES, PAGE_TEMPLATES, cleanEngine } from "../../../core/config-file.js";
-import { PRESETS, GROUPS, EASINGS, EASING_LABEL, REPEATS, DIRECTIONS, FILLS, animationValue, classesFor, keyframesCss, isEasing } from "../../../core/animation-presets.js";
+import { PRESETS, GROUPS, EASINGS, EASING_LABEL, REPEATS, DIRECTIONS, FILLS, animationValue, keyframesCss, isEasing } from "../../../core/animation-presets.js";
+import { TRIGGERS } from "../../../core/animation-triggers.js";
 import { $, data, send } from "./base.js";
 import { applyProject, applyPage } from "./config-dialog.js";
 import { panelStore } from "../panel-state.js";
@@ -39,7 +40,7 @@ function build() {
                     <label class="block"><span class="text-neutral-500">Custom easing</span><input id="animEaseCustom" class="${field} font-mono" placeholder="cubic-bezier(0.2, 0.8, 0.2, 1)" spellcheck="false" disabled></label>
                     <label class="block"><span class="text-neutral-500">Direction</span><select id="animDir" class="${field}">${DIRECTIONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
                     <label class="block"><span class="text-neutral-500">When it ends</span><select id="animFill" class="${field}">${FILLS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
-                    <label id="animOnWrap" class="hidden"><span class="text-neutral-500">It plays</span><select id="animOn" class="${field}"><option value="load">When the page shows</option><option value="hover">When hovered</option></select></label></div></div>
+                    <label id="animOnWrap" class="block"><span class="text-neutral-500">It plays</span><select id="animOn" class="${field}">${TRIGGERS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label></div></div>
             <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2"><fieldset class="flex items-center gap-3"><legend class="sr-only">Add it to</legend><span class="text-neutral-500">Add to</span><label class="flex items-center gap-1.5"><input type="radio" name="animScope" value="project" checked class="accent-black"> whole project's config</label><label class="flex items-center gap-1.5"><input type="radio" name="animScope" value="page" class="accent-black"> this page's config</label></fieldset>
                 <label class="flex items-center gap-1.5"><input id="animReduced" type="checkbox" checked class="accent-black"> Respect reduced motion</label>
                 <p id="animErr" class="min-h-[1rem] flex-1 text-red-700" role="alert"></p><button type="button" data-x class="h-8 rounded-md border border-neutral-200 bg-white px-3 hover:bg-neutral-100">Cancel</button><button type="button" id="animCreate" class="h-8 rounded-md bg-black px-4 font-semibold text-white hover:bg-neutral-800">Add and use</button></div></div></div>`;
@@ -91,7 +92,7 @@ function setMode(next) {
     $("animModes").innerHTML = [["library", "Library"], ["editor", "Create your own"]].map(([k, t]) => `<button type="button" data-mode="${k}" aria-pressed="${mode === k}" class="px-3 py-1.5 ${mode === k ? "bg-black font-medium text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"}">${t}</button>`).join("");
     const ed = mode === "editor";
     $("animEditor").classList.toggle("hidden", !ed); $("animGrid").classList.toggle("hidden", ed); $("animTabs").classList.toggle("hidden", ed); $("animSearch").classList.toggle("hidden", ed);
-    $("animBigWrap").classList.toggle("hidden", ed); $("animBigWrap").classList.toggle("sm:flex", !ed); $("animOnWrap").classList.toggle("hidden", !ed);
+    $("animBigWrap").classList.toggle("hidden", ed); $("animBigWrap").classList.toggle("sm:flex", !ed);
     if (ed && !editor) editor = mountKeyframeEditor($("animEditor"), { getTiming: () => settings(), onChange: () => { $("animErr").textContent = ""; } });
     if (ed) { if ($("animName").value === preset.id) { $("animName").value = "my-animation"; $("animCls").textContent = "animate-my-animation"; } editor.replay(); }
     else choose(preset);
@@ -108,7 +109,7 @@ const customPreset = (name) => ({ id: name, kf: editor.getKeyframes(), on: $("an
 
 function choose(p) {
     preset = p;
-    $("animName").value = p.id; $("animCls").textContent = `animate-${p.id}`;
+    $("animName").value = p.id; $("animCls").textContent = `animate-${p.id}`; $("animOn").value = p.on === "hover" ? "hover" : "load";
     $("animDur").value = p.dur; $("animDelay").value = p.delay || 0; $("animRepeat").value = p.repeat; $("animDir").value = p.dir; $("animFill").value = p.fill;
     const known = EASINGS.includes(p.ease); $("animEase").value = known ? p.ease : "custom"; $("animEaseCustom").disabled = known; $("animEaseCustom").value = known ? "" : p.ease;
     $("animNote").textContent = p.note || ""; $("animErr").textContent = "";
@@ -142,13 +143,14 @@ async function create() {
     if (!saved.ok) return err(`Not saved: ${saved.message || "something went wrong"}`);
     dlg.close();
     // it shows at once (no reload of the design): the canvas gets the keyframes and the class, the panel lists the name, and the class goes on the element
-    const hover = chosen.on === "hover";
-    send({ cmd: "injectAnim", css: `${keyframesCss(name, chosen.kf)}${hover ? `.hover\\:animate-${name}:hover` : `.animate-${name}`}{animation:${animation}}` });
+    const trigger = $("animOn").value;
+    const sel = { hover: `.hover\\:animate-${name}:hover`, focus: `.focus\\:animate-${name}:focus`, click: `.data-\\[play\\=on\\]\\:animate-${name}[data-play="on"]` }[trigger] || `.animate-${name}`;
+    send({ cmd: "injectAnim", css: `${keyframesCss(name, chosen.kf)}${sel}{animation:${animation}}` });
     panelStore.set({ animations: [...new Set([...(panelStore.get().animations || []), name])] });
-    if (onApply) onApply({ name, hover, classes: classesFor(name, chosen, { reducedMotion: $("animReduced").checked }) });
+    if (onApply) onApply({ name, trigger, reducedMotion: $("animReduced").checked });
 }
 
-/** Opens the library. `apply({ name, hover, classes })` runs after the animation is saved, to put it on the selected element. */
+/** Opens the library. `apply({ name, trigger, reducedMotion })` runs after the animation is saved, to put it on the selected element. */
 export function newAnimation(apply) {
     onApply = apply || null;
     if (!dlg) build();
