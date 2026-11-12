@@ -5,7 +5,7 @@ import { normalizeGroup } from "../../../core/pages.js";
 import { GAP_X } from "../../../core/board-layout.js";
 import { DEVICES } from "../float-toolbar.js";
 import { $, S, collapsed, data, esc, frame, model, send } from "./base.js";
-import { MIN_H, applyView, canvas, fitTo, heightOfDoc, layout, pageGroupOf, placePills, positions, remeasureHeight, view, widthOf } from "./plane.js";
+import { MIN_H, applyView, canvas, fitTo, heightOfDoc, layout, movedOut, pageGroupOf, placePills, positions, remeasureHeight, view, widthOf } from "./plane.js";
 import { PAGE_EDIT, groupHeading, headingState, renderPagesList } from "./pages-panel.js";
 import { loadFrame, updateChrome } from "./docs.js";
 import { renderLayers } from "./layers.js";
@@ -202,7 +202,7 @@ export function refreshLabels() {
         const ver = active ? data.version : d.meta.version;
         const state = (active ? S.isNew : d.isNew) ? "new" : d.kind === "section" ? "section" : `v${ver}`;
         const group = pageGroupOf(key);
-        en.label.innerHTML = `${group ? `<i class="fgroup">${esc(group)} / </i>` : ""}${esc(title || "Untitled frame")}<span>${state}</span>${docDirty(d) ? '<i class="dirty-dot" title="Unsaved changes"></i>' : ""}`;
+        en.label.innerHTML = `${group ? `<i class="fgroup">${esc(group)} / </i>` : ""}${esc(title || "Untitled frame")}<span>${state}</span>${docDirty(d) ? '<i class="dirty-dot" title="Unsaved changes"></i>' : ""}${movedOut(key) ? `<i class="fmoved" title="You changed its group. It stays here until you switch group.">Moved to ${esc(group || "No group")} · leaves when you switch group</i>` : ""}`;
     });
 }
 

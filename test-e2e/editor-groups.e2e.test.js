@@ -57,3 +57,22 @@ test("a group holds 50 frames: the next one goes to Name-1, and a new frame in t
     assert.equal(moved.data.group, "Capped-1", "moving a frame into the full group puts it in Capped-1 again");
     await ctx.close();
 });
+
+test("a frame whose group was changed in the editor stays, tagged as moved, until the group is switched", { skip: skip || false, timeout: 240000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    for (const g of ["Left", "Right"]) { const r = await ctx.request.post(`${stack.base}/api/components`, { data: { title: `${g} one`, category: "apps-general", description: "x", htmlCode: "<div class=\"p-8\">x</div>", tags: "t", project: ids.project, kind: "page", group: g } }); assert.equal(r.status(), 201); }
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    await page.locator("#panelBtn").waitFor({ timeout: 60000 });
+    await page.waitForTimeout(2500);
+    if (!(await page.locator("#inspector").isVisible())) await page.locator("#panelBtn").click();
+    const field = page.locator('#inspector input[list="dl-groups"]');
+    await field.waitFor({ timeout: 20000 });
+    assert.equal(await page.locator(".fmoved").count(), 0, "nothing is tagged before a change");
+    await field.fill("Right");
+    await field.press("Enter");
+    await page.locator(".flabel .fmoved").waitFor({ timeout: 15000 });
+    assert.match(await page.locator(".flabel .fmoved").first().textContent(), /Moved to Right/);
+    await ctx.close();
+});

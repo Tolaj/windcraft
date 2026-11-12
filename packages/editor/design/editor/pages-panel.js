@@ -1,6 +1,6 @@
 import { host } from "../host.js";
 import { $, S, collapsed, data, esc, send } from "./base.js";
-import { fitTo, pageGroupOf, view } from "./plane.js";
+import { fitTo, movedOut, pageGroupOf, view } from "./plane.js";
 import { activate, deletePage, docDirty, docs, renameFrame, selectFrame } from "./designs.js";
 import { PAGE_ICON, parsePath, renderLayers } from "./layers.js";
 import { cmd } from "./frame-messages.js";
@@ -41,7 +41,7 @@ export function renderPagesList() {
     const row = (d, depth) => {
         const active = d.key === S.curKey;
         const title = (active ? data.title : d.meta.title) || "Untitled frame";
-        return `<div class="layer-row cursor-pointer gap-1.5 px-1 ${active ? "is-selected" : ""}" style="padding-left:${depth * 12 + 8}px" data-page="${d.key}" title="Double-click to rename">${d.kind === "section" ? '<span class="shrink-0 font-mono text-[11px] text-neutral-500">section</span>' : PAGE_ICON}<span class="truncate">${esc(title)}</span>${docDirty(d) ? '<i class="dirty-dot" title="Unsaved changes"></i>' : ""}${active ? PAGE_EDIT : ""}${pageDelete(d, active, list.length)}</div>`;
+        return `<div class="layer-row cursor-pointer gap-1.5 px-1 ${active ? "is-selected" : ""}" style="padding-left:${depth * 12 + 8}px" data-page="${d.key}" title="Double-click to rename">${d.kind === "section" ? '<span class="shrink-0 font-mono text-[11px] text-neutral-500">section</span>' : PAGE_ICON}<span class="truncate">${esc(title)}</span>${docDirty(d) ? '<i class="dirty-dot" title="Unsaved changes"></i>' : ""}${movedOut(d.key) ? `<span class="fmoved" title="Moved to ${esc(pageGroupOf(d.key) || "No group")}. It leaves this list when you switch group.">moved</span>` : ""}${active ? PAGE_EDIT : ""}${pageDelete(d, active, list.length)}</div>`;
     };
     el.innerHTML = tops.map((d) => groupHeading(d) + row(d, 0) + list.filter((c) => c.kind === "section" && c.parent === d.key).map((c) => row(c, 1)).join("")).join("");
 }
