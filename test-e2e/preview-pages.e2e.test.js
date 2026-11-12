@@ -37,3 +37,31 @@ test("a page created on the canvas shows in Preview; saving its details again ke
     assert.ok((await previewTitles(ctx)).includes("Made on the canvas"), "still a page after its details are saved");
     await ctx.close();
 });
+
+test("Preview plays whatever is placed on the canvas, and the details dialog has a Type that changes the label", { skip: skip || false, timeout: 150000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const make = async (title, extra = {}) => (await (await ctx.request.post(`${stack.base}/api/components`, { data: { title, category: "apps-general", description: "x", htmlCode: "<p>hi</p>", tags: "", project: ids.project, ...extra } })).json()).data;
+    const placed = await make("A component on the canvas", { kind: "component" });
+    const loose = await make("A component not placed", { kind: "component" });
+    assert.equal((await ctx.request.put(`${stack.base}/api/components/${placed._id}`, { data: { board: { x: 100, y: 100 } } })).status(), 200);
+    const titles = await previewTitles(ctx);
+    assert.ok(titles.includes("A component on the canvas"), `a component placed on the canvas is in Preview (${titles})`);
+    assert.ok(!titles.includes("A component not placed"), "one that is not placed is not");
+    // the Type in the details dialog
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${loose._id}`);
+    await page.waitForSelector("#detailsBtn", { state: "attached" });
+    await page.waitForTimeout(3500);
+    await page.evaluate(() => document.getElementById("detailsBtn").click());
+    await page.waitForSelector("#dKind", { state: "visible" });
+    assert.equal(await page.locator("#dKind").inputValue(), "component", "it shows what the design is now");
+    await page.locator("#dKind").selectOption("page");
+    await page.locator("#detailsSave").click();
+    await page.waitForFunction(() => !document.querySelector("dialog[open]"), null, { timeout: 15000 });
+    const kind = async () => (await (await ctx.request.get(`${stack.base}/api/components/${loose._id}`, { headers: { accept: "application/json" } })).json()).data?.kind;
+    const t = Date.now(); let k = ""; while (Date.now() - t < 10000 && k !== "page") { k = await kind(); await page.waitForTimeout(300); }
+    assert.equal(k, "page", "the Type was saved");
+    assert.ok((await previewTitles(ctx)).includes("A component not placed"), "and now it is a page, so Preview plays it");
+    await ctx.close();
+});

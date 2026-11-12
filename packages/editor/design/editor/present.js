@@ -12,12 +12,10 @@ import { heightOfDoc, widthOf } from "./plane.js";
 
 let viewer = null;
 
-/** The pages to show: whole pages in the order of the Pages list (parts of a page are left out); the components when there are no pages. */
+/** The designs to show: everything on the canvas in the order of the Pages list, except the parts of a page (a design is a design: its Type, page or component, does not keep it out). */
 function pagesToShow() {
     const all = [...docs.values()];
-    const tops = all.filter((d) => d.kind !== "section" || !all.some((p) => p.key === d.parent));
-    const pages = tops.filter((d) => d.kind === "page");
-    return pages.length ? pages : tops;
+    return all.filter((d) => d.kind !== "section" || !all.some((p) => p.key === d.parent));
 }
 
 const sourceOf = (d) => {

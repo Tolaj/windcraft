@@ -66,6 +66,8 @@ export function openDetails() {
     fillProjects();
     $("dTitle").value = data.title || "";
     $("dCategory").value = data.category || "";
+    const cur = docs.get(S.curKey);
+    $("dKind").value = cur && cur.kind === "component" ? "component" : "page"; // what the design is now (a design made on the canvas is a page)
     $("dDesc").value = data.description || "";
     $("dTags").value = (data.tags || []).join(", ");
     $("dVis").value = String(Boolean(data.isPublished)); // private unless it was made public
@@ -82,6 +84,7 @@ export async function saveDetails(fields) {
     const fromDraft = S.isNew && S.draftKey && S.draftKey === S.curKey; // a design opened from a Figma draft: its Figma data moves to the new page
     const saved = S.isNew ? await host.createComponent({ ...fields, htmlCode: assemble(), ...(fromDraft ? { draftId: data.draftId } : {}) }) : await host.updateComponent(data.id, fields);
     const movedProject = (data.project ? data.project.id : "") !== (fields.project || "");
+    if (fields.kind) { const d = docs.get(S.curKey); if (d) d.kind = fields.kind; }
     data.project = (data.projects || []).find((p) => p.id === fields.project) || null;
     Object.assign(data, { title: fields.title, category: fields.category, description: fields.description, tags: String(fields.tags || "").split(",").map((t) => t.trim()).filter(Boolean), isPublished: String(fields.isPublished) === "true", useAsReference: fields.useAsReference !== false && fields.useAsReference !== "false" });
     if (S.isNew) {
@@ -134,7 +137,7 @@ $("dCategory").innerHTML += (data.categories || []).map((g) => `<optgroup label=
 
     $("detailsForm").addEventListener("submit", async (e) => {
         e.preventDefault();
-        const fields = { title: $("dTitle").value.trim(), category: $("dCategory").value, description: $("dDesc").value.trim(), tags: $("dTags").value, isPublished: $("dVis").value, useAsReference: $("dRef").checked, project: $("dProject").value };
+        const fields = { title: $("dTitle").value.trim(), category: $("dCategory").value, description: $("dDesc").value.trim(), tags: $("dTags").value, isPublished: $("dVis").value, useAsReference: $("dRef").checked, project: $("dProject").value, kind: $("dKind").value };
         if (!fields.description) fields.description = fields.title;
         if (!fields.title || !fields.category || !fields.description) return;
         const err = $("detailsError");

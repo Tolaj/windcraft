@@ -224,6 +224,12 @@ export const editorHtml = `<div class="flex h-full flex-col">
                     <option value="" disabled selected>Select a category</option>
                 </select>
             </div>
+            <div><label class="mb-1 block text-xs font-medium text-neutral-700" for="dKind">Type</label>
+                <select id="dKind" class="field" style="height:36px">
+                    <option value="page">Page: a screen of your project (Preview plays it)</option>
+                    <option value="component">Component: a reusable piece</option>
+                </select>
+            </div>
             <div><label class="mb-1 block text-xs font-medium text-neutral-700" for="dDesc">Description (optional)</label><textarea
                     id="dDesc" rows="3" class="field" style="font-family:inherit"
                     placeholder="What it is and when to use it" required></textarea></div>

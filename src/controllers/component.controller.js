@@ -100,7 +100,7 @@ export const createComponent = async (req, res) => {
             tags: normalizeTags(tags),
             profile: buildProfile(htmlCode),
             project: project ? project._id : null,
-            kind: askedKind === "page" ? "page" : kindOfCategory(category), // a page made on the canvas says so (only one category is a "Pages" one); otherwise the category decides: a page (the "Pages" group) or a component
+            kind: askedKind === "page" || askedKind === "component" ? askedKind : kindOfCategory(category), // a page made on the canvas says so (only one category is a "Pages" one); otherwise the category decides: a page (the "Pages" group) or a component
             group: project ? normalizeGroup(group) : "",
             isPublished: isPublished === true || isPublished === "true", // private until its owner turns Public on
             useAsReference: !(useAsReference === false || useAsReference === "false"), // AI may use it as a style reference unless the owner says no
@@ -147,7 +147,7 @@ export const updateComponent = async (req, res) => {
             });
         }
 
-        const { title, category, description, htmlCode, isPublished, tags, note, useAsReference, project: projectRef, board, group, twConfig } = req.body;
+        const { title, category, description, htmlCode, isPublished, tags, note, useAsReference, project: projectRef, board, group, twConfig, kind: askedKind } = req.body;
         let codeChanged = false;
         const kindWas = component.kind === 'page';
 
@@ -168,6 +168,8 @@ export const updateComponent = async (req, res) => {
         // the category decides what a design is (a section keeps being a section)
         // (only when the category really changed: saving a page's details again with the category it already had must not turn it into a component)
         if (category && component.kind !== 'section' && category !== component.category) component.kind = kindOfCategory(category);
+        // the owner can also say it outright (the Type in the details): a page or a component
+        if (component.kind !== 'section' && (askedKind === 'page' || askedKind === 'component')) component.kind = askedKind;
 
         if (htmlCode && htmlCode !== component.htmlCode) {
             component.versions.push({ version: component.version, htmlCode: component.htmlCode, note: note || "" });
