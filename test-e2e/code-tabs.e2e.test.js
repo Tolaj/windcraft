@@ -28,7 +28,7 @@ test("the CSS and JS tabs write into the page, are saved with it, and the script
     await page.waitForTimeout(3500);
     await page.locator("#codeBtn").click();
     await page.waitForSelector("#codeMount .cm-content");
-    assert.deepEqual(await page.locator("#codeTabs [data-ctab]").allTextContents().then((a) => a.map((t) => t.replace(/\d+/g, ""))), ["HTML", "CSS", "JS"]);
+    assert.deepEqual(await page.locator("#codeTabs [data-ctab]").allTextContents().then((a) => a.map((t) => t.replace(/\d+/g, ""))), ["HTML", "CSS", "JS", "Config"]);
     assert.equal(await page.locator('[data-ctab="html"]').getAttribute("aria-selected"), "true");
 
     // CSS: the page's own style reaches the canvas
@@ -60,7 +60,7 @@ test("the CSS and JS tabs write into the page, are saved with it, and the script
     // it is a change to save, though the markup did not change; the saved page has both
     assert.equal(await page.locator("#saveBtn").isDisabled(), false, "CSS and JS count as unsaved changes");
     await page.locator("#saveBtn").click();
-    await page.waitForFunction(() => document.getElementById("saveBtn").disabled, null, { timeout: 15000 });
+    await page.waitForFunction(() => /^Saved/.test(document.getElementById("saveState").textContent.trim()), null, { timeout: 15000 }); // not just a disabled button: it is disabled while saving too
     const code = (await (await ctx.request.get(`${stack.base}/api/components/${ids.scroll}/export?format=standalone`)).json()).code;
     assert.match(code, /rgb\(255, 0, 0\)/);
     assert.match(code, /changed by the script/);
@@ -74,5 +74,31 @@ test("the CSS and JS tabs write into the page, are saved with it, and the script
     await page.waitForFunction(() => /changed by the script/.test(document.querySelector("#codeMount .cm-content").textContent));
     await page.locator('#toolbar [data-tool="interact"], [data-tool="interact"]').first().click();
     await until(page, "r1", (i) => document.getElementById(i).textContent === "changed by the script", 15000);
+    await ctx.close();
+});
+
+test("the Config tab holds this page's and the project's Tailwind files in the Code panel, and Apply reaches the canvas", { skip: skip || false, timeout: 170000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1500, height: 1100 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    await page.waitForSelector("#codeBtn", { state: "attached" });
+    await page.waitForTimeout(3500);
+    await page.locator("#codeBtn").click();
+    await page.locator('[data-ctab="config"]').click();
+    await page.waitForSelector("#codeConfig [data-ta]", { state: "visible" });
+    assert.equal(await page.locator("#codeMount").isVisible(), false, "the code editor makes room for the config");
+    assert.equal(await page.locator("#codeFormat").isVisible(), false, "Format is for code, not for the config");
+    assert.equal(await page.locator("#codeConfig [role=tab]").count(), 2, "this page's file and the project's");
+    // this page's file: a colour the page uses
+    await page.locator("#codeConfig [data-ta]").fill('module.exports = {\n  theme: { extend: { colors: { pg: "#7c3aed" } } },\n};\n');
+    await page.locator("#codeConfig [data-apply]").click();
+    await page.waitForFunction(() => /Applied|Not applied|Not saved/.test(document.querySelector("#codeConfig [data-status]").textContent), null, { timeout: 30000 });
+    assert.match(await page.locator("#codeConfig [data-status]").textContent(), /^Applied/);
+    await until(page, "a", (i) => getComputedStyle(document.getElementById(i)).backgroundColor === "rgb(124, 58, 237)", 20000);
+    // back to the code: the editor is where it was
+    await page.locator('[data-ctab="html"]').click();
+    assert.equal(await page.locator("#codeMount .cm-content").isVisible(), true);
+    assert.equal(await page.locator("#codeFormat").isVisible(), true);
     await ctx.close();
 });

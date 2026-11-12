@@ -6,6 +6,7 @@ import { pref } from "./color-ui.js";
 import { assembleDoc, commit, loadFrame } from "./docs.js";
 import { cssText, jsText, withCss, withJs, withOwnFrom, withoutOwn } from "../../../core/code-parts.js";
 import { layout } from "./plane.js";
+import { showConfigIn } from "./config-dialog.js";
 
 // ── Code panel (two-way with the canvas) ─────────────────────────────────────
 // The editor itself is design/code-editor.js (CodeMirror); this part keeps it and the canvas in step.
@@ -16,9 +17,10 @@ export const codeFocused = () => Boolean(ed && ed.hasFocus());
 const codeValue = () => (ed ? ed.getValue() : "");
 // ── The tabs: HTML (markup, links, anything that is not the page's own CSS or JS), CSS and JS ─────────────
 let tab = "html";
-const TABS = ["html", "css", "js"];
+const TABS = ["html", "css", "js", "config"]; // config: the Tailwind config workspace (config-file-editor.js) instead of the code editor
 /** What a tab shows, from the page as it is now. */
 function textFor(t) {
+    if (t === "config") return "";
     if (t === "css") return cssText(S.parsed);
     if (t === "js") return jsText(S.parsed);
     return model.markup.trim() ? assembleDoc(withoutOwn(S.parsed), model.markup) : "";
@@ -34,7 +36,7 @@ async function jsProblem(text) {
 /** The counts on the tabs, and the red dot on JS while the script has an error. */
 async function refreshTabs() {
     document.querySelectorAll("#codeTabs [data-ctab]").forEach((b) => {
-        const t = b.dataset.ctab, n = lineCount(t === tab && ed ? ed.getValue() : textFor(t));
+        const t = b.dataset.ctab, n = t === "config" ? 0 : lineCount(t === tab && ed ? ed.getValue() : textFor(t));
         b.querySelector(".ck").textContent = n ? String(n) : "";
         b.classList.toggle("is-on", t === tab);
         b.setAttribute("aria-selected", String(t === tab));
@@ -80,7 +82,7 @@ export function elementRange(markup, path) {
 }
 /** Paints the selected element's source in the code (its opening tag darker), and when the selection just changed, scrolls to it. */
 export function updateCodeHighlight(reveal) {
-    if (!codeOpen() || !ed) return;
+    if (!codeOpen() || !ed || tab === "config") return;
     if (tab !== "html") { ed.setMarks([]); return refreshTabs(); }
     const text = ed.getValue();
     const base = model.markup ? text.indexOf(model.markup) : -1;
@@ -92,6 +94,7 @@ export function updateCodeHighlight(reveal) {
 
 export function syncCode() {
     if (!codeOpen() || !ed) return;
+    if (tab === "config") { showConfigIn($("codeConfig")); return; } // the page or the theme may have changed
     const next = textFor(tab);
     const prev = ed.getValue();
     if (prev === next) return updateCodeHighlight(false);
@@ -126,7 +129,7 @@ let codeTimer = null;
 let warnSeq = 0;
 function showCodeProblem() {
     const w = $("codeWarn");
-    if (tab === "css") { w.classList.add("hidden"); return null; }
+    if (tab === "css" || tab === "config") { w.classList.add("hidden"); return null; }
     if (tab === "js") {
         const seq = ++warnSeq;
         jsProblem(codeValue()).then((bad) => {
@@ -169,6 +172,18 @@ function setTab(next) {
     if (!TABS.includes(next) || next === tab) return;
     if (codeTimer) applyCode(); // what was typed goes in first
     tab = next;
+    const cfg = tab === "config";
+    $("codeMount").classList.toggle("hidden", cfg);
+    $("codeConfig").classList.toggle("hidden", !cfg);
+    ["codeFind", "codeFormat", "codeCopy"].forEach((id) => $(id).classList.toggle("hidden", cfg)); // they act on the code editor
+    if (cfg) {
+        const panel = $("codePanel");
+        if (panel.style.height && panel.offsetHeight < 340 && panel.style.width === "") { panel.style.height = "340px"; layout(); } // room for the file and its result
+        showCodeProblem();
+        showConfigIn($("codeConfig"));
+        refreshTabs();
+        return;
+    }
     if (ed) {
         ed.setLanguage(tab, tab === "html" ? tagProblems : null);
         ed.setValue(textFor(tab));
@@ -183,6 +198,7 @@ const copyFlash = (btn, msg) => { const was = btn.textContent; btn.textContent =
 /** Registers this part's listeners and does its first draw (called once, in order, by editor.js). */
 export function init() {
     $("codeBtn").addEventListener("click", () => setCodePanel(!codeOpen()));
+    $("codeConfig").addEventListener("keydown", (e) => e.stopPropagation()); // typing in the config file is not an editor shortcut
     $("codeTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-ctab]"); if (b) setTab(b.dataset.ctab); });
     $("codeClose").addEventListener("click", () => setCodePanel(false));
     $("codeWarn").addEventListener("click", () => {

@@ -171,6 +171,7 @@ export const editorHtml = `<div class="flex h-full flex-col">
                         <button type="button" role="tab" data-ctab="html" aria-selected="true" class="ctab is-on">HTML<span class="ck"></span></button>
                         <button type="button" role="tab" data-ctab="css" aria-selected="false" class="ctab">CSS<span class="ck"></span></button>
                         <button type="button" role="tab" data-ctab="js" aria-selected="false" class="ctab">JS<span class="ck"></span><i id="codeJsDot" class="hidden h-1.5 w-1.5 rounded-full bg-red-500" title="This script has an error"></i></button>
+                        <button type="button" role="tab" data-ctab="config" aria-selected="false" class="ctab">Config<span class="ck"></span></button>
                     </div>
                     <span id="codeLines" class="sr-only"></span>
                     <button id="codeWarn" type="button" class="hidden min-w-0 truncate rounded px-1.5 py-0.5 text-left text-amber-700 hover:bg-amber-50" title="Go to the line"></button>
@@ -187,6 +188,7 @@ export const editorHtml = `<div class="flex h-full flex-col">
                     </span>
                 </div>
                                 <div id="codeMount" class="min-h-0 min-w-0 flex-1 overflow-hidden bg-white"></div>
+                                <div id="codeConfig" class="hidden min-h-0 min-w-0 flex-1 overflow-hidden bg-white"></div>
             </div>
         </section>
 

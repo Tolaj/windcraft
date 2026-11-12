@@ -47,6 +47,15 @@ export async function applyPage(patch, { reload = true } = {}) {
     return { ok: true };
 }
 
+/** The same workspace inside the Code panel's Config tab: mounted into `el` the first time, and refreshed when the page or the project's theme changed since. */
+let panelEditor = null, panelSig = "";
+export function showConfigIn(el, which = "page") {
+    const next = { theme: data.projectTheme || {}, tw: data.twConfig, scopes: data.id ? ["page", "project"] : ["project"], scope: data.id ? which : "project" };
+    const sig = JSON.stringify([data.id, next.theme, next.tw]);
+    if (!panelEditor) { panelEditor = mountConfigFileEditor(el, next, (scope, patch) => (scope === "page" ? applyPage(patch) : applyProject(patch))); panelSig = sig; return; }
+    if (sig !== panelSig) { panelEditor.set(next); panelSig = sig; }
+}
+
 /** Opens the dialog on the "page" or "project" file. */
 export function openConfig(which) {
     if (!dlg) build();
