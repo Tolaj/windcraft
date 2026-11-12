@@ -156,6 +156,14 @@ function noteGroupMove(from, to) {
     const now = groups.find((g) => g.name === to);
     if (now) now.count += 1; else groups.push({ name: to, count: 1 });
 }
+/** A new frame is saved: it counts in its group (the server may have put it in "Name-1" when its group was full). */
+export function noteFrameSaved(meta, group) {
+    meta.group = group;
+    if (docs.get(S.curKey)?.meta === meta) data.group = group;
+    const groups = data.groups || (data.groups = []), g = groups.find((x) => x.name === group);
+    if (g) g.count += 1; else groups.push({ name: group, count: 1 });
+    renderGroupSwitchers();
+}
 let switchingGroup = false;
 /** Puts another group's frames on the canvas, in place (no reload). `value` is "all" or "g:<name>". Unsaved work stops it: frames not saved would be lost. */
 export async function switchGroup(value) {
@@ -180,7 +188,7 @@ export async function switchGroup(value) {
     const drop = (k) => { const en = wraps.get(k); if (en) { io.unobserve(en.wrap); en.wrap.remove(); wraps.delete(k); } docs.delete(k); };
     [...docs.keys()].filter((k) => !ids.has(k) && k !== oldKey).forEach(drop);
     docs.forEach((_, k) => setRole(k));
-    const finish = () => { if (!ids.has(oldKey)) drop(oldKey); refreshLabels(); renderDesigns(); layout(); S.viewTouched = true; fitTo([...ids], 1); switchingGroup = false; };
+    const finish = () => { if (!ids.has(oldKey)) drop(oldKey); refreshLabels(); renderDesigns(); layout(); S.viewTouched = true; fitTo(frames.slice(0, 3).map((f) => f.id), 1); switchingGroup = false; };
     const started = Date.now();
     const wait = setInterval(() => { if (!S.switching || Date.now() - started > 4000) { clearInterval(wait); finish(); } }, 80);
 }
@@ -709,7 +717,8 @@ $("newDesignBtn").addEventListener("click", async () => {
     docs.set(key, {
         key, kind: "page", parent: null, board: spot, source: "", loaded: true, isNew: true, height: 0,
         parsed: parseComponentSource(""), markup: "", history: [], hIndex: -1, savedMarkup: "",
-        meta: { id: null, title: "Untitled frame", version: 0, category: data.category || DEFAULT_CATEGORY, description: "A frame on the canvas.", tags: [], isPublished: false, useAsReference: true, project },
+        meta: { id: null, title: "Untitled frame", version: 0, group: typeof data.planeGroup === "string" ? data.planeGroup : "", // it starts in the group being viewed
+             category: data.category || DEFAULT_CATEGORY, description: "A frame on the canvas.", tags: [], isPublished: false, useAsReference: true, project },
     });
     makeWrap(key);
     S.viewTouched = true;

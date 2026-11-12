@@ -6,6 +6,7 @@ import Project from "../models/project.model.js";
 import { pageTheme } from "@windcraft/core/theme.js";
 import { exportComponent, FORMATS } from "@windcraft/core/exporters.js";
 import { normalizeGroup } from "@windcraft/core/pages.js";
+import { fitGroup } from "../services/plane.service.js";
 import { cleanTw, hasTw } from "@windcraft/core/config-file.js";
 import { specOf } from "../services/design-spec.service.js";
 import { buildProfile, profileToMarkdown, enrichProfileWithAI } from "../services/profile.service.js";
@@ -101,7 +102,7 @@ export const createComponent = async (req, res) => {
             profile: buildProfile(htmlCode),
             project: project ? project._id : null,
             kind: askedKind === "page" || askedKind === "component" ? askedKind : kindOfCategory(category), // a page made on the canvas says so (only one category is a "Pages" one); otherwise the category decides: a page (the "Pages" group) or a component
-            group: project ? normalizeGroup(group) : "",
+            group: project ? await fitGroup(req.session.user.id, project._id, normalizeGroup(group)) : "",
             isPublished: isPublished === true || isPublished === "true", // private until its owner turns Public on
             useAsReference: !(useAsReference === false || useAsReference === "false"), // AI may use it as a style reference unless the owner says no
             createdBy: req.session.user.id
@@ -178,7 +179,7 @@ export const updateComponent = async (req, res) => {
             component.profile = buildProfile(htmlCode, component.profile);
             codeChanged = true;
         }
-        if (group !== undefined) component.group = normalizeGroup(group);
+        if (group !== undefined) { const g = normalizeGroup(group); component.group = g === component.group ? g : await fitGroup(req.session.user.id, component.project, g, component._id); }
         if (twConfig !== undefined) { const tw = cleanTw(twConfig); component.twConfig = hasTw(tw) ? tw : null; } // the page's own config files, or null for none
         if (title) component.title = title;
         if (category) component.category = category;
