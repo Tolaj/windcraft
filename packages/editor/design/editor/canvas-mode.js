@@ -59,8 +59,8 @@ export function syncCanvasMode() {
     btn.title = off ? "Select a frame to see its code" : "Code";
     if (off) closeCodePanel();
     const name = $("designsName");
-    name.textContent = off ? (data.project && data.project.name) || "Untitled project" : data.title || "Untitled page";
-    $("designsBtn").title = off ? "Project" : "Pages";
+    name.textContent = off ? (data.project && data.project.name) || "Untitled project" : data.title || "Untitled frame";
+    $("designsBtn").title = off ? "Project" : "Frames";
     renderLayers();
     renderInspector();
     syncLayoutPicker(); // the empty-page tip belongs to a frame: not while nothing is selected

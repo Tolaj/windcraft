@@ -61,7 +61,7 @@ export const detailsOf = () => ({
 });
 
 /** The two switches in the details: Type (on: a page, off: a component) and Visibility (on: public in the gallery, off: private). */
-const KIND_HINT = { page: "A screen of your project: Preview plays it, and its parts are saved as components.", component: "A reusable piece you keep to use in other pages." };
+const KIND_HINT = { page: "A screen of your project: Preview plays it, and its parts are saved as components.", component: "A reusable piece you keep to use in other frames." };
 function setKind(kind) {
     const sw = $("dKind");
     sw.dataset.value = kind;

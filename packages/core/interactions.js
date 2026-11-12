@@ -11,7 +11,7 @@ export const ATTR = "data-wc-do";
 export const START_ATTR = "data-wc-start";
 export const INTERACT_MARK = "/*wc-interact*/";
 
-export const WHEN = Object.freeze([["click", "Clicked"], ["hover", "Hovered"], ["load", "Page loads"]]);
+export const WHEN = Object.freeze([["click", "Clicked"], ["hover", "Hovered"], ["load", "Frame loads"]]);
 /** `target`: the action needs another element to act on. */
 export const DO = Object.freeze([
     ["toggle", "Show or hide"],
@@ -20,7 +20,7 @@ export const DO = Object.freeze([
     ["scroll", "Scroll to"],
     ["copy", "Copy text of"],
     ["classes", "Change classes of"],
-    ["goto", "Go to page"],
+    ["goto", "Go to frame"],
 ]);
 const WHENS = WHEN.map(([v]) => v), DOS = DO.map(([v]) => v);
 const ID = /^[A-Za-z_][\w:.-]*$/;

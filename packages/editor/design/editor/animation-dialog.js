@@ -63,7 +63,7 @@ function build() {
                     <label id="animEaseWrap" class="col-span-2 hidden">${lab}Custom easing</span><input id="animEaseCustom" class="${field} font-mono" placeholder="cubic-bezier(0.2, 0.8, 0.2, 1)" spellcheck="false" disabled></label>
                     <label id="animOnWrap" class="col-span-2 block">${lab}It plays</span><select id="animOn" class="${field}">${TRIGGERS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label></div></div>
                 <div class="shrink-0 border-t border-neutral-200 bg-white p-3">
-                    <p class="text-[11px] text-neutral-500">Added to the project's Tailwind config, for every page.</p>
+                    <p class="text-[11px] text-neutral-500">Added to the project's Tailwind config, for every frame.</p>
                     <label class="mt-1.5 flex items-center gap-1.5"><input id="animReduced" type="checkbox" checked class="accent-black"> Respect reduced motion</label>
                     <p id="animErr" class="mt-1 text-red-700 empty:hidden" role="alert"></p>
                     <div class="mt-1 flex justify-end gap-2"><button type="button" data-x class="h-8 rounded-md border border-neutral-200 bg-white px-3 hover:bg-neutral-100">Cancel</button><button type="button" id="animCreate" class="h-8 rounded-md bg-black px-4 font-semibold text-white hover:bg-neutral-800">Add and use</button></div></div></aside></div></div>`;

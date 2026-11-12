@@ -32,7 +32,7 @@ async function persist(d) {
     const body = { htmlCode: assembleDoc(d.parsed, d.markup) };
     if (d.isNew) {
         const saved = await host.createComponent({
-            ...body, title: m.title || "Untitled page", category: m.category || DEFAULT_CATEGORY, description: m.description || "A page on the canvas.",
+            ...body, title: m.title || "Untitled frame", category: m.category || DEFAULT_CATEGORY, description: m.description || "A frame on the canvas.",
             tags: (m.tags || []).join(","), isPublished: String(m.isPublished), useAsReference: m.useAsReference !== false, project: m.project ? m.project.id : "",
             ...(d.kind === "page" ? { kind: "page" } : {}), // a page made on the canvas is a page (its category, "Application Components" by default, would make it a component, and Preview would leave it out)
             ...(S.draftKey && d.key === S.draftKey ? { draftId: data.draftId } : {}), // a draft from Figma: its Figma data moves to this page
@@ -135,7 +135,7 @@ const ICONS = {
     image: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 16l-5-5-8 8"/>',
     button: '<rect x="3" y="8" width="18" height="8" rx="4"/><path stroke-linecap="round" d="M9 12h6"/>',
 };
-const TOOLS = [["move", "Move", "V"], ["hand", "Hand (or hold Space)", "H"], ["interact", "Interact: use the page as on the device (hover, click, type, scroll)", "P"], ["frame", "Frame", "F"], ["shape"], ["text", "Text", "T"]]; // Image and Button live in the + (insert a block) menu; their I and B keys still draw them
+const TOOLS = [["move", "Move", "V"], ["hand", "Hand (or hold Space)", "H"], ["interact", "Interact: use the frame as on the device (hover, click, type, scroll)", "P"], ["frame", "Frame", "F"], ["shape"], ["text", "Text", "T"]]; // Image and Button live in the + (insert a block) menu; their I and B keys still draw them
 // Rectangle, Oval, Arrow and Line share one button: it draws the shape you used last, the chevron picks another
 const SHAPES = [["rect", "Rectangle", "R"], ["ellipse", "Oval", "O"], ["arrow", "Arrow", "⇧L"], ["line", "Line", "L"]];
 let shape = "rect";

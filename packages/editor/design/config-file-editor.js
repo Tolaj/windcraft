@@ -13,7 +13,7 @@ import { themeHead, normalizeTheme } from "../../core/theme.js";
 // Packages are marked line by line in the gutter (green: loaded or built in; amber: warning; red: a page can't do this without a build) and listed under the file.
 //   onApply(scope, patch) -> Promise<{ ok, message? }>     scope "project": { engine, configJs, configCss, lock }   scope "page": { js, css, lock }
 
-const COMPACT_HINT = "Every page uses this file, and it applies as you type. Press i to see how to add your own plugin.";
+const COMPACT_HINT = "Every frame uses this file, and it applies as you type. Press i to see how to add your own plugin.";
 /** How to add a plugin, for the "i" button (Tailwind 3: a config file; Tailwind 4: CSS, since a page has no build for @plugin). Each one is applied as it is, so it can be copied straight into the file. */
 const PLUGIN_HELP = {
     "3": [
@@ -98,7 +98,7 @@ export function mountConfigFileEditor(el, opts, onApply) {
     const dirty = (sc) => texts[sc][engine] !== saved[sc][engine];
 
     function tabs() {
-        const tab = (sc) => `<button type="button" role="tab" aria-selected="${scope === sc}" data-scope="${sc}" class="-mb-px flex items-center gap-2 rounded-t-md border-x border-t-2 px-3 py-2 ${scope === sc ? "border-x-neutral-200 border-t-neutral-900 bg-white text-neutral-900 shadow-[0_1px_0_#fff]" : "border-x-transparent border-t-transparent bg-neutral-50 text-neutral-400 hover:text-neutral-900"}"><span class="font-mono text-[12px] ${scope === sc ? "font-semibold" : ""}">${name(sc, engine)}</span><span class="rounded px-1.5 py-0.5 text-[10px] ${scope === sc ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-600"}">${sc === "page" ? "this page" : "whole project"}</span>${dirty(sc) ? `<i class="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" title="Not applied yet"></i>` : ""}</button>`;
+        const tab = (sc) => `<button type="button" role="tab" aria-selected="${scope === sc}" data-scope="${sc}" class="-mb-px flex items-center gap-2 rounded-t-md border-x border-t-2 px-3 py-2 ${scope === sc ? "border-x-neutral-200 border-t-neutral-900 bg-white text-neutral-900 shadow-[0_1px_0_#fff]" : "border-x-transparent border-t-transparent bg-neutral-50 text-neutral-400 hover:text-neutral-900"}"><span class="font-mono text-[12px] ${scope === sc ? "font-semibold" : ""}">${name(sc, engine)}</span><span class="rounded px-1.5 py-0.5 text-[10px] ${scope === sc ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-600"}">${sc === "page" ? "this frame" : "whole project"}</span>${dirty(sc) ? `<i class="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" title="Not applied yet"></i>` : ""}</button>`;
         const eng = scope === "project"
             ? `<div class="mb-1 ml-auto inline-flex overflow-hidden rounded-md border border-neutral-300">${["3", "4"].map((e) => `<button type="button" aria-pressed="${engine === e}" data-engine="${e}" class="px-2.5 py-1 ${engine === e ? "bg-black font-medium text-white" : "bg-white text-neutral-700 hover:bg-neutral-50"}">Tailwind ${e}</button>`).join("")}</div>`
             : `<span class="mb-1 ml-auto text-neutral-500">Tailwind ${engine}, set in the project's file</span>`;
@@ -113,9 +113,9 @@ export function mountConfigFileEditor(el, opts, onApply) {
     function draw() {
         tabs();
         q("[data-status]").textContent = status[scope] || (compact ? COMPACT_HINT : "");
-        q("[data-apply]").textContent = busy ? "Checking…" : scope === "page" ? "Apply to this page" : "Apply to the project";
+        q("[data-apply]").textContent = busy ? "Checking…" : scope === "page" ? "Apply to this frame" : "Apply to the project";
         const rows = diag[scope].map((d) => `<div class="flex gap-2 py-0.5"><span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full" style="background:${DOT[d.level]}"></span><span class="w-12 shrink-0 font-mono text-neutral-500">${d.line ? `line ${d.line}` : "file"}</span><span class="${d.level === "error" ? "text-red-800" : d.level === "warn" ? "text-amber-800" : "text-neutral-600"}">${esc(d.message)}</span></div>`).join("");
-        q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${scope === "page" ? "Only this page uses this file, on top of the project's. " : compact ? "Every page in this project uses this file. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>; " + (compact ? "it is applied as you type, and each package is checked." : "Apply checks each package.") : "Paste what a plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
+        q("[data-diag]").innerHTML = rows || `<p class="text-neutral-500">${scope === "page" ? "Only this frame uses this file, on top of the project's. " : compact ? "Every frame in this project uses this file. " : ""}${engine === "3" ? "Add a plugin the usual way, like <code>require(\"@tailwindcss/typography\")</code> in <code>plugins</code>; " + (compact ? "it is applied as you type, and each package is checked." : "Apply checks each package.") : "Paste what a plugin's docs say: <code>@import</code> lines of CSS work. <code>@plugin</code> needs a build, which a page doesn't have."}</p>`;
         if (compact) q("[data-diag]").classList.toggle("hidden", !rows); // one footer line: the checks only take room when there is something to say
         gutter();
     }
@@ -143,7 +143,7 @@ export function mountConfigFileEditor(el, opts, onApply) {
         const changed = (k) => JSON.stringify(eff[k]) !== JSON.stringify(TAILWIND_DEFAULTS[k]);
         const ordered = [...keys.filter(changed), ...keys.filter((k) => !changed(k))];
         q("[data-res]").innerHTML = ordered.map((k) => `<details ${changed(k) ? "open" : ""} class="border-b border-neutral-200"><summary class="flex items-center gap-2 px-4 py-2 hover:bg-white"><span class="font-medium text-neutral-900">${esc(k)}</span>${changed(k) ? `<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800">customised</span>` : `<span class="text-[10px] text-neutral-400">Tailwind default</span>`}<span class="ml-auto text-neutral-400">▾</span></summary><pre>${esc(JSON.stringify(eff[k], null, 2))}</pre></details>`).join("");
-        q("[data-resnote]").textContent = `Tailwind ${TAILWIND_VERSION}'s defaults with your theme choices and ${scope === "page" ? "the project's file and this page's" : "the project's file"}. Customised sections are open.`;
+        q("[data-resnote]").textContent = `Tailwind ${TAILWIND_VERSION}'s defaults with your theme choices and ${scope === "page" ? "the project's file and this frame's" : "the project's file"}. Customised sections are open.`;
     }
 
     async function apply() {
@@ -164,7 +164,7 @@ export function mountConfigFileEditor(el, opts, onApply) {
                 const keep = (s, e) => (texts[s][e] === tmpl(s, e) ? "" : texts[s][e]); // the blank template is stored as nothing
                 const result = await onApply(sc, sc === "page" ? { js: keep("page", "3"), css: keep("page", "4"), lock } : { engine, configJs: keep("project", "3"), configCss: keep("project", "4"), lock });
                 if (result && result.ok) { saved[sc][engine] = texts[sc][engine]; if (sc === "project") theme = { ...theme, engine }; }
-                status[sc] = result && result.ok ? (diag[sc].some((d) => d.level === "error") ? "Applied. Lines marked red were left out." : sc === "page" ? "Applied to this page." : "Applied to every page in this project.") : `Not saved: ${(result && result.message) || "something went wrong"}`;
+                status[sc] = result && result.ok ? (diag[sc].some((d) => d.level === "error") ? "Applied. Lines marked red were left out." : sc === "page" ? "Applied to this frame." : "Applied to every frame in this project.") : `Not saved: ${(result && result.message) || "something went wrong"}`;
             }
         } catch (e) { status[sc] = e.message || "Something went wrong."; }
         busy = false; draw(); live(0);
@@ -179,7 +179,7 @@ export function mountConfigFileEditor(el, opts, onApply) {
         if (e.target.closest("[data-help]")) return showHelp();
         if (e.target.closest("[data-note]")) return opts.onNote && opts.onNote();
         if (e.target.closest("[data-apply]")) return apply();
-        if (e.target.closest("[data-reset]")) { if (!confirm(`Put ${name(scope, engine)} (${scope === "page" ? "this page" : "whole project"}) back to the blank template?`)) return; texts[scope][engine] = tmpl(scope, engine); diag[scope] = []; load(); }
+        if (e.target.closest("[data-reset]")) { if (!confirm(`Put ${name(scope, engine)} (${scope === "page" ? "this frame" : "whole project"}) back to the blank template?`)) return; texts[scope][engine] = tmpl(scope, engine); diag[scope] = []; load(); }
     });
     ta.addEventListener("input", () => {
         texts[scope][engine] = ta.value; diag[scope] = []; tabs(); gutter(); live();
