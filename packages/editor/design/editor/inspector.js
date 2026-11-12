@@ -8,7 +8,6 @@ import { normalizeValue } from "../css-props.js";
 import { host } from "../host.js";
 import { pageTheme } from "../../../core/theme.js";
 import { TAILWIND_VERSION } from "../../../core/tailwind-defaults.js";
-import { requiresOf, kindOf, OFFICIAL, TEMPLATES, hasTw } from "../../../core/config-file.js";
 import { openConfig } from "./config-dialog.js";
 import { newAnimation, ensureEntries } from "./animation-dialog.js";
 import { REVEALS, EFFECT_ENTRIES, typewriterClasses } from "../../../core/text-effects.js";
@@ -33,10 +32,7 @@ export const insp = $("inspector");
 /** The selected page's own properties, for the panel. */
 function pageInfo() {
     const d = docs.get(S.curKey), p = positions()[S.curKey] || { x: 0, y: 0 };
-    const pt = data.projectTheme || {}, engine = pt.engine === "4" ? "4" : "3";
-    const file = engine === "4" ? "" : pt.configJs || TEMPLATES["3"].text;
-    const tailwind = { engine, canManage: Boolean(host.saveProjectTheme && data.project), hasPage: hasTw(data.twConfig), plugins: [...new Set(requiresOf(file).filter((r) => kindOf(r.spec) !== "builtin").map((r) => OFFICIAL[r.spec] || r.spec))] };
-    return { tailwind, name: data.title || "", group: data.group || "", w: widthOf(d), h: heightOfDoc(d), auto: !(d.board && d.board.h), empty: model.markup.trim() === "", x: Math.round(p.x), y: Math.round(p.y), version: data.version, isNew: S.isNew, project: data.project && data.project.name };
+    return { name: data.title || "", group: data.group || "", w: widthOf(d), h: heightOfDoc(d), auto: !(d.board && d.board.h), empty: model.markup.trim() === "", x: Math.round(p.x), y: Math.round(p.y), version: data.version, isNew: S.isNew, project: data.project && data.project.name };
 }
 /** A page panel field (name, size, position) typed by the user: applied if it makes sense, otherwise the panel shows the old value again. */
 function setPageField(key, text) {

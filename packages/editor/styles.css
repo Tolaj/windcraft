@@ -425,3 +425,10 @@ select.fi, .vbar select { -webkit-appearance: none; appearance: none; padding-ri
 #canvas { cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M21%2011%202%202l9%2019%202-8z%22%20fill%3D%22%23111%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.6%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") 2 2, default; }
 /* with Interact selected, the pointer over the canvas is Interact's own (see INTERACT_CURSOR in docs.js) */
 #canvas[data-tool="interact"] { cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cg%20stroke%3D%22%23fff%22%20stroke-width%3D%223.6%22%3E%3Cpath%20d%3D%22M9%209l11%204.5-4.6%201.4L14%2019.5z%22%2F%3E%3Cpath%20d%3D%22M6.5%203.5%207%206M3.5%206.5%206%207M4.5%2010.5l2-1.5M10.5%204.5%209%206.5%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23111%22%20stroke-width%3D%221.6%22%3E%3Cpath%20d%3D%22M9%209l11%204.5-4.6%201.4L14%2019.5z%22%2F%3E%3Cpath%20d%3D%22M6.5%203.5%207%206M3.5%206.5%206%207M4.5%2010.5l2-1.5M10.5%204.5%209%206.5%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") 9 9, default; }
+
+/* The Code panel's tabs (HTML, CSS, JS): underlined, the selected one dark */
+#codeTabs { align-self: stretch !important; }
+.ctab { display: flex; align-self: stretch !important; align-items: center; gap: 6px; padding: 0 10px; color: #737373; border-bottom: 2px solid transparent; margin-bottom: 0; font-size: 12px; }
+.ctab:hover { color: #171717; }
+.ctab.is-on { color: #171717; font-weight: 500; border-bottom-color: #171717; }
+.ctab .ck { font-size: 10px; font-weight: 400; color: #a3a3a3; }

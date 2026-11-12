@@ -5,6 +5,8 @@ export { EditorView, Decoration, keymap, lineNumbers, highlightActiveLine, highl
 export { history, historyKeymap, defaultKeymap, indentWithTab, toggleComment } from "@codemirror/commands";
 export { syntaxHighlighting, HighlightStyle, indentOnInput, bracketMatching, foldGutter, foldKeymap, indentUnit } from "@codemirror/language";
 export { html } from "@codemirror/lang-html";
+export { css } from "@codemirror/lang-css";
+export { javascript } from "@codemirror/lang-javascript";
 export { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap, completionStatus } from "@codemirror/autocomplete";
 export { search, searchKeymap, highlightSelectionMatches, openSearchPanel, closeSearchPanel, SearchQuery, setSearchQuery, getSearchQuery, findNext, findPrevious, selectMatches, replaceNext, replaceAll } from "@codemirror/search";
 export { linter, lintGutter, lintKeymap, setDiagnostics, forceLinting } from "@codemirror/lint";

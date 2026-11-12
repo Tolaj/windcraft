@@ -50,12 +50,17 @@ test("a page's own file is stored on the page and laid over the project's", { sk
     await page.waitForSelector("#inspector", { state: "attached" });
     await page.waitForTimeout(3000); // the editor finishes loading
     if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33); // open the panel if it is closed
-    await page.locator(".wfbtn").nth(1).waitFor({ state: "visible", timeout: 20000 });
-    await page.click(".wfbtn >> nth=1"); // Tailwind config
-    await page.fill("#configDlg [data-ta]", PAGE_FILE);
-    await page.click("#configDlg [data-apply]");
-    await applied(page, "#configDlg");
-    assert.match(await page.textContent("#configDlg [data-status]"), /^Applied to this page/);
+    // a page that has a file of its own (older pages do): the Config tab links to it, and the dialog edits it
+    const put = await ctx.request.put(`${stack.base}/api/components/${ids.page}`, { data: { twConfig: { js: PAGE_FILE } } });
+    assert.equal(put.status(), 200, "the page's file is stored on the page");
+    await page.reload();
+    await page.waitForSelector("#codeBtn", { state: "attached" });
+    await page.waitForTimeout(3000);
+    await page.click("#codeBtn");
+    await page.click('[data-ctab="config"]');
+    await page.click("#codeConfig [data-note]");
+    await page.waitForSelector("#configDlg[open]");
+    assert.equal(await page.inputValue("#configDlg [data-ta]"), PAGE_FILE, "the dialog holds the page's own file");
     await page.goto(`${stack.base}/design/${ids.page}`);
     const colours = await settle(page, "a", "b", (c) => c.a === "rgb(124, 58, 237)" && c.b === "rgb(15, 118, 110)");
     assert.deepEqual(colours, { a: "rgb(124, 58, 237)", b: "rgb(15, 118, 110)" }, "the page's colour and the project's both apply");
@@ -155,8 +160,12 @@ test("the config dialog works on a small screen and by keyboard", { skip: skip |
     await page.goto(`${stack.base}/design/${ids.page}`);
     await page.waitForSelector("#inspector", { state: "attached" });
     await page.waitForTimeout(3000);
-    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(page.viewportSize().width - 174, 33);
-    await page.evaluate(() => document.querySelectorAll(".wfbtn")[1].click()); // the Tailwind config row
+    const put = await small.request.put(`${stack.base}/api/components/${ids.page}`, { data: { twConfig: { js: PAGE_FILE } } });
+    assert.equal(put.status(), 200);
+    await page.reload();
+    await page.waitForSelector("#codeBtn", { state: "attached" });
+    await page.waitForTimeout(3000);
+    await page.evaluate(() => { document.getElementById("codeBtn").click(); document.querySelector('[data-ctab="config"]').click(); document.querySelector("#codeConfig [data-note]").click(); }); // the link to this page's own file
     await page.waitForSelector("#configDlg[open]");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the page does not scroll sideways");
     const apply = await page.locator("#configDlg [data-apply]").boundingBox();

@@ -5,7 +5,7 @@ import { $, S, data, esc, model } from "./base.js";
 import { cmd } from "./frame-messages.js";
 import { assemble, commit, loadFrame, updateChrome } from "./docs.js";
 import { renderInspector } from "./inspector.js";
-import { anyDirty, boardPayload, docs, pinBoard, remapKey, saveBoard } from "./designs.js";
+import { anyDirty, boardPayload, docs, extrasOf, pinBoard, remapKey, saveBoard } from "./designs.js";
 
 // ── Add menu: build from blocks ──────────────────────────────────────────────
 const BLOCKS = [
@@ -91,6 +91,7 @@ export async function saveDetails(fields) {
         S.savedMarkup = model.markup;
         host.showDesign(data.id);
         const d = docs.get(S.curKey);
+        d.savedExtras = extrasOf(S.parsed);
         if (data.project) pinBoard(S.curKey, false);
         if (d.board && data.project) saveBoard([boardPayload([data.id, d.board])]);
         remapKey(S.curKey, data.id);

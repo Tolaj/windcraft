@@ -3,8 +3,10 @@ import { parseComponentSource } from "../../playground/component-source.js";
 import { createCodeEditor, tagProblems } from "../code-editor.js";
 import { $, S, data, model } from "./base.js";
 import { pref } from "./color-ui.js";
-import { assemble, commit, loadFrame } from "./docs.js";
+import { assembleDoc, commit, loadFrame } from "./docs.js";
+import { cssText, jsText, withCss, withJs, withOwnFrom, withoutOwn } from "../../../core/code-parts.js";
 import { layout } from "./plane.js";
+import { showConfigIn } from "./config-dialog.js";
 
 // ── Code panel (two-way with the canvas) ─────────────────────────────────────
 // The editor itself is design/code-editor.js (CodeMirror); this part keeps it and the canvas in step.
@@ -13,6 +15,36 @@ let starting = false;
 const codeOpen = () => !$("codePanel").classList.contains("hidden");
 export const codeFocused = () => Boolean(ed && ed.hasFocus());
 const codeValue = () => (ed ? ed.getValue() : "");
+// ── The tabs: HTML (markup, links, anything that is not the page's own CSS or JS), CSS and JS ─────────────
+let tab = "html";
+const TABS = ["html", "css", "js", "config"]; // config: the Tailwind config workspace (config-file-editor.js) instead of the code editor
+/** What a tab shows, from the page as it is now. */
+function textFor(t) {
+    if (t === "config") return "";
+    if (t === "css") return cssText(S.parsed);
+    if (t === "js") return jsText(S.parsed);
+    return model.markup.trim() ? assembleDoc(withoutOwn(S.parsed), model.markup) : "";
+}
+const lineCount = (text) => (text ? text.split("\n").length : 0);
+let jsSeq = 0;
+/** Where a script has a syntax error: { line, message } or null (Prettier's parser knows the place; nothing in the script runs). */
+async function jsProblem(text) {
+    if (!text.trim()) return null;
+    try { const { formatSource } = await import("../../vendor/prettier.js"); await formatSource(text, { parser: "babel" }); return null; }
+    catch (err) { const loc = err && err.loc && err.loc.start; return { line: loc ? loc.line : 1, message: String(err && err.message ? err.message : err).split("\n")[0].replace(/\s*\(\d+:\d+\)$/, "") }; }
+}
+/** The counts on the tabs, and the red dot on JS while the script has an error. */
+async function refreshTabs() {
+    document.querySelectorAll("#codeTabs [data-ctab]").forEach((b) => {
+        const t = b.dataset.ctab, n = t === "config" ? 0 : lineCount(t === tab && ed ? ed.getValue() : textFor(t));
+        b.querySelector(".ck").textContent = n ? String(n) : "";
+        b.classList.toggle("is-on", t === tab);
+        b.setAttribute("aria-selected", String(t === tab));
+    });
+    const seq = ++jsSeq;
+    const bad = await jsProblem(jsText(S.parsed));
+    if (seq === jsSeq) $("codeJsDot").classList.toggle("hidden", !bad);
+}
 /** Copies text and says so on the button for a moment. */
 function copyText(text, btn) {
     const done = (msg) => { if (!btn) return; const was = btn.textContent; btn.textContent = msg; setTimeout(() => { btn.textContent = was; }, 1200); };
@@ -50,19 +82,20 @@ export function elementRange(markup, path) {
 }
 /** Paints the selected element's source in the code (its opening tag darker), and when the selection just changed, scrolls to it. */
 export function updateCodeHighlight(reveal) {
-    if (!codeOpen() || !ed) return;
+    if (!codeOpen() || !ed || tab === "config") return;
+    if (tab !== "html") { ed.setMarks([]); return refreshTabs(); }
     const text = ed.getValue();
     const base = model.markup ? text.indexOf(model.markup) : -1;
     const r = S.selected && S.selected.path && S.selected.path.length && base >= 0 ? elementRange(model.markup, S.selected.path) : null;
     ed.setMarks(r ? [[base + r.start, base + r.end, "sel"], [base + r.start, base + r.openEnd, "selt"]] : []);
-    const n = ed.lineCount();
-    $("codeLines").textContent = `${n} line${n === 1 ? "" : "s"}`;
+    refreshTabs();
     if (reveal && r) ed.reveal(base + r.start);
 }
 
 export function syncCode() {
     if (!codeOpen() || !ed) return;
-    const next = model.markup.trim() ? assemble() : "";
+    if (tab === "config") { showConfigIn($("codeConfig")); return; } // the page or the theme may have changed
+    const next = textFor(tab);
     const prev = ed.getValue();
     if (prev === next) return updateCodeHighlight(false);
     ed.setValue(next); // keeps the scroll position and the cursor
@@ -82,19 +115,32 @@ async function setCodePanel(open) {
         starting = true;
         try {
             ed = await createCodeEditor($("codeMount"), {
-                value: model.markup.trim() ? assemble() : "", onChange: onCodeInput, problems: tagProblems, onSave: () => $("saveBtn").click(),
+                value: textFor(tab), onChange: onCodeInput, problems: tagProblems, onSave: () => $("saveBtn").click(),
                 wrap: true, // long class lists wrap instead of scrolling sideways (a narrow panel beside the design would cut off the start of the line)
             });
+            ed.setLanguage(tab, tab === "html" ? tagProblems : null);
         } finally { starting = false; }
     }
     if (open && ed) { syncCode(); updateCodeHighlight(true); ed.focus(); }
     layout();
 }
 let codeTimer = null;
-/** Shows the first place the tags don't match up (and returns it), or hides the warning. */
+/** Shows the first place the code is wrong (and returns it), or hides the warning. HTML: tags that don't match (not applied until fixed). JS: a syntax error (applied, but the script can't run). */
+let warnSeq = 0;
 function showCodeProblem() {
-    const bad = checkTags(codeValue());
     const w = $("codeWarn");
+    if (tab === "css" || tab === "config") { w.classList.add("hidden"); return null; }
+    if (tab === "js") {
+        const seq = ++warnSeq;
+        jsProblem(codeValue()).then((bad) => {
+            if (seq !== warnSeq || tab !== "js") return;
+            w.classList.toggle("hidden", !bad);
+            if (bad) { w.textContent = `Line ${bad.line}: ${bad.message}. The script can't run until fixed.`; w.dataset.line = String(bad.line); }
+            $("codeJsDot").classList.toggle("hidden", !bad);
+        });
+        return null; // a script with an error is still kept: it only fails when the page runs
+    }
+    const bad = checkTags(codeValue());
     w.classList.toggle("hidden", !bad);
     if (bad) { w.textContent = `Line ${bad.line}: ${bad.message}. Not applied until fixed.`; w.dataset.line = String(bad.line); }
     return bad;
@@ -104,24 +150,57 @@ function applyCode() {
     clearTimeout(codeTimer);
     codeTimer = null;
     if (showCodeProblem()) return false;
-    S.parsed = parseComponentSource(codeValue());
+    const text = codeValue();
+    if (tab === "css") S.parsed = withCss(S.parsed, text);
+    else if (tab === "js") S.parsed = withJs(S.parsed, text);
+    else S.parsed = withOwnFrom(parseComponentSource(text), S.parsed);
     commit(S.parsed.markup, "code");
-    loadFrame();
+    // the canvas shows the page at rest, with no scripts: only Interact (and the saved page) runs them
+    if (tab !== "js" || S.mode !== "edit") loadFrame();
+    refreshTabs();
     return true;
 }
 /** Typing in the code: the squiggles and the warning show at once; the canvas follows once typing pauses (broken tags are never sent to it, where the browser would "repair" them its own way). */
 function onCodeInput() {
-    const n = ed.lineCount();
-    $("codeLines").textContent = `${n} line${n === 1 ? "" : "s"}`;
     showCodeProblem();
+    refreshTabs();
     clearTimeout(codeTimer);
     codeTimer = setTimeout(applyCode, 500);
+}
+/** Shows another tab: the same editor, with that part's text and language. */
+function setTab(next) {
+    if (!TABS.includes(next) || next === tab) return;
+    if (codeTimer) applyCode(); // what was typed goes in first
+    tab = next;
+    const cfg = tab === "config";
+    $("codeMount").classList.toggle("hidden", cfg);
+    $("codeConfig").classList.toggle("hidden", !cfg);
+    ["codeFind", "codeFormat", "codeCopy"].forEach((id) => $(id).classList.toggle("hidden", cfg)); // they act on the code editor
+    if (cfg) {
+        const panel = $("codePanel");
+        if (panel.style.height && panel.offsetHeight < 340 && panel.style.width === "") { panel.style.height = "340px"; layout(); } // room for the file and its result
+        showCodeProblem();
+        showConfigIn($("codeConfig"));
+        refreshTabs();
+        return;
+    }
+    if (ed) {
+        ed.setLanguage(tab, tab === "html" ? tagProblems : null);
+        ed.setValue(textFor(tab));
+        ed.setMarks([]);
+    }
+    showCodeProblem();
+    updateCodeHighlight(true);
+    if (ed) ed.focus();
 }
 const copyFlash = (btn, msg) => { const was = btn.textContent; btn.textContent = msg; setTimeout(() => { btn.textContent = was; }, 1200); };
 
 /** Registers this part's listeners and does its first draw (called once, in order, by editor.js). */
 export function init() {
     $("codeBtn").addEventListener("click", () => setCodePanel(!codeOpen()));
+    document.addEventListener("wc-config-changed", () => { if (tab === "config" && codeOpen()) showConfigIn($("codeConfig")); }); // the page's file changed elsewhere (the Properties panel, the animation dialog)
+    $("codeConfig").addEventListener("keydown", (e) => e.stopPropagation()); // typing in the config file is not an editor shortcut
+    $("codeTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-ctab]"); if (b) setTab(b.dataset.ctab); });
     $("codeClose").addEventListener("click", () => setCodePanel(false));
     $("codeWarn").addEventListener("click", () => {
         if (!ed) return;
@@ -130,7 +209,7 @@ export function init() {
     });
     $("codeCopy").addEventListener("click", (e) => copyText(codeValue(), e.currentTarget));
     $("codeFind").addEventListener("click", () => ed && ed.openSearch());
-    // Format: Prettier tidies the whole code (markup, <style> and <script>), as one undo step
+    // Format: Prettier tidies what the tab shows (HTML with its tags, or the CSS, or the JavaScript), as one undo step
     $("codeFormat").addEventListener("click", async (e) => {
         const btn = e.currentTarget;
         if (!ed) return;
