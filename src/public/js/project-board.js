@@ -460,7 +460,8 @@ $("tabTheme").addEventListener("click", () => { tab = "theme"; renderOutline(); 
 // Auto-create parts: on, the parts of every frame are made and listed; off, none are (nothing already made is deleted)
 document.addEventListener("change", async (e) => {
     if (!e.target.matches || !e.target.matches("[data-parts-toggle]")) return;
-    const on = e.target.checked;
+    const on = e.target.checked, sw = e.target.closest(".switch");
+    if (sw) sw.classList.add("busy"); // a spinner stands in for the switch until it is saved
     try {
         const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoParts: on }) });
         if (!res.ok) throw new Error("not saved");
@@ -470,6 +471,7 @@ document.addEventListener("change", async (e) => {
         if (tab === "component") { buildFrames(); fitAll(); }
     } catch {
         e.target.checked = !on;
+        if (sw) sw.classList.remove("busy");
         alert("Could not change the setting. Try again.");
     }
 });
@@ -477,7 +479,8 @@ document.addEventListener("change", async (e) => {
 // Publish: every frame in the gallery, or none
 document.addEventListener("change", async (e) => {
     if (!e.target.matches || !e.target.matches("[data-publish-toggle]")) return;
-    const on = e.target.checked;
+    const on = e.target.checked, sw = e.target.closest(".switch");
+    if (sw) sw.classList.add("busy");
     try {
         const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ published: on }) });
         const json = await res.json().catch(() => ({}));
@@ -486,6 +489,7 @@ document.addEventListener("change", async (e) => {
         renderDetails();
     } catch {
         e.target.checked = !on;
+        if (sw) sw.classList.remove("busy");
         alert("Could not change it. Try again.");
     }
 });
