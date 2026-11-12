@@ -164,7 +164,7 @@ function mount(id) {
     f.setAttribute("tabindex", "-1");
     f.title = it.title;
     f.style.cssText = `position:absolute;left:0;top:0;width:${widthOf(it)}px;height:100%;border:0;pointer-events:none;background:#fff;`;
-    f.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true, theme: themeFor(it) });
+    f.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true, still: true, theme: themeFor(it) });
     entry.frame.appendChild(f);
     entry.iframe = f;
 }
@@ -411,7 +411,7 @@ let theme = normalizeTheme(project.theme);
 function redrawPreviews() {
     wraps.forEach((entry, id) => {
         const it = byId(id);
-        if (entry.iframe && it) entry.iframe.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true, theme: themeFor(it) });
+        if (entry.iframe && it) entry.iframe.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true, still: true, theme: themeFor(it) });
     });
 }
 let cfgSection = "tailwind";

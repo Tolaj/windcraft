@@ -99,8 +99,9 @@ export const tailwindMarkup = () => tailwindTag(previewTheme);
 export const themeMarkup = () => (previewTheme ? themeHead(previewTheme) : "");
 
 /** Builds a complete, standalone document for an iframe's srcdoc. */
+/** `still`: a design at rest (the board and the ghost), animations and transitions off; they play in Interact and Preview. */
 /** `fixedScreen`: the frame follows its content's height, so screen-sized content gets the device's screen height (screenHeightCss). */
-export function buildPreviewDocument(parsed, { width, fixedScreen = false, theme = null } = {}) {
+export function buildPreviewDocument(parsed, { width, fixedScreen = false, theme = null, still = false } = {}) {
     const head = [
         '<meta charset="utf-8">',
         `<meta name="viewport" content="width=${width || "device-width"}, initial-scale=1">`,
@@ -134,7 +135,7 @@ export function buildPreviewDocument(parsed, { width, fixedScreen = false, theme
 <html>
 <head>
 ${head.join("\n")}
-<style>html,body{margin:0}${fixedScreen ? screenHeightCss(screenHeightFor(width || 1280)) : ""}</style>
+<style>html,body{margin:0}${still ? "*,*::before,*::after{transition:none!important;animation:none!important}" : ""}${fixedScreen ? screenHeightCss(screenHeightFor(width || 1280)) : ""}</style>
 </head>
 <body${bodyAttrs}>
 ${parsed.markup}
