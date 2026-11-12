@@ -92,8 +92,8 @@ test("the Config tab holds the project's Tailwind file, which applies by itself;
     assert.equal(await page.locator("#codeConfig [data-tabs]").isVisible(), false, "one file: no file tabs");
     assert.equal(await page.locator("#codeConfig [data-apply]").isVisible(), false, "no Apply: it applies itself");
     assert.equal(await page.locator("#codeConfig .cfe-res").isVisible(), false, "no result column");
-    assert.match(await page.locator("#codeConfig [data-diag]").textContent(), /Every page uses this file/);
-    assert.ok((await page.locator("#codeConfig [data-diag] p").boundingBox()).height < 30, "the hint is one line");
+    assert.match(await page.locator("#codeConfig [data-status]").textContent(), /Every page uses this file/);
+    assert.equal(await page.locator("#codeConfig [data-diag]").isVisible(), false, "no extra row: the hint shares the line with Reset");
     assert.doesNotMatch(await page.locator("#inspector").textContent(), /Tailwind config/, "the page's panel has no config row");
     // typing in the project's file reaches the canvas by itself
     await page.locator("#codeConfig [data-ta]").fill('module.exports = {\n  theme: { extend: { colors: { proj: "#0f766e" } } },\n};\n');
