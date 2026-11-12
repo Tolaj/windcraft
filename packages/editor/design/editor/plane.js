@@ -30,6 +30,8 @@ export function remeasureHeight(d) {
 }
 
 /** The group a design belongs to in its project ("Public site"), or "". */
+/** A saved frame whose group is no longer the one on the canvas (it was changed here): it stays until the group is switched. */
+export const movedOut = (key) => typeof data.planeGroup === "string" && Boolean((docs.get(key) || {}).meta?.id) && pageGroupOf(key) !== data.planeGroup;
 export const pageGroupOf = (key) => ((key === S.curKey ? data.group : (docs.get(key) || {}).meta?.group) || "");
 
 export function positions() {
