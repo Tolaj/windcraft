@@ -268,19 +268,30 @@ test("an animation made in the keyframe editor is written into the config as key
     await page.close();
 });
 
-const pick = async (page, frame, sel) => { const b = await frame.locator(sel).boundingBox(); await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(600); };
+const pick = async (page, frame, sel, tag) => { // click an element in the canvas until the panel says it is the one selected (the layout can still be settling)
+    for (let i = 0; i < 4; i++) {
+        const b = await frame.locator(sel).boundingBox();
+        await page.mouse.click(b.x + Math.min(20, b.width / 2), b.y + Math.min(8, b.height / 2));
+        await page.waitForTimeout(700);
+        if ((await page.$eval("#inspector select", (s) => s.value).catch(() => "")) === tag) return;
+    }
+    throw new Error(`could not select ${sel} (${tag})`);
+};
 const standalone = async (id) => (await (await ctx.request.get(`${stack.base}/api/components/${id}/export?format=standalone`)).json()).code;
 
 test("an animation that waits for a scroll plays when scrolled into view, and a list's children play one after another", { skip: skip || false, timeout: 170000 }, async () => {
-    const page = await ctx.newPage();
-    await page.setViewportSize({ width: 1500, height: 1500 });
+    const fresh = await browser.newContext({ viewport: { width: 1500, height: 1500 } }); // its own zoom and panel state: the editor remembers both, and clicks are aimed by position
+    await fresh.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const page = await fresh.newPage();
     await page.goto(`${stack.base}/design/${ids.scroll}`);
     await page.waitForSelector("#inspector", { state: "attached" });
     await page.waitForTimeout(3500);
     if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
     const frame = await frameWith(page, "r1");
+    await frame.waitForFunction(() => window.tailwind && window.tailwind.config && document.querySelector("style[data-wc-agent-style]")); // the config's plugins have loaded and the editor's agent is running
+    await page.waitForTimeout(1500);
     // 1. the paragraph: Tailwind's pulse, on scroll
-    await pick(page, frame, "#r1");
+    await pick(page, frame, "#r1", "p");
     await page.locator("#inspector select", { has: page.locator('option[value="pulse"]') }).first().selectOption("pulse");
     await page.waitForTimeout(400);
     await page.locator("#inspector select", { has: page.locator('option[value="scroll-repeat"]') }).first().selectOption("scroll"); // the "When" select (the overflow select also has a "scroll")
@@ -290,7 +301,7 @@ test("an animation that waits for a scroll plays when scrolled into view, and a 
     assert.match(r1.cls, /\[animation-play-state:paused\]/);
     assert.equal(r1.reveal, "", "the element is marked for the reveal script");
     // 2. the list: its three children, 100 ms apart, on load
-    await pick(page, frame, "#i2"); // a click picks the top level: the list
+    await pick(page, frame, "#i2", "ul"); // a click picks the top level: the list
     await page.locator("#inspector select", { has: page.locator('option[value="pulse"]') }).last().selectOption("pulse");
     await page.locator("#inspector input[title^='Milliseconds']").fill("100").catch(() => {});
     await page.click("text=Animate the 3 children");
@@ -303,7 +314,7 @@ test("an animation that waits for a scroll plays when scrolled into view, and a 
     const code = await standalone(ids.scroll);
     assert.match(code, /wc-motion/, "the page carries its small motion script");
     assert.match(code, /data-reveal/);
-    const out = await ctx.newPage();
+    const out = await fresh.newPage();
     await out.setViewportSize({ width: 1280, height: 800 });
     await out.setContent(code, { waitUntil: "networkidle" });
     await out.waitForTimeout(1500);
@@ -315,5 +326,5 @@ test("an animation that waits for a scroll plays when scrolled into view, and a 
     assert.deepEqual(after, { state: "running", reveal: "in" }, "scrolled into view, it runs");
     const delays = await out.evaluate(() => [...document.querySelectorAll("#list li")].map((l) => getComputedStyle(l).animationDelay));
     assert.equal(delays[0], "0s"); assert.notEqual(delays[2], "0s", "later children are delayed");
-    await out.close(); await page.close();
+    await out.close(); await page.close(); await fresh.close();
 });
