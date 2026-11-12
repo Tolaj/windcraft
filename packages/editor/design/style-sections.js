@@ -360,7 +360,7 @@ export function InteractionsSection({ s, actions }) {
     const targets = actions.interactionTargets ? actions.interactionTargets() : [];
     const [draft, setDraft] = useState(/** @type {{ when: string, do: string } | null} */ (null));
     const [picking, setPicking] = useState(false);
-    const nameOf = (id) => { const t = targets.find((x) => x.id === id); return t ? `${t.tag} · ${t.label || "(no name)"}` : `#${id} (not on this page)`; };
+    const nameOf = (id) => { const t = targets.find((x) => x.id === id); return t ? (t.label ? `${t.tag} · ${t.label}` : t.tag) : `#${id} (not on this page)`; };
     const choose = (path) => actions.targetId(path);
     const change = (i, patch) => actions.setRules(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
     const pick = (done) => { setPicking(true); actions.pickTarget((path) => { setPicking(false); if (path) done(path); }); };
@@ -371,20 +371,20 @@ export function InteractionsSection({ s, actions }) {
         <select class="nfs wide" onChange=${(e) => { if (e.target.value) onPath(targets.find((t) => t.key === e.target.value).path); }}>
             <option value="" selected=${!value}>Choose an element…</option>
             ${value && !targets.some((t) => t.id === value) ? html`<option value="" selected>${nameOf(value)}</option>` : null}
-            ${targets.map((t) => html`<option value=${t.key} selected=${t.id === value}>${"\u00a0\u00a0".repeat(Math.min(t.depth, 4))}${t.tag} · ${t.label || "(no name)"}</option>`)}</select></label>
+            ${targets.map((t) => html`<option value=${t.key} selected=${Boolean(value) && t.id === value}>${"\u00a0\u00a0".repeat(Math.min(t.depth, 4))}${t.label ? `${t.tag} · ${t.label}` : t.tag}</option>`)}</select></label>
         <${IconBtn} icon=${I.target} title=${picking ? "Cancel: click an element on the canvas" : "Pick it on the canvas"} onClick=${() => (picking ? stopPick() : pick(onPath))} /></div>`;
     const hasStart = (id) => (targets.find((t) => t.id === id) || {}).start;
     return html`<${FSection} title="Interactions" extra=${html`<${IconBtn} icon=${I.plus} title="Add an interaction: when this is clicked, hovered or shown, do something to another element" onClick=${() => setDraft({ when: "click", do: "toggle" })} />`}>
         ${!rules.length && !draft ? html`<p class="muted" style="margin:0 0 4px">Make this do something when it is clicked or hovered: show or hide a menu, scroll to a section, copy some text. They run in Interact and Preview.</p>` : null}
         ${rules.map((r, i) => html`<div class="irule">
             <div class="frow">${whenSel(r.when, (v) => change(i, { when: v }))}<${Remove} title="Remove this interaction" onClick=${() => actions.setRules(rules.filter((_, j) => j !== i))} /></div>
-            <div class="frow">${doSel(r.do, (v) => change(i, { do: v }))}</div>
+            <div class="frow">${doSel(r.do, (v) => change(i, { do: v }))}<span class="ispace"></span></div>
             ${target(r.to, (path) => change(i, { to: choose(path) }))}
             ${!TARGET_LESS.has(r.do) && actions.setStart ? html`<label class="frow ichk" title="The element is hidden when the page opens, and this shows it"><input type="checkbox" checked=${Boolean(hasStart(r.to))} onChange=${(e) => actions.setStart(r.to, e.target.checked)} /> <span>${nameOf(r.to)} starts hidden</span></label>` : null}
         </div>`)}
         ${draft ? html`<div class="irule">
             <div class="frow">${whenSel(draft.when, (v) => setDraft({ ...draft, when: v }))}<${Remove} title="Cancel" onClick=${() => { stopPick(); setDraft(null); }} /></div>
-            <div class="frow">${doSel(draft.do, (v) => setDraft({ ...draft, do: v }))}</div>
+            <div class="frow">${doSel(draft.do, (v) => setDraft({ ...draft, do: v }))}<span class="ispace"></span></div>
             ${target("", (path) => { actions.setRules([...rules, { when: draft.when, do: draft.do, to: choose(path) }]); setDraft(null); })}
             <p class="muted" style="margin:2px 0 0">Choose the element it acts on, or click ⌖ and then the element on the canvas.</p>
         </div>` : null}

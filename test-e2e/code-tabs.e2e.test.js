@@ -142,6 +142,9 @@ test("Interactions: a rule on the selected element (chosen from the list or pick
     assert.equal(await page.locator("#inspector").textContent().then((t) => /Interactions/.test(t)), true, "the panel has an Interactions section");
     await page.locator('[title^="Add an interaction"]').click();
     // When: Clicked, Do: Show or hide (the defaults); On: the other button, from the list
+    assert.equal(await page.locator(".irule select").nth(2).evaluate((e) => e.options[e.selectedIndex].textContent), "Choose an element…", "a new rule has no element chosen yet");
+    const widths = await page.locator(".irule .frow > label").evaluateAll((l) => l.map((x) => Math.round(x.getBoundingClientRect().width)));
+    assert.equal(new Set(widths).size, 1, `the three rows are the same width (${widths})`);
     const sel = page.locator(".irule select").nth(2);
     const value = await sel.evaluate((s) => [...s.options].find((o) => /#b\b/.test(o.textContent)).value);
     await sel.selectOption(value);

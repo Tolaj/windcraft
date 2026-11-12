@@ -438,3 +438,4 @@ select.fi, .vbar select { -webkit-appearance: none; appearance: none; padding-ri
 .irule .frow:last-child { margin-bottom: 0; }
 .ichk { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #525252; margin-top: 4px; }
 .ichk input { margin: 0; }
+.irule .ispace { flex: none; width: 24px; height: 24px; }
