@@ -202,7 +202,7 @@ export function refreshLabels() {
         const ver = active ? data.version : d.meta.version;
         const state = (active ? S.isNew : d.isNew) ? "new" : d.kind === "section" ? "section" : `v${ver}`;
         const group = pageGroupOf(key);
-        en.label.innerHTML = `${group ? `<i class="fgroup">${esc(group)} / </i>` : ""}${esc(title || "Untitled frame")}<span>${state}</span>${docDirty(d) ? '<i class="dirty-dot" title="Unsaved changes"></i>' : ""}${movedOut(key) ? `<i class="fmoved" title="You changed its group. It stays here until you switch group.">Moved to ${esc(group || "No group")} · leaves when you switch group</i>` : ""}`;
+        en.label.innerHTML = `<em class="ftitle">${group ? `<i class="fgroup">${esc(group)} / </i>` : ""}${esc(title || "Untitled frame")}<span>${state}</span></em>${docDirty(d) ? '<i class="dirty-dot" title="Unsaved changes"></i>' : ""}${movedOut(key) ? `<i class="fmoved" title="You changed its group. It stays here until you switch group.">Moved to ${esc(group || "No group")} · leaves when you switch group</i>` : ""}`;
     });
 }
 
