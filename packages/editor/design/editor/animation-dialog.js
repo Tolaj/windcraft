@@ -1,4 +1,4 @@
-import { addAnimation } from "../../../core/config-edit.js";
+import { addAnimation, addKeyframes, hasEntry } from "../../../core/config-edit.js";
 import { TEMPLATES, PAGE_TEMPLATES, cleanEngine } from "../../../core/config-file.js";
 import { PRESETS, GROUPS, EASINGS, EASING_LABEL, REPEATS, DIRECTIONS, FILLS, animationValue, keyframesCss, isEasing } from "../../../core/animation-presets.js";
 import { TRIGGERS } from "../../../core/animation-triggers.js";
@@ -109,7 +109,7 @@ const customPreset = (name) => ({ id: name, kf: editor.getKeyframes(), on: $("an
 
 function choose(p) {
     preset = p;
-    $("animName").value = p.id; $("animCls").textContent = `animate-${p.id}`; $("animOn").value = p.on === "hover" ? "hover" : "load";
+    $("animName").value = p.id; $("animCls").textContent = `animate-${p.id}`; $("animOn").value = p.on === "hover" || p.on === "scrub" || p.on === "scrub-page" ? p.on : "load";
     $("animDur").value = p.dur; $("animDelay").value = p.delay || 0; $("animRepeat").value = p.repeat; $("animDir").value = p.dir; $("animFill").value = p.fill;
     const known = EASINGS.includes(p.ease); $("animEase").value = known ? p.ease : "custom"; $("animEaseCustom").disabled = known; $("animEaseCustom").value = known ? "" : p.ease;
     $("animNote").textContent = p.note || ""; $("animErr").textContent = "";
@@ -147,7 +147,7 @@ async function create() {
     const sel = { hover: `.hover\\:animate-${name}:hover`, focus: `.focus\\:animate-${name}:focus`, click: `.data-\\[play\\=on\\]\\:animate-${name}[data-play="on"]` }[trigger] || `.animate-${name}`;
     send({ cmd: "injectAnim", css: `${keyframesCss(name, chosen.kf)}${sel}{animation:${animation}}` });
     panelStore.set({ animations: [...new Set([...(panelStore.get().animations || []), name])] });
-    if (onApply) onApply({ name, trigger, reducedMotion: $("animReduced").checked });
+    if (onApply) onApply({ name, trigger, reducedMotion: $("animReduced").checked, range: mode === "library" ? preset.range || "" : "" });
 }
 
 /** Opens the library. `apply({ name, trigger, reducedMotion })` runs after the animation is saved, to put it on the selected element. */
@@ -159,4 +159,27 @@ export function newAnimation(apply) {
     drawGrid();
     setMode("library");
     dlg.showModal();
+}
+
+/**
+ * Makes sure the project's Tailwind config has the animations an effect needs (keyframes, and the animate-* value where it has one), adding the missing ones in one save. The canvas gets them at
+ * once. Returns { ok, message? }. Entries: [{ name, kf, animation }] (animation null: keyframes only).
+ */
+export async function ensureEntries(entries) {
+    if (!data.projectTheme || !data.project) return { ok: false, message: "This design is not in a project, so there is no config to add the animation to." };
+    const engine = cleanEngine(data.projectTheme.engine), tw = data.twConfig || {};
+    let text = (engine === "4" ? data.projectTheme.configCss : data.projectTheme.configJs) || TEMPLATES[engine].text;
+    const pageText = (engine === "4" ? tw.css : tw.js) || "";
+    const todo = entries.filter((e) => !hasEntry(text, engine, e.name) && !hasEntry(pageText, engine, e.name));
+    if (!todo.length) return { ok: true };
+    for (const e of todo) {
+        const r = e.animation ? addAnimation(text, engine, { name: e.name, keyframes: e.kf, animation: e.animation }) : addKeyframes(text, engine, e.name, e.kf);
+        if (r.status === "nowhere") return { ok: false, message: "Couldn't find where to put it: the project's config file needs module.exports = { ... }." };
+        if (r.status === "added") text = r.text;
+    }
+    const saved = await applyProject({ engine, configJs: engine === "4" ? data.projectTheme.configJs || "" : text, configCss: engine === "4" ? text : data.projectTheme.configCss || "", lock: data.projectTheme.lock || {} }, { reload: false });
+    if (!saved.ok) return saved;
+    send({ cmd: "injectAnim", css: todo.map((e) => `${keyframesCss(e.name, e.kf)}${e.animation ? `.animate-${e.name}{animation:${e.animation}}` : ""}`).join("") });
+    panelStore.set({ animations: [...new Set([...(panelStore.get().animations || []), ...todo.filter((e) => e.animation).map((e) => e.name)])] });
+    return { ok: true };
 }

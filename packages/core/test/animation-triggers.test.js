@@ -17,7 +17,13 @@ test("each trigger is wired with Tailwind classes, and scroll and click bring th
     assert.deepEqual(triggerPlan("pop", "click").attrs, { "data-click-anim": "" });
     assert.ok(triggerPlan("pop", "click").classes[0] === "data-[play=on]:animate-pop");
     assert.throws(() => triggerPlan("Bad Name", "load"));
-    assert.equal(TRIGGERS.length, 6);
+    assert.equal(TRIGGERS.length, 8);
+    const scrub = triggerPlan("parallax-up", "scrub");
+    assert.ok(scrub.classes.includes("[animation-timeline:view()]") && scrub.classes.includes("[animation-duration:auto]"));
+    assert.equal(scrub.needsScript, false, "scroll-linked animation is CSS only");
+    assert.ok(triggerPlan("progress", "scrub-page").classes.includes("[animation-timeline:scroll(root)]"));
+    assert.ok(triggerPlan("p", "scrub", { range: "cover_0%_cover_100%" }).classes.includes("[animation-range:cover_0%_cover_100%]"), "a preset can set the range");
+    assert.ok(triggerPlan("p", "scrub", { range: "x; evil" }).classes.includes("[animation-range:entry_0%_cover_60%]"), "a bad range falls back");
 });
 
 test("everything a plan adds is taken off again by the strip, and nothing else is", () => {
@@ -43,4 +49,23 @@ test("the motion script is recognised once added", () => {
     assert.equal(hasMotionScript([{ src: "https://x.com/a.js", text: "" }]), false);
     assert.ok(!/<\/script/i.test(MOTION_SCRIPT), "it can sit in a script tag");
     new Function(MOTION_SCRIPT.replace(/^\/\*wc-motion\*\//, "")); // it is valid JavaScript
+});
+
+import { typewriterClasses, typingSeconds, EFFECT_ENTRIES, REVEALS } from "../text-effects.js";
+import { addKeyframes, hasEntry, addAnimation } from "../config-edit.js";
+test("effects: the typewriter's classes are stripped with the rest, and its entries go into a config", () => {
+    const cls = typewriterClasses(24, 2);
+    assert.ok(cls.includes("[--chars:24ch]") && cls.includes("[animation-timing-function:steps(24,end),step-end]") && cls.includes("[animation-duration:2s,0.8s]"));
+    assert.ok(cls.filter((c) => c.startsWith("[")).every((c) => WIRING.test(c)), "so changing the effect leaves nothing behind");
+    assert.equal(typingSeconds(28), 2); assert.equal(typingSeconds(5), 1); assert.equal(typingSeconds(5000), 8);
+    const run = (t) => new Function("module", `${t}\nreturn module.exports;`)({ exports: {} });
+    let t = `module.exports = { theme: { extend: {} } };`;
+    for (const e of Object.values(EFFECT_ENTRIES)) { assert.equal(hasEntry(t, "3", e.name), false); t = e.animation ? addAnimation(t, "3", { name: e.name, keyframes: e.kf, animation: e.animation }).text : addKeyframes(t, "3", e.name, e.kf).text; assert.equal(hasEntry(t, "3", e.name), true, e.name); }
+    const cfg = run(t).theme.extend;
+    assert.ok(cfg.keyframes["blink-caret"] && cfg.keyframes.typewriter && cfg.animation.typewriter.includes("blink-caret"));
+    assert.equal(addKeyframes(t, "3", "blink-caret", {}).status, "exists");
+    const v4 = addKeyframes(`@import "tailwindcss";\n`, "4", "blink-caret", EFFECT_ENTRIES["blink-caret"].kf);
+    assert.match(v4.text, /@keyframes blink-caret/);
+    assert.equal(hasEntry(v4.text, "4", "blink-caret"), true);
+    assert.ok(REVEALS.length >= 8 && REVEALS.every((r) => r.entry.animation.startsWith(r.id)));
 });

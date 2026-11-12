@@ -16,6 +16,7 @@ import { brandScale, normalizeTheme } from "../../core/theme.js";
 import { data } from "./editor/base.js";
 import { PropRow } from "./prop-sections.js";
 import { TRIGGERS, readTrigger } from "../../core/animation-triggers.js";
+import { REVEALS } from "../../core/text-effects.js";
 
 const SIDES = ["top", "right", "bottom", "left"];
 const CORNERS = [["top-left", "radiusTL", "↖"], ["top-right", "radiusTR", "↗"], ["bottom-right", "radiusBR", "↘"], ["bottom-left", "radiusBL", "↙"]];
@@ -294,6 +295,35 @@ const AnimationSelect = ({ value, custom, onChange }) => {
         ${custom.length ? html`<optgroup label="Your animations">${custom.map((v) => html`<option value=${v} selected=${v === value}>${v}</option>`)}</optgroup>` : null}
         ${value && !known ? html`<option value=${value} selected>${value}</option>` : null}</select>`;
 };
+const SVG_TAGS = ["svg", "g", "path", "line", "polyline", "polygon", "circle", "ellipse", "rect"];
+const small = "nfs wide";
+/** Effects: a heading's letters or words arriving one by one, text typed out, an SVG's lines drawn. Each adds what it needs to the Tailwind config and the element, in one step. */
+function EffectsBlock({ s, actions }) {
+    const [e, setE] = useState({ preset: "fade-up", gap: 40, trigger: "load", secs: 0, drawSecs: 1.6, drawGap: 150, outline: true });
+    const text = s.text && s.text.trim() ? s.text : "", split = s.attrs && s.attrs["data-split"], isSvg = SVG_TAGS.includes(s.tag);
+    const when = (v, on) => html`<div class="frow"><label class="nf" title="When it plays"><span class="nfl">When</span><select class=${small} onChange=${(ev) => on(ev.target.value)}>${TRIGGERS.filter(([k]) => ["load", "scroll", "click"].includes(k)).map(([k, l]) => html`<option value=${k} selected=${k === v}>${l}</option>`)}</select></label></div>`;
+    const btn = (label, fn, title) => html`<div class="frow"><button type="button" class=${small} style="cursor:pointer;text-align:center" title=${title || label} onClick=${fn}>${label}</button></div>`;
+    if (split) return html`<div class="fsech" style="margin-top:8px"><span>Text effect</span></div><p class="muted" style="margin:0 0 4px">This text arrives ${split === "words" ? "word by word" : "letter by letter"}.</p>${btn("Remove the effect", actions.effectUnreveal)}`;
+    if (text) {
+        const secs = e.secs || Math.round(Math.max(1, Math.min(8, text.length / 14)) * 10) / 10;
+        return html`<div class="fsech" style="margin-top:8px"><span>Text effects</span></div>
+            <div class="frow"><label class="nf" title="The entrance each letter or word plays"><span class="nfl">With</span><select class=${small} onChange=${(ev) => setE({ ...e, preset: ev.target.value })}>${REVEALS.map((r) => html`<option value=${r.id} selected=${r.id === e.preset}>${r.label}</option>`)}</select></label></div>
+            ${when(e.trigger, (v) => setE({ ...e, trigger: v }))}
+            <div class="frow"><${NumField} label="Gap" title="Milliseconds between one letter (or word) and the next" value=${String(e.gap)} onCommit=${(v) => setE({ ...e, gap: Math.max(0, Math.min(1000, Number(v) || 0)) })} /><span class="nfl" style="width:auto">ms</span></div>
+            <div class="frow">${btn("By letter", () => actions.effectReveal({ by: "letters", preset: e.preset, gap: e.gap, trigger: e.trigger }), "Split the text into letters that arrive one after another")}${btn("By word", () => actions.effectReveal({ by: "words", preset: e.preset, gap: Math.max(e.gap, 80), trigger: e.trigger }), "Split the text into words that arrive one after another")}</div>
+            <div class="frow"><${NumField} label="Type" title="Seconds to type the whole text" value=${String(secs)} onCommit=${(v) => setE({ ...e, secs: Math.max(0.5, Math.min(60, Number(v) || 3)) })} /><span class="nfl" style="width:auto">s</span></div>
+            ${btn("Typewriter", () => actions.effectTypewriter({ secs, trigger: e.trigger }), "Type the text out with a blinking caret")}
+            ${btn("Remove the typewriter", actions.effectUntype)}`;
+    }
+    if (isSvg) return html`<div class="fsech" style="margin-top:8px"><span>Draw the lines</span></div>
+        ${when(e.trigger, (v) => setE({ ...e, trigger: v }))}
+        <div class="frow"><${NumField} label="Time" title="Seconds each line takes to draw" value=${String(e.drawSecs)} onCommit=${(v) => setE({ ...e, drawSecs: Math.max(0.2, Math.min(30, Number(v) || 1.6)) })} /><span class="nfl" style="width:auto">s</span></div>
+        <div class="frow"><${NumField} label="Gap" title="Milliseconds between one line and the next" value=${String(e.drawGap)} onCommit=${(v) => setE({ ...e, drawGap: Math.max(0, Math.min(2000, Number(v) || 0)) })} /><span class="nfl" style="width:auto">ms</span></div>
+        <div class="frow"><label class="nf" style="gap:6px;cursor:pointer" title="Give shapes an outline and no fill, so there is a line to draw"><input type="checkbox" checked=${e.outline} onChange=${(ev) => setE({ ...e, outline: ev.target.checked })} /><span class="nfl" style="width:auto">Outline only</span></label></div>
+        ${btn("Draw the lines", () => actions.effectDraw({ secs: e.drawSecs, gap: e.drawGap, outline: e.outline, trigger: e.trigger }))}${btn("Remove the drawing", actions.effectUndraw)}`;
+    return null;
+}
+
 /** Animation: which animation an element plays, and WHEN (on load, hover, focus, scrolled into view, clicked), then the cascade of a container's children. All of it is Tailwind classes
  *  (plus a few lines of script for scroll and click, added to the page once). Tailwind's own animations and the config's are one list. */
 export function AnimationSection({ s, actions }) {
@@ -314,6 +344,7 @@ export function AnimationSection({ s, actions }) {
             <div class="frow"><${NumField} label="Gap" title="Milliseconds between one child and the next" value=${String(st.step)} onCommit=${(v) => setSt({ ...st, step: Math.max(0, Math.min(2000, Number(v) || 0)) })} /><span class="nfl" style="width:auto">ms</span></div>
             <div class="frow"><button type="button" class="nfs wide" style="cursor:pointer;text-align:center" onClick=${() => actions.staggerChildren({ name: stName, trigger: st.trigger, step: st.step })}>Animate the ${s.kids} children</button>
                 <button type="button" class="nfs" style="cursor:pointer" title="Take the animation off every child" onClick=${() => actions.staggerChildren({ clear: true })}>Clear</button></div>` : null}
+        <${EffectsBlock} s=${s} actions=${actions} />
     </${FSection}>`;
 }
 

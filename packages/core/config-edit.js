@@ -78,3 +78,22 @@ export function animationNames(text) {
     for (const sec of m.matchAll(/\banimation\s*:\s*\{/g)) { const open = sec.index + sec[0].length - 1, end = closeOf(m, open); if (end < 0) continue; for (const k of src.slice(open + 1, end).matchAll(/(?:^|[\s,{])(?:"([\w-]+)"|'([\w-]+)'|([A-Za-z_$][\w$-]*))\s*:/g)) names.push(k[1] || k[2] || k[3]); }
     return [...new Set(names)];
 }
+
+/** Keyframes only (no animate-* name): for an animation that another one refers to, like a blinking caret beside a typewriter. */
+export function addKeyframes(text, engine, name, keyframes) {
+    if (!/^[a-z][a-z0-9-]{0,30}$/.test(name)) return { text, status: "badname" };
+    if (cleanEngine(engine) === "4") {
+        const src = String(text);
+        if (new RegExp(`@keyframes\\s+${name}\\b`).test(src)) return { text: src, status: "exists" };
+        const { css } = configToV4({ keyframes: { [name]: keyframes } });
+        return { status: "added", text: `${src.replace(/\s*$/, "")}\n\n${css}\n` };
+    }
+    return addToExtend(text, "keyframes", name, keyframes);
+}
+
+/** Whether a config file already defines an animation or keyframes called `name`. */
+export function hasEntry(text, engine, name) {
+    if (cleanEngine(engine) === "4") return new RegExp(`(?:--animate-${name}\\s*:|@keyframes\\s+${name}\\b)`).test(String(text));
+    const m = masked(String(text), true);
+    return new RegExp(`(?:^|[\\s{,])(?:${name}|"${name}"|'${name}')\\s*:`).test(m);
+}

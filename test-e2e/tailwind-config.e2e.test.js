@@ -79,8 +79,8 @@ test("the parts saved from a page are not in the editor's pages list or on its c
     await page.goto(`${stack.base}/projects/${ids.project}`);
     await page.waitForTimeout(2500);
     assert.ok(!/Header/.test(await page.textContent("#outline")), "the project's Pages tab lists pages only");
-    assert.equal(await page.$$eval(".fwrap", (w) => w.length), 3, "and its board has a frame for each of the three pages, none for the part");
-    assert.match(await page.textContent("#projStats"), /^3 pages ·/);
+    assert.equal(await page.$$eval(".fwrap", (w) => w.length), 4, "and its board has a frame for each of the four pages, none for the part");
+    assert.match(await page.textContent("#projStats"), /^4 pages ·/);
     await page.close();
 });
 
@@ -225,7 +225,7 @@ test("a new animation is written into the project's config and works after a rel
     const b2 = await again.locator("#a").boundingBox();
     await page.mouse.dblclick(b2.x + b2.width / 2, b2.y + b2.height / 2);
     await page.mouse.dblclick(b2.x + b2.width / 2, b2.y + b2.height / 2);
-    await page.locator("#inspector select", { has: page.locator('option[value="zoom-in"]') }).selectOption("zoom-in");
+    await page.locator("#inspector select", { has: page.locator('option[value="zoom-in"]') }).first().selectOption("zoom-in");
     await page.click("text=Preview the animation");
     await page.waitForTimeout(800);
     const name = await again.evaluate(() => getComputedStyle(document.getElementById("a")).animationName);
@@ -326,5 +326,56 @@ test("an animation that waits for a scroll plays when scrolled into view, and a 
     assert.deepEqual(after, { state: "running", reveal: "in" }, "scrolled into view, it runs");
     const delays = await out.evaluate(() => [...document.querySelectorAll("#list li")].map((l) => getComputedStyle(l).animationDelay));
     assert.equal(delays[0], "0s"); assert.notEqual(delays[2], "0s", "later children are delayed");
+    await out.close(); await page.close(); await fresh.close();
+});
+
+test("text arrives letter by letter, an SVG's lines draw, and an animation can follow the scroll", { skip: skip || false, timeout: 170000 }, async () => {
+    const fresh = await browser.newContext({ viewport: { width: 1500, height: 1500 } });
+    await fresh.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const page = await fresh.newPage();
+    await page.goto(`${stack.base}/design/${ids.effects}`);
+    await page.waitForSelector("#inspector", { state: "attached" });
+    await page.waitForTimeout(3500);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
+    const frame = await frameWith(page, "h");
+    await frame.waitForFunction(() => window.tailwind && window.tailwind.config && document.querySelector("style[data-wc-agent-style]"));
+    await page.waitForTimeout(1500);
+    // 1. the drawing
+    for (let i = 0; i < 4 && !(await page.locator("button:has-text('Draw the lines')").count()); i++) { // a click on the drawing picks it (retry while the layout settles)
+        const sb = await frame.locator("#art").boundingBox();
+        await page.mouse.move(sb.x + 60, sb.y + 26);
+        await page.mouse.click(sb.x + 60, sb.y + 26);
+        await page.waitForTimeout(900);
+    }
+    await page.waitForSelector("button:has-text('Draw the lines')", { timeout: 4000 });
+    await page.click("button:has-text('Draw the lines')");
+    await page.waitForTimeout(1200);
+    // 2. the paragraph follows the scroll
+    await pick(page, frame, "#par", "p");
+    await page.locator("#inspector select", { has: page.locator('option[value="pulse"]') }).first().selectOption("pulse");
+    await page.waitForTimeout(400);
+    await page.locator("#inspector select", { has: page.locator('option[value="scrub"]') }).first().selectOption("scrub");
+    await page.waitForTimeout(600);
+    // 3. the heading (last: it changes the layout the editor measured), letter by letter
+    await pick(page, frame, "#h", "h1");
+    await page.click("button:has-text('By letter')");
+    await page.waitForTimeout(1500);
+    const letters = await frame.evaluate(() => { const h = document.getElementById("h"); const ls = [...h.querySelectorAll("[style*='--i']")].filter((x) => x.children.length === 0); return { label: h.getAttribute("aria-label"), split: h.getAttribute("data-split"), n: ls.length, text: ls.map((x) => x.textContent).join(""), cls: ls[2] && ls[2].className }; });
+    assert.equal(letters.label, "Hello world"); assert.equal(letters.split, "letters");
+    assert.ok(letters.n >= 10, "every letter is its own element");
+    assert.match(letters.cls, /animate-fade-up/);
+    await page.keyboard.press("Control+s"); await page.waitForTimeout(1500);
+    const code = await standalone(ids.effects);
+    const out = await fresh.newPage();
+    await out.setViewportSize({ width: 1280, height: 800 });
+    await out.setContent(code, { waitUntil: "networkidle" });
+    await out.waitForTimeout(1500);
+    const drawn = await out.evaluate(() => ["p1", "p2"].map((i) => { const e = document.getElementById(i), c = getComputedStyle(e); return { len: Math.round(e.getTotalLength()), dash: c.strokeDasharray, fill: c.fill }; }));
+    assert.equal(drawn[0].len, 160); assert.equal(drawn[1].len, 80);
+    assert.match(drawn[0].dash, /^160/); assert.match(drawn[1].dash, /^80/); assert.equal(drawn[0].fill, "none");
+    const text = await out.evaluate(() => { const ls = [...document.querySelectorAll("#h [style*='--i']")].filter((x) => x.children.length === 0); return ls.map((x) => getComputedStyle(x).animationDelay); });
+    assert.ok(new Set(text).size > 5, "letters are delayed one after another");
+    const tl = await out.evaluate(() => getComputedStyle(document.getElementById("par")).animationTimeline);
+    assert.match(tl, /view|auto/);
     await out.close(); await page.close(); await fresh.close();
 });

@@ -2768,6 +2768,35 @@ export function agentMain() {
         setAnimation: (el, m) => applyAnimation(el, m),
         // the same for every child of the element, each with its own --i (0, 1, 2...), so a delay of calc(var(--i) * step) makes them play one after another
         stagger: (el, m) => { Array.prototype.filter.call(el.children, (c) => !/^(SCRIPT|STYLE)$/.test(c.tagName) && !isOverlay(c)).forEach((c, i) => { applyAnimation(c, m); c.style.setProperty("--i", String(i)); }); },
+        // a heading's text as letters (or words), each its own span with --i, so an entrance can run letter by letter; the element keeps its words in aria-label so readers still get them
+        revealText: (el, m) => {
+            if (el.children.length || !el.textContent.trim()) return; // only plain text
+            const text = el.textContent, by = m.by === "words" ? "words" : "letters";
+            el.setAttribute("aria-label", text.trim().replace(/\s+/g, " ")); el.setAttribute("data-split", by); el.textContent = "";
+            let i = 0;
+            text.split(/(\s+)/).forEach((tok) => {
+                if (!tok) return;
+                if (/^\s+$/.test(tok)) { el.appendChild(document.createTextNode(" ")); return; }
+                const word = document.createElement("span"); word.className = "inline-block whitespace-nowrap"; word.setAttribute("aria-hidden", "true");
+                if (by === "words") { word.textContent = tok; word.style.setProperty("--i", String(i++)); applyAnimation(word, m); }
+                else for (const ch of tok) { const c = document.createElement("span"); c.className = "inline-block"; c.textContent = ch; c.style.setProperty("--i", String(i++)); applyAnimation(c, m); word.appendChild(c); }
+                el.appendChild(word);
+            });
+        },
+        unsplitText: (el) => { if (!el.hasAttribute("data-split")) return; el.textContent = el.getAttribute("aria-label") || el.textContent; el.removeAttribute("data-split"); el.removeAttribute("aria-label"); },
+        // an SVG's lines drawn: each shape's length is measured (--len), dashed to that length, and its offset animated to 0; shape i is delayed by i x gap
+        drawSvg: (el, m) => {
+            const SHAPES = "path,line,polyline,polygon,circle,ellipse,rect";
+            const shapes = el.matches(SHAPES) ? [el] : Array.prototype.slice.call(el.querySelectorAll(SHAPES));
+            shapes.forEach((g, i) => {
+                if (m.clear) { g.style.removeProperty("--len"); g.style.removeProperty("--i"); applyAnimation(g, m); if (!g.getAttribute("style")) g.removeAttribute("style"); return; }
+                let len = 0; try { len = Math.ceil(g.getTotalLength()); } catch (e) { /* not measurable */ }
+                if (!len) return;
+                g.style.setProperty("--len", String(len)); g.style.setProperty("--i", String(i));
+                if (m.outline) { if (!g.getAttribute("stroke")) g.setAttribute("stroke", "currentColor"); g.setAttribute("fill", "none"); }
+                applyAnimation(g, m);
+            });
+        },
         setAttr: (el, m) => { m.value === null ? el.removeAttribute(m.name) : el.setAttribute(m.name, m.value); },
         remove: (el) => { const p = el.parentElement; el.remove(); sels = p && p !== root ? [p] : []; },
         duplicate: (el) => { const c = el.cloneNode(true); el.after(c); if (made.has(el)) markMade(c); sels = [c]; },

@@ -1,12 +1,13 @@
 // The animation library: each preset is a name, a group, what it does (keyframes) and how it is usually played (time, easing, repeat). Used by the editor's animation
 // browser; the keyframes go into the project's Tailwind config under the chosen name, and the page uses the animate-<name> class (hover presets: hover:animate-<name>).
-//   on: "load" plays when the page shows · "loop" plays for ever · "hover" plays while the pointer is over it
+//   on: "load" plays when the page shows · "loop" plays for ever · "hover" plays while the pointer is over it · "scrub" / "scrub-page": progress follows the scroll
+//   (as the element passes through the screen / along the whole page); `range` is the part of that passage it spans
 // Keyframes are written for properties that animate cheaply (opacity, transform, filter, box-shadow, clip-path): the browser does not have to re-lay out the page.
 
 const T = (o) => o; // keyframes as { "0%": { prop: value } }
 const k = (from, to) => T({ "0%": from, "100%": to });
 
-export const GROUPS = Object.freeze([["entrance", "Entrances"], ["attention", "Attention"], ["exit", "Exits"], ["loop", "Loops"], ["hover", "Hover"]]);
+export const GROUPS = Object.freeze([["entrance", "Entrances"], ["attention", "Attention"], ["exit", "Exits"], ["loop", "Loops"], ["hover", "Hover"], ["scroll", "Scroll"], ["effect", "Effects"]]);
 
 const P = (id, label, group, dur, ease, repeat, kf, extra = {}) => ({ id, label, group, dur, ease, repeat, kf, on: group === "loop" ? "loop" : group === "hover" ? "hover" : "load", delay: 0, dir: "normal", fill: repeat === "once" ? "both" : "none", ...extra });
 
@@ -60,6 +61,17 @@ export const PRESETS = Object.freeze([
     P("grow", "Grow", "hover", 0.2, "ease-out", "once", k({ transform: "scale(1)" }, { transform: "scale(1.06)" })),
     P("tilt", "Tilt", "hover", 0.2, "ease-out", "once", k({ transform: "rotate(0)" }, { transform: "rotate(-3deg)" })),
     P("nudge", "Nudge", "hover", 0.2, "ease-out", "once", k({ transform: "translateX(0)" }, { transform: "translateX(6px)" })),
+
+    // scroll: progress follows the scroll (CSS scroll-driven animation; where the browser can't, it plays once when the page shows)
+    P("parallax-up", "Parallax up", "scroll", 1, "linear", "once", k({ transform: "translateY(70px)" }, { transform: "translateY(-70px)" }), { on: "scrub", range: "cover_0%_cover_100%", fill: "both", note: "Slower than the page: it drifts as it passes." }),
+    P("parallax-down", "Parallax down", "scroll", 1, "linear", "once", k({ transform: "translateY(-70px)" }, { transform: "translateY(70px)" }), { on: "scrub", range: "cover_0%_cover_100%", fill: "both" }),
+    P("fade-on-scroll", "Fade in on scroll", "scroll", 1, "linear", "once", k({ opacity: "0", transform: "translateY(40px)" }, { opacity: "1", transform: "translateY(0)" }), { on: "scrub", range: "entry_0%_entry_70%", fill: "both" }),
+    P("grow-on-scroll", "Grow on scroll", "scroll", 1, "linear", "once", k({ transform: "scale(0.8)", opacity: "0.4" }, { transform: "scale(1)", opacity: "1" }), { on: "scrub", range: "entry_0%_cover_50%", fill: "both" }),
+    P("tilt-on-scroll", "Tilt on scroll", "scroll", 1, "linear", "once", k({ transform: "perspective(800px) rotateX(25deg)" }, { transform: "perspective(800px) rotateX(0)" }), { on: "scrub", range: "entry_0%_cover_50%", fill: "both" }),
+    P("read-progress", "Reading progress bar", "scroll", 1, "linear", "once", k({ transform: "scaleX(0)" }, { transform: "scaleX(1)" }), { on: "scrub-page", fill: "both", note: "For a thin bar fixed to the top: give it origin-left, fixed, inset-x-0 top-0 and a height." }),
+    // effects
+    P("draw-line", "Draw a line", "effect", 1.6, "ease-in-out", "once", k({ "stroke-dashoffset": "var(--len, 1000)" }, { "stroke-dashoffset": "0" }), { note: "For SVG outlines: use Effects, Draw the lines, on the SVG." }),
+    P("shimmer-text", "Shimmer", "effect", 2.4, "linear", "infinite", k({ "background-position": "200% 0" }, { "background-position": "-200% 0" }), { note: "For text with a gradient: bg-gradient-to-r, bg-clip-text, text-transparent and bg-[length:200%_100%]." }),
 ]);
 
 export const EASINGS = Object.freeze(["ease-out", "ease-in", "ease-in-out", "linear", "cubic-bezier(0.34, 1.56, 0.64, 1)", "cubic-bezier(0.22, 1, 0.36, 1)"]);

@@ -6,7 +6,7 @@ import { addAnimation } from "../config-edit.js";
 const run = (text) => new Function("module", "require", `${text}\nreturn module.exports;`)({ exports: {} }, () => ({}));
 
 test("the library is big, well formed and unique", () => {
-    assert.ok(PRESETS.length >= 38, `${PRESETS.length} presets`);
+    assert.ok(PRESETS.length >= 50, `${PRESETS.length} presets`);
     assert.equal(new Set(PRESETS.map((p) => p.id)).size, PRESETS.length, "ids are unique");
     const groups = new Set(GROUPS.map(([g]) => g));
     for (const p of PRESETS) {
@@ -16,7 +16,8 @@ test("the library is big, well formed and unique", () => {
         assert.ok(isEasing(p.ease), `${p.id} easing ${p.ease}`);
         assert.ok(Object.keys(p.kf).length >= 2 || Object.keys(p.kf).some((a) => /,/.test(a)), `${p.id} has steps`);
         for (const [at, props] of Object.entries(p.kf)) { assert.match(at, /^(\d+%)(,\s*\d+%)*$/, `${p.id} step ${at}`); assert.ok(Object.keys(props).length, `${p.id} ${at} sets something`); }
-        assert.ok(/^(load|loop|hover)$/.test(p.on));
+        assert.ok(/^(load|loop|hover|scrub|scrub-page)$/.test(p.on), p.id);
+        if (p.range) assert.match(p.range, /^[a-z-]+_\d+%_[a-z-]+_\d+%$/, `${p.id} range`);
     }
     for (const [g] of GROUPS) assert.ok(PRESETS.some((p) => p.group === g), `${g} is not empty`);
 });
