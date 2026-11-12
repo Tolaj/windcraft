@@ -385,6 +385,7 @@ export function InteractionsSection({ s, actions }) {
     const pages = actions.interactionPages ? actions.interactionPages() : []; // the project's saved pages, for "Go to page"
     const [draft, setDraft] = useState(/** @type {{ when: string, do: string } | null} */ (null));
     const [picking, setPicking] = useState(false);
+    const [setup, setSetup] = useState(/** @type {{ kind: string, a?: string, b?: string, error?: string, menu?: boolean } | null} */ (null)); // a one-click setup being made (tabs, modal), or its menu
     const nameOf = (id) => { const t = targets.find((x) => x.id === id); return t ? (t.label ? `${t.tag} · ${t.label}` : t.tag) : `#${id} (not in this frame)`; };
     const choose = (path) => actions.targetId(path);
     /** A rule being finished takes the place of the rule it came from (or goes on the end). */
@@ -411,12 +412,37 @@ export function InteractionsSection({ s, actions }) {
             <option value="" selected=${!value}>${pages.length ? "Choose a frame…" : "Save the frame first"}</option>
             ${value && !pages.some((p) => p.id === value) ? html`<option value="" selected>(a frame that is gone)</option>` : null}
             ${pages.map((p) => html`<option value=${p.id} selected=${p.id === value}>${p.title || "Untitled frame"}</option>`)}</select></label><span class="ispace"></span></div>`;
+    // ── One-click setups: tabs and a modal, written as the same rules as above ──
+    const label = (t) => (t.label ? `${t.tag} · ${t.label}` : t.tag);
+    /** A list of the page's elements (optionally only those that pass `ok`) and a ⌖ to pick one on the canvas; the value is the element's path key. */
+    const elementField = (name, hint, value, ok, onPick) => html`<div class="frow"><label class="nf src-tw" title=${hint}><span class="nfl">${name}</span>
+        <select class="nfs wide" onChange=${(e) => onPick(e.target.value)}><option value="" selected=${!value}>Choose…</option>
+            ${targets.filter(ok).map((t) => html`<option value=${t.key} selected=${t.key === value}>${"\u00a0\u00a0".repeat(Math.min(t.depth, 4))}${label(t)}</option>`)}</select></label>
+        <${IconBtn} icon=${I.target} title=${picking ? "Cancel: click an element on the canvas" : "Pick it on the canvas"} onClick=${() => (picking ? stopPick() : pick((path) => onPick(path.join("."))))} /></div>`;
+    const pathOf = (key) => (key === "" ? null : (targets.find((t) => t.key === key) || {}).path || null);
+    const runSetup = () => {
+        const r = setup.kind === "tabs" ? actions.setupTabs(pathOf(setup.a)) : actions.setupModal(pathOf(setup.a), pathOf(setup.b || ""));
+        if (r && r.ok) setSetup(null); else setSetup({ ...setup, error: (r && r.message) || "Something went wrong." });
+    };
+    const setupCard = () => html`<div class="irule">
+        <div class="frow"><b style="flex:1;font-size:11px">${setup.kind === "tabs" ? "Make tabs" : "Make a modal"}</b><${Remove} title="Cancel" onClick=${() => { stopPick(); setSetup(null); }} /></div>
+        ${setup.kind === "tabs" ? html`<p class="muted" style="margin:0">The ${s.kids} children of this element become the tabs. Choose the element that holds their panels: one panel for each tab, in the same order.</p>
+            ${elementField("Panels", "The element that holds the panels", setup.a || "", (t) => t.kids === s.kids, (v) => setSetup({ ...setup, a: v, error: "" }))}`
+        : html`<p class="muted" style="margin:0">This element opens the modal when it is clicked. The modal starts hidden.</p>
+            ${elementField("Modal", "The element that opens", setup.a || "", () => true, (v) => setSetup({ ...setup, a: v, error: "" }))}
+            ${elementField("Close", "The button that closes it (optional)", setup.b || "", () => true, (v) => setSetup({ ...setup, b: v, error: "" }))}`}
+        ${setup.error ? html`<p class="muted" style="margin:0;color:#b91c1c">${setup.error}</p>` : null}
+        <div class="frow"><button type="button" class="nfb" onClick=${runSetup}>${setup.kind === "tabs" ? "Make tabs" : "Make the modal"}</button></div>
+    </div>`;
     const hasStart = (id) => (targets.find((t) => t.id === id) || {}).start;
     const ownOf = (id) => String((targets.find((t) => t.id === id) || {}).cls || "").split(/\s+/).filter(Boolean);
     /** The three rows of a "classes" rule: what to add, remove and toggle on the element. `parts` is { add, remove, toggle }; `set(parts)` is called with the changed one. */
     const classRows = (id, parts, set) => html`${[["add", "Add", "Classes put on the element"], ["remove", "Remove", "Classes taken off it (the ones it has are suggested)"], ["toggle", "Toggle", "Classes turned on if off and off if on"]].map(([k, l, t]) =>
         html`<${ClassChips} label=${l} title=${t} value=${parts[k]} own=${k === "remove" || k === "toggle" ? ownOf(id) : []} onChange=${(v) => set({ ...parts, [k]: v })} />`)}`;
-    return html`<${FSection} title="Interactions" extra=${html`<${IconBtn} icon=${I.plus} title="Add an interaction: when this is clicked, hovered or shown, do something to another element" onClick=${() => setDraft({ when: "click", do: "toggle" })} />`}>
+    return html`<${FSection} title="Interactions" extra=${html`<${IconBtn} icon=${I.wand} title="Set up tabs or a modal in one go" onClick=${() => setSetup(setup ? null : { kind: "", menu: true })} /><${IconBtn} icon=${I.plus} title="Add an interaction: when this is clicked, hovered or shown, do something to another element" onClick=${() => setDraft({ when: "click", do: "toggle" })} />`}>
+        ${setup && setup.menu ? html`<div class="irule"><button type="button" class="nfb" title="This element's children are the tab buttons" onClick=${() => setSetup({ kind: "tabs", a: "" })}>Tabs, from the children of this element</button>
+            <button type="button" class="nfb" title="This element opens a modal when it is clicked" onClick=${() => setSetup({ kind: "modal", a: "", b: "" })}>A modal, opened by this element</button></div>` : null}
+        ${setup && setup.kind ? setupCard() : null}
         ${!rules.length && !draft ? html`<p class="muted" style="margin:0 0 4px">Make this do something when it is clicked or hovered: show or hide a menu, scroll to a section, copy some text, open another frame. They run in Interact and Preview.</p>` : null}
         ${rules.map((r, i) => (draft && draft.replace === i ? null : html`<div class="irule">
             <div class="frow">${whenSel(r.when, (v) => change(i, { when: v }))}<${Remove} title="Remove this interaction" onClick=${() => actions.setRules(rules.filter((_, j) => j !== i))} /></div>

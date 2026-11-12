@@ -94,10 +94,39 @@ const panelActions = {
         const self = S.selected ? S.selected.path.join(".") : null;
         (function walk(n, depth) {
             if (!n) return;
-            if (n.tag !== "body" && n.path.join(".") !== self) out.push({ key: n.path.join("."), path: n.path, id: n.label && n.label.startsWith("#") ? n.label.slice(1) : "", tag: n.tag, label: n.label || "", depth, start: Boolean(n.start), cls: n.cls || "" });
+            if (n.tag !== "body" && n.path.join(".") !== self) out.push({ key: n.path.join("."), path: n.path, id: n.label && n.label.startsWith("#") ? n.label.slice(1) : "", tag: n.tag, label: n.label || "", depth, start: Boolean(n.start), cls: n.cls || "", kids: (n.children || []).length });
             (n.children || []).forEach((c) => walk(c, depth + 1));
         })(S.tree, 0);
         return out;
+    },
+    // One-click setups (style-sections.js, the wand in Interactions): tabs and a modal, built from the same rules a person would add by hand
+    setupTabs: (panelsPath) => {
+        const sel = S.selected, tabsNode = sel && nodeAt(sel.path), panelsNode = nodeAt(panelsPath);
+        const tabs = (tabsNode && tabsNode.children) || [], panels = (panelsNode && panelsNode.children) || [];
+        if (tabs.length < 2) return { ok: false, message: "Select the element that holds the tab buttons: it needs two or more." };
+        if (tabs.length !== panels.length) return { ok: false, message: `${tabs.length} tabs but ${panels.length} panels: they need to match, one panel for each tab.` };
+        const panelIds = idsFor(panels.map((p) => p.path));
+        idsFor(tabs.map((t) => t.path));
+        ensureInteractScript();
+        tabs.forEach((t, i) => {
+            const keep = parseRules(t.rules).filter((r) => !panelIds.includes(r.to));
+            const rules = [...keep, ...panelIds.map((id, j) => ({ when: "click", do: j === i ? "show" : "hide", to: id }))];
+            cmd({ cmd: "setAttr", path: t.path, name: DO_ATTR, value: writeRules(rules) || null }, "setup");
+        });
+        panels.forEach((p, j) => cmd({ cmd: "setAttr", path: p.path, name: START_ATTR, value: j === 0 ? null : "hidden" }, "setup")); // the first panel shows, the rest wait
+        return { ok: true };
+    },
+    setupModal: (modalPath, closePath) => {
+        const sel = S.selected, openNode = sel && nodeAt(sel.path), modalNode = nodeAt(modalPath), closeNode = closePath ? nodeAt(closePath) : null;
+        if (!openNode || !modalNode) return { ok: false, message: "Choose the modal." };
+        if (modalNode.path.join(".") === openNode.path.join(".")) return { ok: false, message: "The modal can't be the button that opens it." };
+        const [modalId] = idsFor([modalNode.path]);
+        ensureInteractScript();
+        const add = (node, rule) => { const keep = parseRules(node.rules).filter((r) => !(r.to === rule.to && r.do === rule.do && r.when === rule.when)); cmd({ cmd: "setAttr", path: node.path, name: DO_ATTR, value: writeRules([...keep, rule]) }, "setup"); };
+        add(openNode, { when: "click", do: "show", to: modalId });
+        if (closeNode) add(closeNode, { when: "click", do: "hide", to: modalId });
+        cmd({ cmd: "setAttr", path: modalNode.path, name: START_ATTR, value: "hidden" }, "setup"); // closed when the page opens
+        return { ok: true };
     },
     interactionPages: () => [...docs.values()].filter((d) => d.kind !== "section" && d.meta && d.meta.id).map((d) => ({ id: String(d.meta.id), title: (d.key === S.curKey ? data.title : d.meta.title) || "" })),
     targetId: (path) => {
@@ -248,6 +277,26 @@ const bodyActions = Object.fromEntries(Object.entries(panelActions).map(([k, f])
 /** The page needs its motion script (scroll and click triggers) once: added to the design's scripts, saved and exported with it. */
 function ensureMotionScript() {
     if (S.parsed && !hasMotionScript(S.parsed.scripts)) S.parsed.scripts.push({ src: "", type: "", defer: false, text: MOTION_SCRIPT });
+}
+/** The tree node at a path (from the layers), and ids for elements that have none (given in one go, never the same twice). */
+function nodeAt(path) {
+    let found = null;
+    (function walk(n) { if (!n || found) return; if (n.path.join(".") === path.join(".")) found = n; else (n.children || []).forEach(walk); })(S.tree);
+    return found;
+}
+function idsFor(paths) {
+    const all = [];
+    (function walk(n) { if (!n) return; all.push(n); (n.children || []).forEach(walk); })(S.tree);
+    const taken = all.filter((n) => n.label && n.label.startsWith("#")).map((n) => n.label.slice(1));
+    return paths.map((path) => {
+        const node = all.find((n) => n.path.join(".") === path.join("."));
+        if (!node) return "";
+        if (node.label && node.label.startsWith("#")) return node.label.slice(1);
+        const id = freshId(node.tag, taken);
+        taken.push(id);
+        cmd({ cmd: "setAttr", path, name: "id", value: id }, "setup");
+        return id;
+    });
 }
 /** The page needs its interactions script once: added to the design's scripts, saved and exported with it. */
 function ensureInteractScript() {
