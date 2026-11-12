@@ -5,7 +5,7 @@ export const editorHtml = `<div class="flex h-full flex-col">
                 <aside id="leftPanel" class="hidden w-[240px] shrink-0 flex-col border-r border-neutral-200 bg-white">
             <div id="leftHead" class="flex items-center border-b border-neutral-200 px-2 py-2"></div>
             <div id="leftBody" class="min-h-0 flex-1 overflow-auto pb-2">
-                <div id="pagesHead" class="sec2"><span>Pages</span><button id="pagesAdd" type="button" title="New page"
+                <div id="pagesHead" class="sec2"><span>Frames</span><button id="pagesAdd" type="button" title="New frame"
                         class="flex h-5 w-5 items-center justify-center rounded text-neutral-500 hover:bg-neutral-100"><svg
                             class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
                             stroke-linecap="round">
@@ -39,7 +39,7 @@ export const editorHtml = `<div class="flex h-full flex-col">
                         </svg></button>
                     <span class="mx-0.5 h-5 w-px bg-neutral-200"></span>
                     <div class="relative min-w-0 shrink">
-                        <button id="navMoreBtn" type="button" title="Page details and project" class="tbtn"><svg
+                        <button id="navMoreBtn" type="button" title="Frame details and project" class="tbtn"><svg
                                 class="mx-auto h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor">
                                 <circle cx="5.5" cy="12" r="1.6" />
                                 <circle cx="12" cy="12" r="1.6" />
@@ -47,7 +47,7 @@ export const editorHtml = `<div class="flex h-full flex-col">
                             </svg></button>
                         <button id="designsBtn" type="button"
                             class="flex h-8 min-w-0 max-w-[220px] shrink items-center gap-1.5 rounded-lg px-2 text-[13px] font-medium text-neutral-800 hover:bg-neutral-100"
-                            title="Pages">
+                            title="Frames">
                             <span id="designsCount"
                                 class="rounded-full bg-neutral-100 px-1.5 text-[11px] text-neutral-600">1</span>
                             <span id="designsName" class="truncate">Design</span>
@@ -60,10 +60,10 @@ export const editorHtml = `<div class="flex h-full flex-col">
                             <div id="designs" class="max-h-72 overflow-auto text-[12px]"></div>
                             <button id="newDesignBtn" type="button"
                                 class="mt-1 flex h-8 w-full items-center gap-2 rounded-lg border-t border-neutral-100 px-2 text-left text-[12px] font-medium text-neutral-700 hover:bg-neutral-100">+
-                                New page</button>
+                                New frame</button>
                             <div class="mt-1 border-t border-neutral-100 pt-1">
                                 <button id="detailsBtn" type="button" title="Name, category, tags and visibility"
-                                    class="hidden h-8 w-full items-center justify-between rounded-lg px-2 text-left text-[12px] font-medium text-neutral-700 hover:bg-neutral-100"><span>Page
+                                    class="hidden h-8 w-full items-center justify-between rounded-lg px-2 text-left text-[12px] font-medium text-neutral-700 hover:bg-neutral-100"><span>Frame
                                         details…</span><span id="versionBadge"
                                         class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[11px] text-neutral-600"></span></button>
                                 <span id="titleText" class="hidden"></span><span id="projSep" class="hidden"></span>
@@ -103,7 +103,7 @@ export const editorHtml = `<div class="flex h-full flex-col">
                         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                         <path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14" />
                     </svg></button>
-<button id="playBtn" type="button" title="Preview the pages one at a time, full screen" class="tbtn"><svg
+<button id="playBtn" type="button" title="Preview the frames one at a time, full screen" class="tbtn"><svg
                         class="mx-auto h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M7 5v14l12-7z" />

@@ -128,7 +128,7 @@ export function refreshLabels() {
         const ver = active ? data.version : d.meta.version;
         const state = (active ? S.isNew : d.isNew) ? "new" : d.kind === "section" ? "section" : `v${ver}`;
         const group = pageGroupOf(key);
-        en.label.innerHTML = `${group ? `<i class="fgroup">${esc(group)} / </i>` : ""}${esc(title || "Untitled page")}<span>${state}</span>${docDirty(d) ? '<i class="dirty-dot" title="Unsaved changes"></i>' : ""}`;
+        en.label.innerHTML = `${group ? `<i class="fgroup">${esc(group)} / </i>` : ""}${esc(title || "Untitled frame")}<span>${state}</span>${docDirty(d) ? '<i class="dirty-dot" title="Unsaved changes"></i>' : ""}`;
     });
 }
 
@@ -152,14 +152,14 @@ export function renderDesigns() {
     const pages = list.filter((d) => d.kind !== "section" || !list.some((p) => p.key === d.parent));
     const row = (d, depth) => {
         const active = d.key === S.curKey;
-        const title = (active ? data.title : d.meta.title) || "Untitled page";
+        const title = (active ? data.title : d.meta.title) || "Untitled frame";
         return `<div class="layer-row cursor-pointer gap-1 px-1 ${active ? "is-selected" : ""}" style="padding-left:${depth * 14 + 6}px" data-design="${d.key}">
             <span class="shrink-0 font-mono text-[10px] ${active ? "" : "text-neutral-500"}">${d.kind === "section" ? "sec" : "page"}</span>
             <span class="truncate">${esc(title)}</span>${docDirty(d) ? '<i class="dirty-dot"></i>' : ""}${active ? PAGE_EDIT : ""}</div>`;
     };
     renderPagesList();
     $("designsCount").textContent = String(list.length);
-    $("designsName").textContent = S.canvasOnly ? (data.project && data.project.name) || "Untitled project" : data.title || "Untitled page"; // the project while nothing is selected (canvas-mode.js)
+    $("designsName").textContent = S.canvasOnly ? (data.project && data.project.name) || "Untitled project" : data.title || "Untitled frame"; // the project while nothing is selected (canvas-mode.js)
     placePills();
     $("designs").innerHTML = pages.map((p) => groupHeading(p) + row(p, 0) + list.filter((s) => s.kind === "section" && s.parent === p.key).map((s) => row(s, 1)).join("")).join("");
 }
@@ -338,23 +338,23 @@ export async function renameFrame(key, name, previous) {
 const withSections = (key) => [key, ...[...docs.values()].filter((d) => d.kind === "section" && d.parent === key).map((d) => d.key)];
 /**
  * Deletes a page (and its sections) after asking. Saved ones go from the library first: if that fails nothing changes here. The page being
- * edited hands over to a neighbour before it goes. A project keeps at least one page.
+ * edited hands over to a neighbour before it goes. A project keeps at least one frame.
  */
 export async function deletePage(key) {
     const d = docs.get(key);
     if (!d || docs.size < 2 || S.mode !== "edit") return;
     const keys = withSections(key);
-    if (keys.length >= docs.size) return alert("A project keeps at least one page.");
-    const title = (key === S.curKey ? data.title : d.meta.title) || "Untitled page";
+    if (keys.length >= docs.size) return alert("A project keeps at least one frame.");
+    const title = (key === S.curKey ? data.title : d.meta.title) || "Untitled frame";
     const extra = keys.length > 1 ? ` and its ${keys.length - 1} section${keys.length > 2 ? "s" : ""}` : "";
     if (!confirm(`Delete "${title}"${extra}? This can't be undone.`)) return;
     const saved = keys.map((k) => docs.get(k)).filter((x) => x && !(x.key === S.curKey ? S.isNew : x.isNew) && x.meta.id);
     if (saved.length) {
-        if (!host.deleteComponent) return alert("This editor can't delete pages.");
+        if (!host.deleteComponent) return alert("This editor can't delete frames.");
         try {
             for (const x of saved) await host.deleteComponent(x.meta.id); // the page last: its sections go with it on the server
         } catch (err) {
-            return alert(err.message || "Could not delete the page");
+            return alert(err.message || "Could not delete the frame");
         }
     }
     if (keys.includes(S.curKey)) { // hand over to a page that stays: the one after it, else the one before
@@ -639,7 +639,7 @@ $("newDesignBtn").addEventListener("click", async () => {
     docs.set(key, {
         key, kind: "page", parent: null, board: spot, source: "", loaded: true, isNew: true, height: 0,
         parsed: parseComponentSource(""), markup: "", history: [], hIndex: -1, savedMarkup: "",
-        meta: { id: null, title: "Untitled page", version: 0, category: data.category || DEFAULT_CATEGORY, description: "A page on the canvas.", tags: [], isPublished: false, useAsReference: true, project },
+        meta: { id: null, title: "Untitled frame", version: 0, category: data.category || DEFAULT_CATEGORY, description: "A frame on the canvas.", tags: [], isPublished: false, useAsReference: true, project },
     });
     makeWrap(key);
     S.viewTouched = true;

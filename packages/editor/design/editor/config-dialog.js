@@ -18,7 +18,7 @@ function build() {
     dlg.id = "configDlg";
     dlg.setAttribute("aria-labelledby", "cfgTitle");
     dlg.className = "m-auto h-[min(88vh,820px)] w-[min(1200px,96vw)] rounded-xl border border-neutral-200 p-0 shadow-[0_16px_48px_rgba(0,0,0,.2)] backdrop:bg-black/40";
-    dlg.innerHTML = `<div class="flex h-full min-h-0 flex-col"><div class="flex items-center border-b border-neutral-200 px-5 py-3"><div><h3 id="cfgTitle" class="text-sm font-semibold text-neutral-900">Tailwind config</h3><p class="mt-0.5 text-[11px] text-neutral-500">A file, as in any Tailwind project. This page's file is laid over the project's.</p></div><button type="button" data-x class="ml-auto h-7 w-7 rounded text-neutral-500 hover:bg-neutral-100" aria-label="Close">✕</button></div><div id="cfgBody" class="min-h-0 flex-1"></div></div>`;
+    dlg.innerHTML = `<div class="flex h-full min-h-0 flex-col"><div class="flex items-center border-b border-neutral-200 px-5 py-3"><div><h3 id="cfgTitle" class="text-sm font-semibold text-neutral-900">Tailwind config</h3><p class="mt-0.5 text-[11px] text-neutral-500">A file, as in any Tailwind project. This frame's file is laid over the project's.</p></div><button type="button" data-x class="ml-auto h-7 w-7 rounded text-neutral-500 hover:bg-neutral-100" aria-label="Close">✕</button></div><div id="cfgBody" class="min-h-0 flex-1"></div></div>`;
     document.body.appendChild(dlg);
     dlg.addEventListener("click", (e) => { if (e.target === dlg || e.target.closest("[data-x]")) dlg.close(); }); // the backdrop is the dialog itself
     dlg.addEventListener("keydown", (e) => e.stopPropagation()); // typing here is not an editor shortcut
@@ -38,7 +38,7 @@ export async function applyProject(patch, { reload = true } = {}) {
 }
 
 export async function applyPage(patch, { reload = true } = {}) {
-    if (!data.id) return { ok: false, message: "Save the page first." };
+    if (!data.id) return { ok: false, message: "Save the frame first." };
     const tw = patch.js || patch.css ? patch : null;
     try { await host.updateComponent(data.id, { twConfig: tw || {} }); } catch (err) { return { ok: false, message: err.message || "Could not save it" }; }
     data.twConfig = tw;
@@ -66,7 +66,7 @@ export function showConfigIn(el) {
         const cur = panelEditor.current();
         if (cur.js !== (next.theme.configJs || "") || cur.css !== (next.theme.configCss || "")) panelEditor.set(next);
     }
-    panelEditor.setNote(own ? "This page also has its own file: edit it" : "");
+    panelEditor.setNote(own ? "This frame also has its own file: edit it" : "");
 }
 
 /** Opens the dialog on the "page" or "project" file. */

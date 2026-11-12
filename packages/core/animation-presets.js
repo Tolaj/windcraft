@@ -1,6 +1,6 @@
 // The animation library: each preset is a name, a group, what it does (keyframes) and how it is usually played (time, easing, repeat). Used by the editor's animation
 // browser; the keyframes go into the project's Tailwind config under the chosen name, and the page uses the animate-<name> class (hover presets: hover:animate-<name>).
-//   on: "load" plays when the page shows · "loop" plays for ever · "hover" plays while the pointer is over it · "scrub" / "scrub-page": progress follows the scroll
+//   on: "load" plays when the frame shows · "loop" plays for ever · "hover" plays while the pointer is over it · "scrub" / "scrub-page": progress follows the scroll
 //   (as the element passes through the screen / along the whole page); `range` is the part of that passage it spans
 // Keyframes are written for properties that animate cheaply (opacity, transform, filter, box-shadow, clip-path): the browser does not have to re-lay out the page.
 
@@ -63,7 +63,7 @@ export const PRESETS = Object.freeze([
     P("nudge", "Nudge", "hover", 0.2, "ease-out", "once", k({ transform: "translateX(0)" }, { transform: "translateX(6px)" })),
 
     // scroll: progress follows the scroll (CSS scroll-driven animation; where the browser can't, it plays once when the page shows)
-    P("parallax-up", "Parallax up", "scroll", 1, "linear", "once", k({ transform: "translateY(70px)" }, { transform: "translateY(-70px)" }), { on: "scrub", range: "cover_0%_cover_100%", fill: "both", note: "Slower than the page: it drifts as it passes." }),
+    P("parallax-up", "Parallax up", "scroll", 1, "linear", "once", k({ transform: "translateY(70px)" }, { transform: "translateY(-70px)" }), { on: "scrub", range: "cover_0%_cover_100%", fill: "both", note: "Slower than the frame: it drifts as it passes." }),
     P("parallax-down", "Parallax down", "scroll", 1, "linear", "once", k({ transform: "translateY(-70px)" }, { transform: "translateY(70px)" }), { on: "scrub", range: "cover_0%_cover_100%", fill: "both" }),
     P("fade-on-scroll", "Fade in on scroll", "scroll", 1, "linear", "once", k({ opacity: "0", transform: "translateY(40px)" }, { opacity: "1", transform: "translateY(0)" }), { on: "scrub", range: "entry_0%_entry_70%", fill: "both" }),
     P("grow-on-scroll", "Grow on scroll", "scroll", 1, "linear", "once", k({ transform: "scale(0.8)", opacity: "0.4" }, { transform: "scale(1)", opacity: "1" }), { on: "scrub", range: "entry_0%_cover_50%", fill: "both" }),

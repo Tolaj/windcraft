@@ -215,7 +215,7 @@ function browse(o) {
 // Instead of covering the page, an empty page gets a small tip beside the Properties panel's "Add a wireframe" button (which pulses), or
 // under the panel's toolbar button while the panel is closed. It opens the wireframes itself too, and can be dismissed for the page.
 let tip = null, tipTimer = 0;
-/** "Don't show this again": the tip stays off on every page, in this browser (the panel's "Add a wireframe" button still works). */
+/** "Don't show this again": the tip stays off on every frame, in this browser (the panel's "Add a wireframe" button still works). */
 const NEVER = "wc:wireframeTip:never";
 const neverTip = () => { try { return localStorage.getItem(NEVER) === "1"; } catch { return false; } };
 function hideTip() {
@@ -239,7 +239,7 @@ function placeTip() {
             Object.assign(tip.style, { left: `${left}px`, top: `${r.bottom + 12}px` });
             Object.assign(arrow.style, { right: "", left: `${Math.min(w - 20, Math.max(8, r.left + r.width / 2 - left - 6))}px`, top: "-6px", transform: "rotate(45deg)" });
         }
-        tip.querySelector("[data-say]").textContent = "Pick a layout for this empty page.";
+        tip.querySelector("[data-say]").textContent = "Pick a layout for this empty frame.";
     } else { // the panel is closed: under its toolbar button
         const pb = document.getElementById("panelBtn"), q = pb.getBoundingClientRect();
         Object.assign(tip.style, { left: `${Math.max(8, q.right - tip.offsetWidth + 6)}px`, top: `${q.bottom + 12}px` });
@@ -281,7 +281,7 @@ export function openWireframes(target) {
     hideTip();
     const into = target && target.path && target.path.length ? target : null;
     browse({
-        title: into ? `Add a wireframe inside this ${into.tag}` : "Add a wireframe to the page", modal: true, into, onClose: hide,
+        title: into ? `Add a wireframe inside this ${into.tag}` : "Add a wireframe to the frame", modal: true, into, onClose: hide,
         onPick: (html) => {
             if (!into && model.markup.trim() === "") return addToEmpty(html);
             cmd({ cmd: "insert", path: into ? into.path : [], html, position: "inside" });

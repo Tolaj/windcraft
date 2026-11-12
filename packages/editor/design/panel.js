@@ -155,7 +155,7 @@ function CanvasPanel({ c, actions }) {
         <div class="sec"><div class="secb nopad"><p class="sub first">Canvas</p>
             <div class="row"><span class="lbl">Project</span><span class="truncate text-[11px] text-neutral-700">${c.project || "No project"}</span></div>
             <div class="row"><span class="lbl">Frames</span><span class="text-[11px] text-neutral-700">${c.frames}</span></div>
-            ${c.picked ? html`<div class="row"><span class="lbl">Selected</span><span class="text-[11px] font-medium text-neutral-900">${c.picked === 1 ? "1 page" : c.picked === c.frames ? `All ${c.picked} pages` : `${c.picked} pages`}</span></div>
+            ${c.picked ? html`<div class="row"><span class="lbl">Selected</span><span class="text-[11px] font-medium text-neutral-900">${c.picked === 1 ? "1 frame" : c.picked === c.frames ? `All ${c.picked} frames` : `${c.picked} frames`}</span></div>
                 <p class="text-[10px] text-neutral-500">Drag one to move them together. Esc or a click on the canvas lets go.</p>` : ""}
         </div></div>
         <div class="sec"><div class="secb nopad"><p class="sub first">Background</p>
@@ -179,12 +179,12 @@ function PagePanel({ page: pg, actions }) {
     const btn = (l, fn) => html`<button type="button" onClick=${fn} class="flex-1 rounded border border-neutral-200 py-1 text-[10px] hover:bg-neutral-50">${l}</button>`;
     const set = (key) => (text) => actions.setPageField(key, text);
     return html`
-        <div class="sec"><div class="secb nopad"><p class="sub first">Page</p>
+        <div class="sec"><div class="secb nopad"><p class="sub first">Frame</p>
             <${PageField} row label="Name" value=${pg.name} onCommit=${set("name")} />
             <${PageField} row label="Group" value=${pg.group} placeholder="none" onCommit=${set("group")} />
             <div class="row"><span class="lbl">Version</span><span class="text-[11px] text-neutral-700">${pg.isNew ? "not saved yet" : `v${pg.version}`}${pg.project ? ` · ${pg.project}` : ""}</span></div>
         </div></div>
-        <${WireframeRow} onOpen=${actions.wireframes} label="Add a wireframe" hint="Sections and page layouts" />
+        <${WireframeRow} onOpen=${actions.wireframes} label="Add a wireframe" hint="Sections and frame layouts" />
         ${pg.empty && actions.canAI && html`<${AskBox} title="Generate with AI" placeholder="e.g. a pricing section with three tiers and a highlighted middle plan" rows=${3}
             button="Generate" help="Or draw with the tools, add blocks from +, or paste code in the code panel." empty="Describe what you want first."
             run=${actions.draftPage} />`}
@@ -197,7 +197,7 @@ function PagePanel({ page: pg, actions }) {
             <div class="two"><${PageField} label="X" value=${pg.x} onCommit=${set("x")} /><${PageField} label="Y" value=${pg.y} onCommit=${set("y")} /></div>
         </div></div>
         <div class="sec"><div class="secb nopad"><div class="flex gap-1">${btn("Zoom to fit", actions.fit)}${btn("Details…", actions.details)}</div>
-            <p class="text-[10px] text-neutral-500">Click an element in the page to edit it.</p>
+            <p class="text-[10px] text-neutral-500">Click an element in the frame to edit it.</p>
         </div></div>`;
 }
 
@@ -214,11 +214,11 @@ const Styles = ({ k, s, actions, page }) => html`<${TypographySection} key=${`t$
 const CLOSE = html`<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18" /></svg>`;
 const TABS = [["design", "Design"], ["classes", "Code"], ["ai", "AI"]];
 
-/** The row at the top: the tabs (or just "Page" when no element is selected) and the close button. */
+/** The row at the top: the tabs (or just "Frame" when no element is selected) and the close button. */
 function Head({ page, canvas, tab, actions }) {
     return html`<div class="itabs">
         ${canvas ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">Canvas</span>`
-        : page ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">Page</span>`
+        : page ? html`<span class="px-1 text-[11px] font-medium text-neutral-800">Frame</span>`
         : TABS.filter(([k]) => k !== "ai" || actions.canAI).map(([k, label]) => html`<button type="button" class=${tab === k ? "on" : ""} onClick=${() => actions.setTab(k)}>${label}</button>`)}
         <button type="button" title="Close" style="padding:0" class="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-500 hover:bg-neutral-100" onClick=${actions.closePanel}>${CLOSE}</button>
     </div>`;
@@ -239,7 +239,7 @@ function Panel({ view, tab, actions }) {
     else if (view.ai) body = html`<${AiTab} key=${view.ai.key} path=${view.ai.path} outer=${view.ai.outer} actions=${actions} />`;
     else if (view.canvas) body = html`<${CanvasPanel} c=${view.canvas} actions=${actions} />`;
     else if (view.page) body = html`<${PagePanel} page=${view.page} actions=${actions} />${view.pageBody && html`
-        <div class="pagehead"><b>Page styling</b><span>Applies to the whole page (its body), not an element. Click an element to style it.</span></div>
+        <div class="pagehead"><b>Frame styling</b><span>Applies to the whole frame (its body), not an element. Click an element to style it.</span></div>
         <${LayoutSection} key="page-l" s=${view.pageBody.s} actions=${view.pageBody.actions} /><${SpacingSection} key="page-s" s=${view.pageBody.s} actions=${view.pageBody.actions} /><${Styles} k="page" page s=${view.pageBody.s} actions=${view.pageBody.actions} />`}`;
     return html`<${Head} page=${view.page} canvas=${view.canvas} tab=${tab} actions=${actions} />${body}`;
 }

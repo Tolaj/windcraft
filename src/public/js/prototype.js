@@ -34,7 +34,7 @@ function paint() {
     if (!pop) return;
     if (!token) {
         pop.innerHTML = `<p style="font-size:13px;margin:0 0 4px;font-weight:600">Share this prototype</p>
-            <p style="font-size:12px;color:#737373;margin:0 0 12px">Make a link anyone can open. They click through the pages and nothing else: no code, no editing.</p>
+            <p style="font-size:12px;color:#737373;margin:0 0 12px">Make a link anyone can open. They click through the frames and nothing else: no code, no editing.</p>
             <button type="button" data-make style="${btn}background:#111;color:#fff">Create link</button><p data-err style="font-size:12px;color:#b91c1c;margin:8px 0 0"></p>`;
         pop.querySelector("[data-make]").onclick = async (e) => {
             e.currentTarget.disabled = true;
@@ -49,7 +49,7 @@ function paint() {
         return;
     }
     pop.innerHTML = `<p style="font-size:13px;margin:0 0 4px;font-weight:600">Share this prototype</p>
-        <p style="font-size:12px;color:#737373;margin:0 0 10px">Anyone with this link can click through the pages. It starts on the page you are on.</p>
+        <p style="font-size:12px;color:#737373;margin:0 0 10px">Anyone with this link can click through the frames. It starts on the frame you are on.</p>
         <div style="display:flex;gap:8px"><input data-url readonly value="${linkFor()}" style="${field}flex:1"><button type="button" data-copy style="${btn}background:#111;color:#fff">Copy link</button></div>
         ${data.owner ? '<button type="button" data-stop style="margin-top:12px;font-size:12px;color:#b91c1c;text-decoration:underline">Stop sharing</button>' : ""}`;
     const input = pop.querySelector("[data-url]");

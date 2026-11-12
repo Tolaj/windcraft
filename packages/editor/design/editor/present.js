@@ -28,7 +28,7 @@ export async function openPreview() {
     const cur = docs.get(S.curKey);
     if (host.previewUrl && data.project && cur && !S.isNew && cur.meta && cur.meta.id) {
         if (anyDirty()) { // the preview is the saved page, so what you changed (an animation on an element, say) is not in it until it is saved
-            if (!confirm("The preview shows the saved version of your pages. Save your changes and open it?")) return;
+            if (!confirm("The preview shows the saved version of your frames. Save your changes and open it?")) return;
             const { save } = await import("./toolbar.js");
             await save();
             if (anyDirty()) return; // the save did not go through: the editor says why
@@ -39,7 +39,7 @@ export async function openPreview() {
     const list = pagesToShow();
     if (!list.length) return;
     viewer = createPresenter({
-        pages: list.map((d) => ({ key: d.key, title: (d.key === S.curKey ? data.title : d.meta.title) || "Untitled page", width: widthOf(d), height: heightOfDoc(d), source: () => sourceOf(d) })),
+        pages: list.map((d) => ({ key: d.key, title: (d.key === S.curKey ? data.title : d.meta.title) || "Untitled frame", width: widthOf(d), height: heightOfDoc(d), source: () => sourceOf(d) })),
         start: Math.max(0, list.findIndex((d) => d.key === S.curKey)), // starts on the page you are on
         onClose: closePreview,
     });

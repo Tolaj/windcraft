@@ -95,15 +95,15 @@ export function createPresenter(o) {
             <div class="pv-pill" style="display:flex;align-items:center;gap:2px;padding:4px">
                 <span data-grip class="pv-grip" title="Drag to move the toolbar">${GRIP}</span>
                 ${o.onClose ? `<button type="button" data-close class="pv-b" style="width:32px" title="Close (Esc)" aria-label="Close preview">${svg(ICON.close)}</button><span class="pv-sep"></span>` : ""}
-                <button type="button" data-prev class="pv-b" style="width:32px" title="Previous page (Left arrow)" aria-label="Previous page">${svg(ICON.prev)}</button>
+                <button type="button" data-prev class="pv-b" style="width:32px" title="Previous frame (Left arrow)" aria-label="Previous frame">${svg(ICON.prev)}</button>
                 <span style="display:inline-flex;align-items:baseline;gap:8px;padding:0 6px;min-width:60px;justify-content:center" ${name ? `title="${name}"` : ""}>
                     <span data-title style="font-size:13px;font-weight:600;color:#171717;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
                     <span data-count style="font-size:12px;color:#737373"></span>
                 </span>
-                <button type="button" data-next class="pv-b" style="width:32px" title="Next page (Right arrow)" aria-label="Next page">${svg(ICON.next)}</button>
+                <button type="button" data-next class="pv-b" style="width:32px" title="Next frame (Right arrow)" aria-label="Next frame">${svg(ICON.next)}</button>
                 <span class="pv-sep"></span>
                 ${o.share ? `<button type="button" data-share class="pv-b pv-share" style="padding:0 14px;gap:6px;font-weight:600;margin-right:2px" title="Get a link to this prototype">${svg(ICON.share, 16)}<span>${esc(o.share.label || "Share")}</span></button>` : ""}
-                <button type="button" data-scale class="pv-b" style="padding:0 8px 0 10px;gap:4px;font-weight:500;color:#171717" title="How the page fits the screen" aria-haspopup="menu"><span>100%</span>${svg(ICON.down, 14, 1.8)}</button>
+                <button type="button" data-scale class="pv-b" style="padding:0 8px 0 10px;gap:4px;font-weight:500;color:#171717" title="How the frame fits the screen" aria-haspopup="menu"><span>100%</span>${svg(ICON.down, 14, 1.8)}</button>
                 <span class="pv-sep"></span>
                 <button type="button" data-min class="pv-b" style="width:32px" title="Minimize the toolbar" aria-label="Minimize the toolbar">${svg(ICON.minimize)}</button>
             </div>
@@ -169,7 +169,7 @@ export function createPresenter(o) {
         const id = `p${Date.now()}${at}`;
         box.dataset.id = id;
         frame.srcdoc = cut < 0 ? html + pageScript(id) : html.slice(0, cut) + pageScript(id) + html.slice(cut);
-        q("[data-title]").textContent = p.title || "Untitled page";
+        q("[data-title]").textContent = p.title || "Untitled frame";
         q("[data-count]").textContent = pages.length > 1 ? `${at + 1} / ${pages.length}` : "";
         q("[data-count2]").textContent = pages.length > 1 ? `${at + 1}/${pages.length}` : "";
         q("[data-prev]").disabled = q("[data-next]").disabled = pages.length < 2;
