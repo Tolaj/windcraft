@@ -183,7 +183,8 @@ function PagePanel({ page: pg, actions }) {
     return html`
         <div class="sec"><div class="secb nopad"><p class="sub first">Frame</p>
             <${PageField} row label="Name" value=${pg.name} onCommit=${set("name")} />
-            <${PageField} row label="Group" value=${pg.group} placeholder="none" onCommit=${set("group")} />
+            <${Field} label="Group"><${TextInput} value=${pg.group} placeholder="none" list="dl-groups" title="Type to pick a group of this project, or a new name to make one" onCommit=${set("group")} /></${Field}>
+            <datalist id="dl-groups">${(pg.groups || []).map((g) => html`<option value=${g} />`)}</datalist>
             <div class="row"><span class="lbl">Version</span><span class="text-[11px] text-neutral-700">${pg.isNew ? "not saved yet" : `v${pg.version}`}${pg.project ? ` · ${pg.project}` : ""}</span></div>
         </div></div>
         <${WireframeRow} onOpen=${actions.wireframes} label="Add a wireframe" hint="Sections and frame layouts" />

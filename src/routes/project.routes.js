@@ -7,6 +7,7 @@ import FigmaSource from "../models/figmaSource.model.js";
 import { listProjects, getActiveProject, setActiveProject } from "../services/project.service.js";
 import { buildDesignGuide } from "../services/guide.service.js";
 import { syncPartsOf } from "../services/import.service.js";
+import { planeOf } from "../services/plane.service.js";
 import { categories } from "./home.routes.js";
 import { normalizeTheme } from "@windcraft/core/theme.js";
 
@@ -124,6 +125,21 @@ projectApi.post("/:id/prototype-share", async (req, res) => {
     p.protoToken = on ? p.protoToken || crypto.randomBytes(16).toString("hex") : ""; // turning it on again keeps the link that already works
     await p.save();
     res.json({ success: true, token: p.protoToken });
+});
+
+// The frames of one group of a project (or all of them, in a small one), with the list of groups: what the editor loads when you switch group.
+projectApi.get("/:id/frames", async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ success: false, message: "Not found" });
+    const project = await Project.findOne({ _id: req.params.id, owner: req.session.user.id }).select("_id").lean();
+    if (!project) return res.status(404).json({ success: false, message: "Not found" });
+    const q = req.query.group;
+    const group = q === undefined || q === "__all" ? null : String(q);
+    try {
+        const r = await planeOf(req.session.user.id, project._id, { group, strict: true });
+        res.json({ success: true, data: r });
+    } catch (err) {
+        res.status(err.status || 500).json({ success: false, message: err.message });
+    }
 });
 
 projectApi.put("/:id", async (req, res) => {
