@@ -13,7 +13,20 @@ import { themeHead, normalizeTheme } from "../../core/theme.js";
 // Packages are marked line by line in the gutter (green: loaded or built in; amber: warning; red: a page can't do this without a build) and listed under the file.
 //   onApply(scope, patch) -> Promise<{ ok, message? }>     scope "project": { engine, configJs, configCss, lock }   scope "page": { js, css, lock }
 
-const COMPACT_HINT = 'Every page uses this file. Add a plugin with require("@tailwindcss/typography") in plugins. It applies as you type.';
+const COMPACT_HINT = "Every page uses this file, and it applies as you type. Press i to see how to add your own plugin.";
+/** How to add a plugin, for the "i" button (Tailwind 3: a config file; Tailwind 4: CSS, since a page has no build for @plugin). Each one is applied as it is, so it can be copied straight into the file. */
+const PLUGIN_HELP = {
+    "3": [
+        ["An official plugin", "Typography, forms and container queries come with the Tailwind CDN. Name them in plugins.", 'module.exports = {\n  plugins: [require("@tailwindcss/typography")],\n};'],
+        ["A plugin from npm", "Any package with a plugin file: it is looked up and loaded for you (a plugin that needs a build is marked red).", 'module.exports = {\n  plugins: [require("preline/plugin")],\n};'],
+        ["Your own plugin", "Write one in the file: add utilities (single classes) or components (a group of styles under one class).", 'const plugin = require("tailwindcss/plugin");\n\nmodule.exports = {\n  plugins: [\n    plugin(function ({ addUtilities, addComponents, theme }) {\n      addUtilities({\n        ".text-balance": { "text-wrap": "balance" },\n      });\n      addComponents({\n        ".btn": {\n          padding: "0.5rem 1rem",\n          borderRadius: theme("borderRadius.md"),\n          backgroundColor: theme("colors.black"),\n          color: theme("colors.white"),\n        },\n      });\n    }),\n  ],\n};'],
+    ],
+    "4": [
+        ["Your own utility", "A class that does one thing: use it as class=\"text-balance\".", "@utility text-balance {\n  text-wrap: balance;\n}"],
+        ["Your own component", "A group of styles under one class name.", "@layer components {\n  .btn {\n    padding: 0.5rem 1rem;\n    border-radius: 0.375rem;\n    background: black;\n    color: white;\n  }\n}"],
+        ["Plugins from a package", "@plugin needs a build, which a page doesn't have. Paste the CSS the plugin's docs show instead: @import lines work.", '@import "https://cdn.jsdelivr.net/npm/some-package/styles.css";'],
+    ],
+};
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const get = async (url, kind) => { const r = await fetch(url); if (!r.ok) throw new Error(String(r.status)); return kind === "text" ? r.text() : r.json(); };
 const DOT = { ok: "#16a34a", warn: "#d97706", error: "#dc2626" };
@@ -41,18 +54,35 @@ export function mountConfigFileEditor(el, opts, onApply) {
                 <textarea data-ta wrap="off" spellcheck="false" aria-label="Config file" class="cfe-mono cfe-ta min-w-0 flex-1 resize-none border-0 bg-white p-4 text-neutral-900 outline-none"></textarea></div>
                 <div class="max-h-40 shrink-0 overflow-auto border-t border-neutral-200 bg-neutral-50 px-4 py-2" aria-live="polite" aria-label="Checks" data-diag></div></div>
             <div class="cfe-res flex min-w-0 flex-[2] flex-col border-l border-neutral-200 bg-neutral-50"><div class="border-b border-neutral-200 px-4 py-2.5"><p class="font-semibold text-neutral-900">Result</p><p class="mt-0.5 text-neutral-500" aria-live="polite" data-resnote></p></div><div class="min-h-0 flex-1 overflow-auto" data-res></div></div></div>
-        <div class="flex items-center gap-3 border-t border-neutral-200 px-4 py-2.5"><span class="min-w-0 flex-1 truncate text-neutral-500" role="status" aria-live="polite" data-status></span><button type="button" data-note class="hidden text-neutral-500 underline hover:text-neutral-900"></button><button type="button" data-info title="Show the custom and default values" aria-label="Show the custom and default values" style="width:20px;height:20px;color:#737373;background:none;border:1px solid #a3a3a3;border-radius:9999px;font:italic 12px Georgia,serif;line-height:1" class="hidden shrink-0 items-center justify-center text-neutral-500 hover:text-neutral-900">i</button><button type="button" data-reset class="text-neutral-500 underline hover:text-neutral-900">Reset this file</button><button type="button" data-apply class="h-8 rounded-md bg-black px-5 font-semibold text-white hover:bg-neutral-800">Apply</button></div></div>`;
+        <div class="flex items-center gap-3 border-t border-neutral-200 px-4 py-2.5"><span class="min-w-0 flex-1 truncate text-neutral-500" role="status" aria-live="polite" data-status></span><button type="button" data-note class="hidden text-neutral-500 underline hover:text-neutral-900"></button><button type="button" data-values title="Your changes next to Tailwind's default values" style="border:1px solid #d4d4d4;border-radius:4px;padding:1px 8px" class="hidden shrink-0 text-neutral-600 hover:text-neutral-900">Default values</button><button type="button" data-help title="How to add a plugin" aria-label="How to add a plugin" style="width:20px;height:20px;color:#737373;background:none;border:1px solid #a3a3a3;border-radius:9999px;font:italic 12px Georgia,serif;line-height:1" class="hidden shrink-0 items-center justify-center hover:text-neutral-900">i</button><button type="button" data-reset class="text-neutral-500 underline hover:text-neutral-900">Reset this file</button><button type="button" data-apply class="h-8 rounded-md bg-black px-5 font-semibold text-white hover:bg-neutral-800">Apply</button></div></div>`;
     let infoDlg = null; // the dialog behind the "i" button (compact only)
     const q = (s) => el.querySelector(s) || (infoDlg && infoDlg.querySelector(s)), ta = q("[data-ta]");
     if (compact) { ["[data-tabs]", ".cfe-res", "[data-apply]"].forEach((sel) => q(sel).classList.add("hidden")); q(".cfe-left").classList.add("flex-1"); }
     let autoTimer = null, tried = "";
     // compact: the result column is not beside the file; the "i" button shows it (what is custom and what is Tailwind's default) in a dialog
-    if (compact) q("[data-info]").classList.replace("hidden", "flex");
-    function showInfo() {
+    if (compact) { q("[data-values]").classList.remove("hidden"); q("[data-help]").classList.replace("hidden", "flex"); }
+    let helpDlg = null;
+    function showHelp() {
+        if (!helpDlg) {
+            const items = PLUGIN_HELP[engine] || PLUGIN_HELP["3"];
+            helpDlg = document.createElement("dialog");
+            helpDlg.className = "m-auto max-h-[min(86vh,720px)] w-[min(680px,94vw)] rounded-xl border border-neutral-200 p-0 shadow-[0_16px_48px_rgba(0,0,0,.2)] backdrop:bg-black/40";
+            helpDlg.innerHTML = `<div class="flex max-h-[inherit] min-h-0 flex-col bg-white text-xs"><div class="flex items-center justify-between border-b border-neutral-200 px-5 py-3"><div><h3 class="text-sm font-semibold text-neutral-900">Adding a plugin</h3><p class="mt-0.5 text-[11px] text-neutral-500">Put one of these in the file; it applies as you type. Tailwind ${engine}.</p></div><button type="button" data-close aria-label="Close" class="rounded px-2 py-1 text-neutral-500 hover:bg-neutral-100">Close</button></div><div class="min-h-0 flex-1 space-y-4 overflow-auto px-5 py-4">${items.map(([t, d, code], i) => `<section><div class="flex items-center justify-between gap-3"><p class="font-semibold text-neutral-900">${esc(t)}</p><button type="button" data-copy="${i}" class="rounded px-2 py-0.5 text-neutral-500 underline hover:text-neutral-900">Copy</button></div><p class="mt-0.5 text-neutral-500">${esc(d)}</p><pre data-example="${i}" class="cfe-mono mt-1.5 overflow-auto rounded-md border border-neutral-200 bg-neutral-50 p-3 text-neutral-900">${esc(code)}</pre></section>`).join("")}</div></div>`;
+            document.body.appendChild(helpDlg);
+            helpDlg.addEventListener("click", (e) => {
+                if (e.target === helpDlg || e.target.closest("[data-close]")) return helpDlg.close();
+                const c = e.target.closest("[data-copy]");
+                if (c) navigator.clipboard.writeText(items[Number(c.dataset.copy)][2]).then(() => { c.textContent = "Copied"; setTimeout(() => { c.textContent = "Copy"; }, 1200); }, () => { c.textContent = "Copy failed"; });
+            });
+            helpDlg.addEventListener("keydown", (e) => e.stopPropagation());
+        }
+        helpDlg.showModal();
+    }
+    function showValues() {
         if (!infoDlg) {
             infoDlg = document.createElement("dialog");
             infoDlg.className = "m-auto h-[min(80vh,640px)] w-[min(720px,94vw)] rounded-xl border border-neutral-200 p-0 shadow-[0_16px_48px_rgba(0,0,0,.2)] backdrop:bg-black/40";
-            infoDlg.innerHTML = `<div class="flex h-full min-h-0 flex-col bg-white text-xs"><div class="flex items-center justify-between border-b border-neutral-200 px-5 py-3"><div><h3 class="text-sm font-semibold text-neutral-900">Tailwind config values</h3><p class="mt-0.5 text-[11px] text-neutral-500">Sections you changed are marked and open; the rest are Tailwind's defaults.</p></div><button type="button" data-close aria-label="Close" class="rounded px-2 py-1 text-neutral-500 hover:bg-neutral-100">Close</button></div><div class="min-h-0 flex-1 overflow-hidden" data-slot></div></div>`;
+            infoDlg.innerHTML = `<div class="flex h-full min-h-0 flex-col bg-white text-xs"><div class="flex items-center justify-between border-b border-neutral-200 px-5 py-3"><div><h3 class="text-sm font-semibold text-neutral-900">Default values</h3><p class="mt-0.5 text-[11px] text-neutral-500">What Tailwind uses now: its default values, with the sections your file changes marked "customised" and open.</p></div><button type="button" data-close aria-label="Close" class="rounded px-2 py-1 text-neutral-500 hover:bg-neutral-100">Close</button></div><div class="min-h-0 flex-1 overflow-hidden" data-slot></div></div>`;
             document.body.appendChild(infoDlg);
             infoDlg.addEventListener("click", (e) => { if (e.target === infoDlg || e.target.closest("[data-close]")) infoDlg.close(); });
             infoDlg.addEventListener("keydown", (e) => e.stopPropagation());
@@ -145,7 +175,8 @@ export function mountConfigFileEditor(el, opts, onApply) {
         if (sc) { texts[scope][engine] = ta.value; scope = sc.dataset.scope; load(); return; }
         const en = e.target.closest("[data-engine]");
         if (en) { texts[scope][engine] = ta.value; engine = en.dataset.engine; load(); return; }
-        if (e.target.closest("[data-info]")) return showInfo();
+        if (e.target.closest("[data-values]")) return showValues();
+        if (e.target.closest("[data-help]")) return showHelp();
         if (e.target.closest("[data-note]")) return opts.onNote && opts.onNote();
         if (e.target.closest("[data-apply]")) return apply();
         if (e.target.closest("[data-reset]")) { if (!confirm(`Put ${name(scope, engine)} (${scope === "page" ? "this page" : "whole project"}) back to the blank template?`)) return; texts[scope][engine] = tmpl(scope, engine); diag[scope] = []; load(); }

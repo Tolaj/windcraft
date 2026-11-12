@@ -99,15 +99,26 @@ test("the Config tab holds the project's Tailwind file, which applies by itself;
     await page.locator("#codeConfig [data-ta]").fill('module.exports = {\n  theme: { extend: { colors: { proj: "#0f766e" } } },\n};\n');
     await page.waitForFunction(() => /^Applied/.test(document.querySelector("#codeConfig [data-status]").textContent), null, { timeout: 30000 });
     await until(page, "b", (i) => getComputedStyle(document.getElementById(i)).backgroundColor === "rgb(15, 118, 110)", 20000);
-    // the "i" button shows what is custom and what is Tailwind's default, in a dialog
-    await page.locator("#codeConfig [data-info]").click();
+    // the "Default values" button shows what is custom and what is Tailwind's default, in a dialog
+    await page.locator("#codeConfig [data-values]").click();
     await page.waitForSelector("dialog[open] [data-res] details");
     assert.ok(await page.locator("dialog[open] [data-res] details[open]").count() >= 1, "the sections that were changed are open");
     assert.match(await page.locator("dialog[open] [data-res]").textContent(), /customised[\s\S]*Tailwind default/);
     assert.match(await page.locator("dialog[open] [data-res]").textContent(), /#0f766e/);
     await page.keyboard.press("Escape");
     assert.equal(await page.locator("dialog[open]").count(), 0);
-        // a refresh from elsewhere keeps what is in the tab
+        // the "i" button shows how to add a plugin; the example for your own plugin is a file that works as it is
+    await page.locator("#codeConfig [data-help]").click();
+    await page.waitForSelector('dialog[open] [data-example="2"]');
+    const example = await page.locator('dialog[open] [data-example="2"]').textContent();
+    assert.match(example, /plugin\(function/);
+    await page.keyboard.press("Escape");
+    await page.locator("#codeConfig [data-ta]").fill(example);
+    await page.waitForFunction(() => /^Applied/.test(document.querySelector("#codeConfig [data-status]").textContent), null, { timeout: 30000 });
+    assert.match(await page.locator("#codeConfig [data-status]").textContent(), /^Applied to every page/, "the example runs without errors");
+    await page.locator("#codeConfig [data-ta]").fill('module.exports = {\n  theme: { extend: { colors: { proj: "#0f766e" } } },\n};\n');
+    await page.waitForFunction(() => /^Applied/.test(document.querySelector("#codeConfig [data-status]").textContent), null, { timeout: 30000 });
+    // a refresh from elsewhere keeps what is in the tab
     await page.evaluate(() => document.dispatchEvent(new CustomEvent("wc-config-changed")));
     assert.match(await page.locator("#codeConfig [data-ta]").inputValue(), /#0f766e/);
     // back to the code: the editor is where it was
