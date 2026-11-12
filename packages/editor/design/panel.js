@@ -152,7 +152,7 @@ function CanvasPanel({ c, actions }) {
     const swatch = (col) => html`<button type="button" title=${col} onClick=${() => actions.setCanvasBg(col)}
         style=${`width:22px;height:22px;border-radius:6px;background:${col};border:1px solid ${c.bg.toLowerCase() === col ? "#111" : "#d4d4d4"};box-shadow:${c.bg.toLowerCase() === col ? "0 0 0 2px #fff inset" : "none"}`}></button>`;
     return html`
-        <div class="sec"><div class="secb nopad"><p class="sub first">Canvas</p>
+        <div class="sec"><div class="secb nopad">
             <div class="row"><span class="lbl">Project</span><span class="truncate text-[11px] text-neutral-700">${c.project || "No project"}</span></div>
             <div class="row"><span class="lbl">Frames</span><span class="text-[11px] text-neutral-700">${c.frames}</span></div>
             ${c.partsOn === null || c.partsOn === undefined ? "" : html`<div class="row"><span class="lbl">Parts</span><label class="flex cursor-pointer items-center gap-1.5 text-[11px] text-neutral-700" title="On: the parts of every frame (header, hero, sections, footer) are made when it is saved, and listed on the project page. Off: none are made."><input type="checkbox" checked=${c.partsOn} onChange=${(e) => actions.setAutoParts(e.target.checked)} />Auto-create parts</label></div>
