@@ -186,8 +186,7 @@ A monorepo of small packages around a Node app.
 Windcraft is under active development.
 
 - **Solid:** the Properties panel, the code panel, selection and layers, the Figma converter's basic rules, projects and sharing.
-- **Newer:** Interactions, animations, the Tailwind config tab, and dragging to rearrange. They are tried in Chrome only. Safari, Firefox and touch are untried ([#8](https://github.com/Tolaj/windcraft/issues/8)), and big pages have not been timed ([#9](https://github.com/Tolaj/windcraft/issues/9)).
-- **Known gaps:** see the [open bugs](https://github.com/Tolaj/windcraft/labels/bug).
+- **Newer:** Interactions, animations, the Tailwind config tab, and dragging to rearrange. They are tried in Chrome only. Safari, Firefox and touch are untried, and big pages have not been timed.
 
 ## Roadmap
 
@@ -204,7 +203,7 @@ Windcraft is MIT licensed and open to everyone. You do not need to ask first.
 3. **Check** with `npm test` and `npm run typecheck`. A bug fix in `packages/core` or the Figma converter should come with a test that fails without it.
 4. **Open a pull request** into `main` and say what you changed and how you checked it.
 
-Good places to start: [`good first issue`](https://github.com/Tolaj/windcraft/labels/good%20first%20issue) and [`help wanted`](https://github.com/Tolaj/windcraft/labels/help%20wanted). [CONTRIBUTING.md](CONTRIBUTING.md) and the wiki's [Contributing and Reviews](https://github.com/Tolaj/windcraft/wiki/Contributing-and-Reviews) explain how reviews work. For questions, bugs and ideas, [open an issue](https://github.com/Tolaj/windcraft/issues/new) with the steps, what you expected, what happened and your browser.
+[CONTRIBUTING.md](CONTRIBUTING.md) and the wiki's [Contributing and Reviews](https://github.com/Tolaj/windcraft/wiki/Contributing-and-Reviews) explain how reviews work. For questions, bugs and ideas, [open an issue](https://github.com/Tolaj/windcraft/issues/new) with the steps, what you expected, what happened and your browser.
 
 ## License
 
