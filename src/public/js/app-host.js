@@ -57,7 +57,7 @@ export const appHost = {
         const res = await fetch(`/api/projects/${id}`, { method: "PUT", headers: JSON_HEADERS, body: JSON.stringify(patch) });
         const body = await res.json().catch(() => ({}));
         if (!res.ok || !body.success) throw new Error(body.message || `Could not save the setting (the server answered ${res.status})`);
-        return { autoParts: body.data.autoParts };
+        return { autoParts: body.data.autoParts, published: body.data.published };
     },
     loadFrames: async (id, group) => {
         const res = await fetch(`/api/projects/${id}/frames?group=${group === null ? "__all" : encodeURIComponent(group)}`);

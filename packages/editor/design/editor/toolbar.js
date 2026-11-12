@@ -40,6 +40,7 @@ async function persist(d) {
         m.id = saved._id;
         m.version = saved.version || 1;
         if (m.project) noteFrameSaved(m, saved.group || "");
+        if (m.project && m.isPublished !== true && typeof m.project.published === "boolean") m.project.published = false; // a private frame: not all are in the gallery now
         d.isNew = false;
         const old = d.key;
         remapKey(old, m.id);

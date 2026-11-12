@@ -8,6 +8,19 @@ import User from "../models/user.model.js";
 
 const isId = (v) => /^[a-f0-9]{24}$/i.test(String(v || ""));
 
+/** Whether a project's frames are all in the gallery (and there is at least one): the state of its "Publish" switch. Nothing is stored: it is read off the frames. */
+export async function publishState(userId, projectId) {
+    const where = { createdBy: userId, project: projectId, kind: { $ne: "section" } };
+    const [frames, open] = await Promise.all([Component.countDocuments(where), Component.countDocuments({ ...where, isPublished: true })]);
+    return { published: frames > 0 && open === frames, frames, open };
+}
+
+/** Puts every frame of a project in the gallery, or takes them all out. Returns the new state. */
+export async function setPublished(userId, projectId, on) {
+    await Component.updateMany({ createdBy: userId, project: projectId, kind: { $ne: "section" } }, { $set: { isPublished: on } });
+    return publishState(userId, projectId);
+}
+
 /** Finds a project by id or (case-insensitive) name for this user; optionally creates it. */
 export async function resolveProject(userId, ref, { create = false } = {}) {
     if (ref === undefined || ref === null || String(ref).trim() === "") return null;

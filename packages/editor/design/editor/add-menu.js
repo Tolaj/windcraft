@@ -101,7 +101,8 @@ export async function saveDetails(fields) {
     const saved = S.isNew ? await host.createComponent({ ...fields, htmlCode: assemble(), ...(fromDraft ? { draftId: data.draftId } : {}) }) : await host.updateComponent(data.id, fields);
     const movedProject = (data.project ? data.project.id : "") !== (fields.project || "");
     if (fields.kind) { const d = docs.get(S.curKey); if (d) d.kind = fields.kind; }
-    data.project = (data.projects || []).find((p) => p.id === fields.project) || null;
+    if (movedProject) data.project = (data.projects || []).find((p) => p.id === fields.project) || null; // (the same project keeps what it carries: whether all its frames are in the gallery)
+    if (data.project && String(fields.isPublished) !== "true") data.project.published = false;
     Object.assign(data, { title: fields.title, category: fields.category, description: fields.description, tags: String(fields.tags || "").split(",").map((t) => t.trim()).filter(Boolean), isPublished: String(fields.isPublished) === "true", useAsReference: fields.useAsReference !== false && fields.useAsReference !== "false" });
     if (S.isNew) {
         data.id = saved._id;

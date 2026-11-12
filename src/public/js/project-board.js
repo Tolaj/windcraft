@@ -428,6 +428,12 @@ function renderOutline() {
 function partsToggleHtml(margin = "") {
     return `<label class="${margin} flex cursor-pointer items-start gap-2 rounded-md border border-neutral-200 bg-white p-2 text-[11px] leading-4 text-neutral-600"><input data-parts-toggle type="checkbox" ${project.autoParts !== false ? "checked" : ""} class="mt-0.5 h-3.5 w-3.5 shrink-0 accent-black"><span><b class="text-neutral-900">Auto-create parts</b><br>Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.</span></label>`;
 }
+/** The "Publish" switch: every frame of the project in the gallery. It reads off the frames, so making one private turns it off. */
+const framesList = () => items.filter((i) => i.kind !== "section");
+const allPublished = () => { const f = framesList(); return f.length > 0 && f.every((i) => i.isPublished); };
+function publishToggleHtml() {
+    return `<label class="flex cursor-pointer items-start gap-2 rounded-md border border-neutral-200 bg-white p-2 text-[11px] leading-4 text-neutral-600"><input data-publish-toggle type="checkbox" ${allPublished() ? "checked" : ""} class="mt-0.5 h-3.5 w-3.5 shrink-0 accent-black"><span><b class="text-neutral-900">Publish all frames</b><br>Show every frame in the gallery. Making one frame private turns this off, and turning this off makes all of them private.</span></label>`;
+}
 function renderComponents(saved, found) {
     const words = filter.q ? filter.q.split(/\s+/) : [];
     const match = (text) => words.every((w) => text.toLowerCase().includes(w));
@@ -460,6 +466,22 @@ document.addEventListener("change", async (e) => {
     } catch {
         e.target.checked = !on;
         alert("Could not change the setting. Try again.");
+    }
+});
+
+// Publish: every frame in the gallery, or none
+document.addEventListener("change", async (e) => {
+    if (!e.target.matches || !e.target.matches("[data-publish-toggle]")) return;
+    const on = e.target.checked;
+    try {
+        const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ published: on }) });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.success) throw new Error(json.message || "not saved");
+        framesList().forEach((i) => { i.isPublished = on; });
+        renderDetails();
+    } catch {
+        e.target.checked = !on;
+        alert("Could not change it. Try again.");
     }
 });
 
@@ -562,6 +584,7 @@ function renderDetails() {
             <textarea id="briefInput" rows="7" class="fi area" placeholder="Brand, audience, tone, colors, navigation, rules. Claude reads this automatically when this is the active project.">${esc(project.brief || "")}</textarea>
             <button type="button" id="saveDesc" class="mt-2 h-7 w-full rounded-md border border-neutral-200 hover:bg-neutral-50">Save</button>
             <div class="mt-3">${partsToggleHtml()}</div>
+            <div class="mt-2">${publishToggleHtml()}</div>
             <p class="mt-4 text-neutral-500">Click a frame to see its details. Drag frames to arrange them. Double-click a frame to open it in the editor.</p>`;
         return;
     }

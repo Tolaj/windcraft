@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import Project from "../models/project.model.js";
 import Component from "../models/component.model.js";
 import FigmaSource from "../models/figmaSource.model.js";
-import { listProjects, getActiveProject, setActiveProject } from "../services/project.service.js";
+import { listProjects, getActiveProject, setActiveProject, publishState, setPublished } from "../services/project.service.js";
 import { buildDesignGuide } from "../services/guide.service.js";
 import { syncPartsOf } from "../services/import.service.js";
 import { planeOf } from "../services/plane.service.js";
@@ -57,7 +57,7 @@ projectPages.get("/:id", async (req, res) => {
         if (!project) throw new Error("missing");
         const active = await getActiveProject(req.session.user.id);
         const items = await Component.find({ createdBy: req.session.user.id, project: project._id })
-            .select("title description kind parent order group tags version htmlCode board useAsReference twConfig updatedAt")
+            .select("title description kind parent order group tags version htmlCode board useAsReference twConfig isPublished updatedAt")
             .sort("order createdAt")
             .lean();
         const data = {
@@ -66,7 +66,7 @@ projectPages.get("/:id", async (req, res) => {
             projects: (await Project.find({ owner: req.session.user.id }).select("name").sort("name").lean()).map((x) => ({ id: String(x._id), name: x.name })), // for "Move to project"
             items: items.map((c) => ({
                 id: String(c._id), title: c.title, useAsReference: c.useAsReference !== false, twConfig: c.twConfig || null, group: c.group || "", description: c.description, kind: c.kind, parent: c.parent ? String(c.parent) : null,
-                version: c.version || 1, tags: c.tags || [], htmlCode: c.htmlCode, frameW: c.frameW || null, board: c.board && Number.isFinite(c.board.x) ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) } : null, updatedAt: c.updatedAt,
+                version: c.version || 1, tags: c.tags || [], isPublished: c.isPublished === true, htmlCode: c.htmlCode, frameW: c.frameW || null, board: c.board && Number.isFinite(c.board.x) ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) } : null, updatedAt: c.updatedAt,
             })),
         };
         res.render("main/project", {
@@ -161,7 +161,9 @@ projectApi.put("/:id", async (req, res) => {
             for (const f of frames) { try { await syncPartsOf(req.session.user.id, f); } catch (err) { console.error("Parts error:", err); } }
         })();
     }
-    res.json({ success: true, data: { id: String(p._id), name: p.name, description: p.description, autoParts: p.autoParts !== false, theme: normalizeTheme(p.theme) } });
+    // "Publish": every frame of the project in the gallery (true), or none (false)
+    const gallery = req.body && typeof req.body.published === "boolean" ? await setPublished(req.session.user.id, p._id, req.body.published) : null;
+    res.json({ success: true, data: { id: String(p._id), name: p.name, description: p.description, autoParts: p.autoParts !== false, theme: normalizeTheme(p.theme), ...(gallery ? { published: gallery.published } : {}) } });
 });
 
 // Makes this the project Claude works in by default (or clears it with { active: false }).
