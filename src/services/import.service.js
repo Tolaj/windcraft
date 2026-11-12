@@ -7,6 +7,7 @@ import { parseDocument } from "@windcraft/core/split-sections.js";
 import { extractParts } from "@windcraft/core/extract-parts.js";
 import { tailwindWarning } from "./design-spec.service.js";
 import { normalizeGroup } from "@windcraft/core/pages.js";
+import { fitGroup } from "./plane.service.js";
 
 const MAX_HTML = 5_000_000;
 
@@ -145,7 +146,7 @@ export async function importDesign(userId, { title, html, description, tags = []
         }
         updated = nextVersion(page, html, String(note || "Saved again from Claude").slice(0, 200));
         if (description) page.description = String(description).slice(0, 200);
-        if (group !== undefined) page.group = normalizeGroup(group);
+        if (group !== undefined) { const g = normalizeGroup(group); page.group = g === page.group ? g : await fitGroup(userId, page.project, g, page._id); }
         if (Number.isFinite(frameW)) page.frameW = Math.round(frameW);
         page.tags = [...new Set([...(page.tags || []), ...baseTags, "page"])];
         await page.save();
@@ -155,7 +156,7 @@ export async function importDesign(userId, { title, html, description, tags = []
             description: description || doc.description || doc.heading,
             htmlCode: html,
             tags: [...baseTags, "page"],
-            project, kind: project ? "page" : "component", group, frameW,
+            project, kind: project ? "page" : "component", group: project ? await fitGroup(userId, project, normalizeGroup(group)) : group, frameW,
         });
         created.push(page);
     }

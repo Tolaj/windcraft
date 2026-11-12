@@ -13,6 +13,24 @@ export const boardOf = (c) => (c.board && Number.isFinite(c.board.x) && Number.i
     ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) }
     : null);
 
+/** The most frames one group holds: past it a frame goes to "Name-1", then "Name-2"... */
+export const GROUP_FRAMES = 50;
+
+/**
+ * The group a frame is saved into: the one asked for, or, when that holds GROUP_FRAMES frames already, the first "Name-N" with room.
+ * A frame already in the group stays (`id` is left out of the count). No group, or no project, is never capped.
+ */
+export async function fitGroup(userId, projectId, group, id = null) {
+    if (!group || !projectId) return group || "";
+    const count = (g) => Component.countDocuments({ createdBy: userId, project: projectId, kind: { $ne: "section" }, group: g, ...(id ? { _id: { $ne: id } } : {}) });
+    if ((await count(group)) < GROUP_FRAMES) return group;
+    const base = group.replace(/-\d+$/, "");
+    for (let n = 1; ; n++) {
+        const name = `${base.slice(0, 57 - String(n).length)}-${n}`;
+        if (name !== group && (await count(name)) < GROUP_FRAMES) return name;
+    }
+}
+
 const oid = (v) => new mongoose.Types.ObjectId(String(v));
 
 /** The groups of a project's frames, in the order of their first frame, each with its frame count ("" is the frames without a group). */

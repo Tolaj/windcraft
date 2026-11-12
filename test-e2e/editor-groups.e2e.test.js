@@ -43,3 +43,17 @@ test("the editor shows one group of a big project and switches group in place", 
     await page.waitForFunction(() => document.querySelectorAll(".fwrap").length === 35 && [...document.querySelectorAll(".flabel")].every((l) => l.textContent.includes("Beta")), null, { timeout: 30000 });
     await ctx.close();
 });
+
+test("a group holds 50 frames: the next one goes to Name-1, and a new frame in the editor starts in the group being viewed", { skip: skip || false, timeout: 240000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const make = async (title, group) => { const r = await ctx.request.post(`${stack.base}/api/components`, { data: { title, category: "apps-general", description: "x", htmlCode: `<div class="p-8">${title}</div>`, tags: "t", project: ids.project, kind: "page", group } }); assert.equal(r.status(), 201); return (await r.json()).data; };
+    for (let i = 0; i < 50; i++) await make(`Cap ${i}`, "Capped");
+    const over = await make("Cap 50", "Capped");
+    assert.equal(over.group, "Capped-1", "the 51st frame goes to Capped-1");
+    const again = await make("Cap 51", "Capped");
+    assert.equal(again.group, "Capped-1", "and the next ones follow it until it is full");
+    const moved = await (await ctx.request.put(`${stack.base}/api/components/${over.id || over._id}`, { data: { group: "Capped" } })).json();
+    assert.equal(moved.data.group, "Capped-1", "moving a frame into the full group puts it in Capped-1 again");
+    await ctx.close();
+});

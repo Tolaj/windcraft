@@ -4,7 +4,7 @@ import { $, S, data, send } from "./base.js";
 import { assembleDoc, loadFrame, step, updateChrome } from "./docs.js";
 import { pref } from "./color-ui.js";
 import { applyView, canvas, canvasSize, fitTo, handleWheel, layout, view, zoomAt } from "./plane.js";
-import { extrasOf, activate, anyDirty, boardPayload, clearSelection, docDirty, docs, loadActiveFromStash, pinBoard, remapKey, saveBoard, selectAllFrames } from "./designs.js";
+import { extrasOf, noteFrameSaved, activate, anyDirty, boardPayload, clearSelection, docDirty, docs, loadActiveFromStash, pinBoard, remapKey, saveBoard, selectAllFrames } from "./designs.js";
 import { openDetails } from "./add-menu.js";
 import { closePreview, openPreview, previewOpen } from "./present.js";
 
@@ -33,12 +33,13 @@ async function persist(d) {
     if (d.isNew) {
         const saved = await host.createComponent({
             ...body, title: m.title || "Untitled frame", category: m.category || DEFAULT_CATEGORY, description: m.description || "A frame on the canvas.",
-            tags: (m.tags || []).join(","), isPublished: String(m.isPublished), useAsReference: m.useAsReference !== false, project: m.project ? m.project.id : "",
+            tags: (m.tags || []).join(","), isPublished: String(m.isPublished), useAsReference: m.useAsReference !== false, project: m.project ? m.project.id : "", ...(m.group ? { group: m.group } : {}),
             ...(d.kind === "page" ? { kind: "page" } : {}), // a page made on the canvas is a page (its category, "Application Components" by default, would make it a component, and Preview would leave it out)
             ...(S.draftKey && d.key === S.draftKey ? { draftId: data.draftId } : {}), // a draft from Figma: its Figma data moves to this page
         });
         m.id = saved._id;
         m.version = saved.version || 1;
+        if (m.project) noteFrameSaved(m, saved.group || "");
         d.isNew = false;
         const old = d.key;
         remapKey(old, m.id);
