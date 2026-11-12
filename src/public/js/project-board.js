@@ -4,6 +4,7 @@ import { mountConfigFileEditor } from "@windcraft/editor/design/config-file-edit
 import { hasTw } from "@windcraft/core/config-file.js";
 import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
+import { mountPlan } from "@windcraft/core/mount-order.js";
 import { extractParts } from "@windcraft/core/extract-parts.js";
 import { parseDocument } from "@windcraft/core/split-sections.js";
 
@@ -154,28 +155,39 @@ $("fitBtn").addEventListener("click", fitAll);
 
 // ── Frames ───────────────────────────────────────────────────────────────────
 // A live preview (an iframe that loads Tailwind) per frame is too heavy for a project of hundreds of frames, so only the frames near the
-// screen are mounted, nearest first, at most MAX_LIVE at once; zoomed far out they are plain white blocks until you come closer.
-const MAX_LIVE = 40, LIVE_MIN_Z = 0.1;
-let mountTimer = 0;
+// screen are mounted, at most MAX_LIVE at once; zoomed far out they are plain white blocks until you come closer. The order matters
+// (core/mount-order.js): frames that match the search, tag or category come first, the others follow in small batches.
+const MAX_LIVE = 40, LIVE_MIN_Z = 0.1, BATCH = 6, BATCH_GAP = 250;
+let mountTimer = 0, mountRun = 0, batchTimer = 0;
 function scheduleMounts(delay = 140) { clearTimeout(mountTimer); mountTimer = setTimeout(refreshMounts, delay); }
 function unmount(entry) { if (entry.iframe) { entry.iframe.remove(); entry.iframe = null; } }
 function refreshMounts() {
+    const run = ++mountRun;
+    clearTimeout(batchTimer);
     const z = view.z, margin = 400 / z;
     const x0 = -view.x / z - margin, y0 = -view.y / z - margin, x1 = (board.clientWidth - view.x) / z + margin, y1 = (board.clientHeight - view.y) / z + margin;
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const picking = tab !== "component" && filterOn(); // a search, tag or category is on: the frames that match are the ones wanted
     const near = [];
     if (z >= LIVE_MIN_Z) {
         boardItems().forEach((it) => {
             const p = pos[it.id];
             if (!p) return;
             const w = widthOf(it), h = heightOf(it);
-            if (p.x < x1 && p.x + w > x0 && p.y < y1 && p.y + h > y0) near.push({ id: it.id, d: Math.hypot(p.x + w / 2 - cx, p.y + h / 2 - cy) });
+            if (p.x < x1 && p.x + w > x0 && p.y < y1 && p.y + h > y0) near.push({ id: it.id, d: Math.hypot(p.x + w / 2 - cx, p.y + h / 2 - cy), priority: picking && matchesFilter(it) });
         });
     }
-    near.sort((a, b) => a.d - b.d);
-    const keep = new Set(near.slice(0, MAX_LIVE).map((n) => n.id));
+    const plan = mountPlan(near, { max: MAX_LIVE, now: 8 });
+    const keep = new Set(plan.keep);
     for (const [id, entry] of wraps) if (entry.iframe && !keep.has(id)) unmount(entry);
-    keep.forEach(mount);
+    plan.now.forEach(mount);
+    const queue = plan.later.filter((id) => !(wraps.get(id) || {}).iframe);
+    const step = () => { // the rest, a few at a time, unless the view or the selection changed meanwhile (then this run is over)
+        if (run !== mountRun) return;
+        queue.splice(0, BATCH).forEach(mount);
+        if (queue.length) batchTimer = setTimeout(step, BATCH_GAP);
+    };
+    if (queue.length) batchTimer = setTimeout(step, BATCH_GAP);
 }
 
 function mount(id) {
@@ -381,7 +393,7 @@ $("fQuery").addEventListener("input", (e) => { filter.q = e.target.value.trim().
 $("fCat").addEventListener("change", (e) => { filter.cat = e.target.value; renderOutline(); });
 $("fTags").addEventListener("click", (e) => { const k = e.target.closest("[data-kind]"); if (k) { filter.kind = k.dataset.kind; renderFilters(); renderOutline(); return; } const b = e.target.closest("[data-tag]"); if (b) { filter.tag = b.dataset.tag; renderFilters(); renderOutline(); } });
 /** Frames that do not match are dimmed on the board. */
-function dimBoard() { wraps.forEach((entry, id) => { const it = byId(id); entry.wrap.style.opacity = it && tab !== "component" && filterOn() && it.kind !== "section" && !matchesFilter(it) ? "0.18" : ""; }); }
+function dimBoard() { scheduleMounts(0); wraps.forEach((entry, id) => { const it = byId(id); entry.wrap.style.opacity = it && tab !== "component" && filterOn() && it.kind !== "section" && !matchesFilter(it) ? "0.18" : ""; }); }
 
 let tab = "page"; // the sidebar lists the project's pages or its components, or shows its theme
 function renderOutline() {
