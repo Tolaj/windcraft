@@ -54,22 +54,22 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
 ## Screenshots
 
 <p align="center">
-  <img src="docs/media/editor.png" alt="The Windcraft editor with a heading selected: its Tailwind properties on the right and its code highlighted below" width="880">
+  <img src="docs/media/editor.png" alt="The Windcraft editor with a heading selected: its Tailwind properties on the right and its code highlighted below" width="720">
   <br><sub><b>Select anything.</b> The Properties panel shows its Tailwind classes, and the code panel highlights the exact element.</sub>
 </p>
 
 <p align="center">
-  <img src="docs/media/interactions.png" alt="The Interactions panel: when the menu button is clicked, show or hide the navigation" width="880">
+  <img src="docs/media/interactions.png" alt="The Interactions panel: when the menu button is clicked, show or hide the navigation" width="720">
   <br><sub><b>Interactions, no JavaScript.</b> Say what a button does: show or hide, change classes, scroll, copy, go to another frame. One-click Tabs and Modal.</sub>
 </p>
 
 <p align="center">
-  <img src="docs/media/animations.png" alt="The animation library: a grid of presets with a live preview and settings" width="760">
+  <img src="docs/media/animations.png" alt="The animation library: a grid of presets with a live preview and settings" width="540">
   <br><sub><b>Animations.</b> A preset library, a keyframe editor and scroll effects. The keyframes go into your Tailwind config.</sub>
 </p>
 
 <p align="center">
-  <img src="docs/media/config.png" alt="The Config tab of the code panel showing the project's Tailwind config" width="880">
+  <img src="docs/media/config.png" alt="The Config tab of the code panel showing the project's Tailwind config" width="720">
   <br><sub><b>Your Tailwind config.</b> Edit <code>tailwind.config.js</code> (Tailwind 3) or <code>global.css</code> (Tailwind 4), with plugins. It applies as you type.</sub>
 </p>
 
