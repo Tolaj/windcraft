@@ -30,4 +30,6 @@ Open <http://localhost:4000/editor/demo/>. Add `?theme` to the address to see a 
 2. **Change a value**, for example padding. The class changes (`p-4` becomes `p-6`).
 3. **Drag** the element to another place. See [Using the Editor](Using-the-Editor) for how dragging works.
 4. **Switch to Tablet or Mobile** and edit again: the change lands in the right breakpoint (`md:`).
-5. **Open the code panel** and edit the HTML: the design follows. Undo covers both.
+5. **Open the code panel** and edit the HTML: the design follows. Undo covers both. Its other tabs hold your CSS, your scripts and your Tailwind config.
+6. **Make it respond.** Select a button, open **Interactions** in the panel, and say what it does when clicked: show a menu, change classes, go to another frame. Try it with the Interact tool (`P`).
+7. **Press Preview** (the play button) to click through the saved frames.

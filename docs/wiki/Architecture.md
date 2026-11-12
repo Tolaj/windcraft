@@ -29,13 +29,22 @@ Principles: the classes are the only source of truth, and nothing Windcraft-only
 2. **Which half?** Staying in the box is the slot drag (`reorderGesture`); anything else is the ghost drag (`intent*`). A switch needs the other half to hold for 60 ms.
 3. **What does it write?** `dropSmart` removes what the old place gave the element and gives it the rhythm of its new neighbours; the host (`packages/core/intent.js`) writes the result for the right screen size.
 
+## Interactions, animations and the config
+
+- **Interactions** are data on the element and one shared script. A rule is `data-wc-do="click classes menu +w-full|-w-0"` (when, do, target id, and for classes what to add or remove), and `data-wc-start="hidden"` marks an element that starts closed. `packages/core/interactions.js` reads and writes the rules and holds the script (`INTERACT_SCRIPT`, marked `/*wc-interact*/`), which the editor adds to a page once. The script is a copy saved inside the page, so whenever a page is read, an older copy is replaced by the current one.
+- **Animations** work the same way: Tailwind classes for load, hover and focus, and a second small script (`/*wc-motion*/`) for scroll and click. The pieces are `animation-presets.js`, `animation-triggers.js`, `keyframe-model.js` and `text-effects.js` in `packages/core`. Keyframes are written into the project's Tailwind config by `config-edit.js`.
+- **The Tailwind config** lives on the project (`tailwind.config.js` or `global.css`). `config-file.js` and `config-resolve.js` (in `packages/core`) look up plugins and build what the canvas loads; `design/config-check.js` in the editor runs a file once in a hidden page before it is saved.
+- **The code panel's tabs** split a parsed page with `packages/core/code-parts.js`: the editor's own scripts stay in the HTML tab, and the JS tab holds only the page's own.
+- **Preview** is the `/prototype` page, which plays the frames of a project in order. A script in a frame asks the player to switch frames (`Go to frame`).
+
 ## Tests
 
 ```bash
 npm test            # unit tests for core, editor, ai, mcp and the Figma converter
+npm run e2e         # browser tests with a throwaway MongoDB (needs mongod and Chrome)
 npm run typecheck   # tsc over the whole repo
 ```
 
-Code that runs in the frame has no unit tests; it is checked by dragging in a browser. Moving its decision rules into `packages/core` is [issue #11](https://github.com/Tolaj/windcraft/issues/11).
+Code that runs in the frame has no unit tests; it is checked by dragging in a browser. Moving its decision rules into `packages/core` is on the roadmap.
 
 More detail on individual parts is in [`docs/PROJECT.md`](https://github.com/Tolaj/windcraft/blob/main/docs/PROJECT.md).

@@ -57,6 +57,22 @@ await mountEditor(document.getElementById("root"), {
 });
 ```
 
+The host is an object with these functions. The editor calls the first group, so supply them (a function that does nothing is fine when you have no use for it; `startEditor` does this for you). The optional ones switch parts of the editor on.
+
+| Function | What it does | If you leave it out |
+|---|---|---|
+| `createComponent(fields)` | Saves a new design and resolves to the saved record (`_id`, `version`, ...) | Required |
+| `updateComponent(id, fields)` | Changes a saved design (a new version when its code changes) | Required |
+| `deleteComponent(id)` | Deletes a saved design | No Delete button |
+| `createProject(name)` | Makes a project, the canvas designs share | Required |
+| `saveLayout(projectId, positions)` and `saveLayoutOnExit(...)` | Where each design sits on the project's canvas | Required (positions are not kept if it does nothing) |
+| `showDesign(id)` and `openDesign(id)` | The address now shows this design, and go to another design | Required |
+| `generate(body, onText)` | The AI drafts a page and resolves to its HTML | No AI box or AI tab |
+| `saveProjectTheme(projectId, theme)` | Saves the project's theme and Tailwind config, and resolves to what was kept | The Tailwind config is shown but cannot be changed |
+| `projectUrl(projectId)` | Where a project's own page is | The project name is not a link |
+| `previewUrl({ projectId, designId })` | The prototype page for a saved design | Preview opens over the editor instead of in its own tab |
+| `updateFromFigma(id)` | Converts a design again from its Figma data | No such button |
+
 ## Put it inside a part of a page
 
 `startEditor` and `mountEditor` take over the whole page. To place the editor in one box, use `embedEditor`. It runs in an iframe, so several can share a page.

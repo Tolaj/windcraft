@@ -1,6 +1,6 @@
 # Windcraft
 
-**Design in Tailwind. Keep it as code.** Windcraft is a visual editor where the page is plain HTML with Tailwind classes, and every control reads and writes those classes.
+**Design in Tailwind. Keep it as code.** Windcraft is a visual editor where a design is plain HTML with Tailwind classes, and every control reads and writes those classes. It also does interactions, animations and your Tailwind config, without leaving the code.
 
 New here? Start with **[Getting Started](Getting-Started)**.
 

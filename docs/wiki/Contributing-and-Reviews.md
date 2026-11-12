@@ -4,8 +4,8 @@ Windcraft is MIT licensed and open to everyone. You do not need to ask first.
 
 ## Where to start
 
-- A [`good first issue`](https://github.com/Tolaj/windcraft/labels/good%20first%20issue) or a [`help wanted`](https://github.com/Tolaj/windcraft/labels/help%20wanted) issue.
-- Testing needs no code: try the editor in another browser and report ([#8](https://github.com/Tolaj/windcraft/issues/8)).
+- Something from **Next** on [Roadmap and Status](Roadmap-and-Status). Open an issue to say you are on it.
+- Testing needs no code: try the editor in Safari, Firefox or on a touch screen, and report what you find.
 - Docs are code too: fix anything that is wrong or missing, on this wiki (the pages live in [`docs/wiki`](https://github.com/Tolaj/windcraft/tree/main/docs/wiki)) or in the README.
 
 ## How to contribute
