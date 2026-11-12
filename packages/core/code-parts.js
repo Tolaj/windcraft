@@ -4,8 +4,8 @@
 
 /** A style the page wrote itself (a typed one, such as Tailwind 4's text/tailwindcss, stays in the HTML tab). */
 export const isOwnStyle = (s) => !s.type;
-/** An inline script the page wrote itself. Scripts with a src, a Tailwind config (`tailwind.config = …`) or a data type stay in the HTML tab. */
-export const isOwnScript = (s) => !s.src && (!s.type || /^(module|text\/javascript|application\/javascript)$/i.test(s.type)) && !/\btailwind\.config\s*=/.test(s.text);
+/** An inline script the page wrote itself. Scripts with a src, a Tailwind config (`tailwind.config = …`), a data type, or one the editor manages (it begins with a wc-motion or wc-interact comment) stay in the HTML tab. */
+export const isOwnScript = (s) => !s.src && (!s.type || /^(module|text\/javascript|application\/javascript)$/i.test(s.type)) && !/\btailwind\.config\s*=/.test(s.text) && !/^\s*\/\*wc-[a-z]+\*\//.test(s.text);
 
 const join = (list) => list.map((s) => s.text.trim()).filter(Boolean).join("\n\n");
 

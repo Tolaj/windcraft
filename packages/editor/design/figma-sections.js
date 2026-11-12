@@ -30,6 +30,7 @@ export const I = {
     between: svg('<path d="M2.5 2v12M13.5 2v12"/><rect x="4.5" y="5" width="2.5" height="6" rx=".6"/><rect x="9" y="5" width="2.5" height="6" rx=".6"/>'),
     sides: svg('<rect x="2.5" y="2.5" width="11" height="11" rx="2" stroke-dasharray="2.2 1.8"/>'),
     plus: svg('<path d="M8 3.5v9M3.5 8h9"/>'),
+    target: svg('<circle cx="8" cy="8" r="4"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3"/>'),
     minus: svg('<path d="M3.5 8h9"/>'),
     up: svg('<path d="M8 13V3.5M4 7.5 8 3.5l4 4"/>'),
     down: svg('<path d="M8 3v9.5M4 8.5l4 4 4-4"/>'),

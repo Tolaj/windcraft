@@ -12,6 +12,7 @@ import { openConfig } from "./config-dialog.js";
 import { newAnimation, ensureEntries } from "./animation-dialog.js";
 import { REVEALS, EFFECT_ENTRIES, typewriterClasses } from "../../../core/text-effects.js";
 import { triggerPlan, WIRING, ATTRS, delayClass, hasMotionScript, MOTION_SCRIPT } from "../../../core/animation-triggers.js";
+import { ATTR as DO_ATTR, START_ATTR, INTERACT_SCRIPT, hasInteractScript, freshId, writeRules, parseRules } from "../../../core/interactions.js";
 import { setPreviewTheme } from "../../playground/component-source.js";
 import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
@@ -87,6 +88,47 @@ const panelActions = {
     setTag: (tag) => { if (S.selected) cmd({ cmd: "setTag", path: S.selected.path, tag }); },
     setTab: (tab) => panelStore.set({ tab }),
     openConfig,
+    // Interactions (style-sections.js InteractionsSection): the page's elements to act on, an id for one (given when it has none), the rules on the selected element
+    interactionTargets: () => {
+        const out = [];
+        const self = S.selected ? S.selected.path.join(".") : null;
+        (function walk(n, depth) {
+            if (!n) return;
+            if (n.tag !== "body" && n.path.join(".") !== self) out.push({ key: n.path.join("."), path: n.path, id: n.label && n.label.startsWith("#") ? n.label.slice(1) : "", tag: n.tag, label: n.label || "", depth, start: Boolean(n.start), cls: n.cls || "" });
+            (n.children || []).forEach((c) => walk(c, depth + 1));
+        })(S.tree, 0);
+        return out;
+    },
+    targetId: (path) => {
+        const all = [];
+        (function walk(n) { if (!n) return; all.push(n); (n.children || []).forEach(walk); })(S.tree);
+        const node = all.find((n) => n.path.join(".") === path.join("."));
+        if (!node) return "";
+        if (node.label && node.label.startsWith("#")) return node.label.slice(1);
+        const id = freshId(node.tag, all.filter((n) => n.label && n.label.startsWith("#")).map((n) => n.label.slice(1)));
+        cmd({ cmd: "setAttr", path, name: "id", value: id }, "attr-id");
+        return id;
+    },
+    setRules: (rules) => {
+        if (!S.selected) return;
+        const value = writeRules(rules);
+        if (value) ensureInteractScript();
+        cmd({ cmd: "setAttr", path: S.selected.path, name: DO_ATTR, value: value || null }, "interactions");
+        // "starts hidden" only makes sense for an element a rule shows or hides: when none does any more (the rule became Change classes, or was removed), the mark would
+        // hide it for good, with nothing to bring it back
+        const shown = new Set(), nodes = [], self = S.selected.path.join(".");
+        (function walk(n) { if (!n) return; nodes.push(n); (n.children || []).forEach(walk); })(S.tree);
+        nodes.forEach((n) => parseRules(n.path.join(".") === self ? value : n.rules).filter((r) => ["toggle", "show", "hide"].includes(r.do)).forEach((r) => shown.add(r.to)));
+        nodes.filter((n) => n.start && !shown.has((n.label || "").replace(/^#/, ""))).forEach((n) => cmd({ cmd: "setAttr", path: n.path, name: START_ATTR, value: null }, "interactions"));
+    },
+    setStart: (id, on) => {
+        const all = [];
+        (function walk(n) { if (!n) return; all.push(n); (n.children || []).forEach(walk); })(S.tree);
+        const node = all.find((n) => n.label === `#${id}`);
+        if (node) cmd({ cmd: "setAttr", path: node.path, name: START_ATTR, value: on ? "hidden" : null }, "interactions");
+    },
+    pickTarget: (done) => { S.pickCb = done; send({ cmd: "pickTarget", on: true }); },
+    cancelPick: () => { S.pickCb = null; send({ cmd: "pickTarget", on: false }); },
     newAnimation: () => newAnimation(({ name, trigger, reducedMotion, range }) => panelActions.setAnimation(name, trigger, reducedMotion, range)),
     // wire the selected element to an animation on a trigger (one history step); scroll and click bring the page a small script, once
     setAnimation: (name, trigger = "load", reducedMotion = true, range = "") => {
@@ -205,6 +247,10 @@ const bodyActions = Object.fromEntries(Object.entries(panelActions).map(([k, f])
 /** The page needs its motion script (scroll and click triggers) once: added to the design's scripts, saved and exported with it. */
 function ensureMotionScript() {
     if (S.parsed && !hasMotionScript(S.parsed.scripts)) S.parsed.scripts.push({ src: "", type: "", defer: false, text: MOTION_SCRIPT });
+}
+/** The page needs its interactions script once: added to the design's scripts, saved and exported with it. */
+function ensureInteractScript() {
+    if (S.parsed && !hasInteractScript(S.parsed.scripts)) S.parsed.scripts.push({ src: "", type: "", defer: false, text: INTERACT_SCRIPT });
 }
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
 export function renderInspector() {

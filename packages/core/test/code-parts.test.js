@@ -12,6 +12,7 @@ test("the CSS and JS tabs hold only what the page wrote itself", () => {
     assert.equal(cssText(page()), "p{color:red}\n\na{color:blue}");
     assert.equal(jsText(page()), "console.log(1)");
     assert.equal(isOwnScript({ src: "", type: "module", text: "import x" }), true);
+    assert.equal(isOwnScript({ src: "", type: "", text: "/*wc-motion*/(function(){})()" }), false, "the editor's own scripts are not the page's JS");
     const rest = withoutOwn(page());
     assert.deepEqual(rest.styles.map((s) => s.type), ["text/tailwindcss"]);
     assert.equal(rest.scripts.length, 3);
