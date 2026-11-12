@@ -99,6 +99,7 @@ const panelActions = {
         })(S.tree, 0);
         return out;
     },
+    interactionPages: () => [...docs.values()].filter((d) => d.kind !== "section" && d.meta && d.meta.id).map((d) => ({ id: String(d.meta.id), title: (d.key === S.curKey ? data.title : d.meta.title) || "" })),
     targetId: (path) => {
         const all = [];
         (function walk(n) { if (!n) return; all.push(n); (n.children || []).forEach(walk); })(S.tree);

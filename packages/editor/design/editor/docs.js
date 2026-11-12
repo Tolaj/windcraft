@@ -72,11 +72,14 @@ export function loadFrame() {
 const INTERACT_CURSOR = 'url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cg%20stroke%3D%22%23fff%22%20stroke-width%3D%223.6%22%3E%3Cpath%20d%3D%22M9%209l11%204.5-4.6%201.4L14%2019.5z%22%2F%3E%3Cpath%20d%3D%22M6.5%203.5%207%206M3.5%206.5%206%207M4.5%2010.5l2-1.5M10.5%204.5%209%206.5%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23111%22%20stroke-width%3D%221.6%22%3E%3Cpath%20d%3D%22M9%209l11%204.5-4.6%201.4L14%2019.5z%22%2F%3E%3Cpath%20d%3D%22M6.5%203.5%207%206M3.5%206.5%206%207M4.5%2010.5l2-1.5M10.5%204.5%209%206.5%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") 9 9, default';
 const previewCursorStyle = `<style data-wc-cursor>html{cursor:${INTERACT_CURSOR}}</style>`;
 const previewWheelScript = (load) => `<script data-wc-wheel>(function(){var L=${load};addEventListener("wheel",function(e){if(!(e.ctrlKey||e.metaKey))return;e.preventDefault();parent.postMessage({type:"wheel",x:e.clientX,y:e.clientY,dx:e.deltaX,dy:e.deltaY,zoom:true,load:L},"*")},{passive:false});["gesturestart","gesturechange","gestureend"].forEach(function(t){addEventListener(t,function(e){e.preventDefault()})})})()<\/script>`;
+// "Go to page" (an interaction rule) in Interact: the page asks the editor to open that page, and Interact goes on there
+const previewGotoScript = (load) => `<script data-wc-goto>window.__wcGoto=function(k){parent.postMessage({type:"wcGoto",key:k,load:${load}},"*")}<\/script>`;
 function previewDocument() {
     const html = buildPreviewDocument(parseComponentSource(assemble()), { width: curWidth() });
     const withCursor = /<\/head>/i.test(html) ? html.replace(/<\/head>/i, previewCursorStyle + "</head>") : previewCursorStyle + html;
     const at = withCursor.lastIndexOf("</body>");
-    return at < 0 ? withCursor + previewWheelScript(S.loadSeq) : withCursor.slice(0, at) + previewWheelScript(S.loadSeq) + withCursor.slice(at);
+    const extra = previewWheelScript(S.loadSeq) + previewGotoScript(S.loadSeq);
+    return at < 0 ? withCursor + extra : withCursor.slice(0, at) + extra + withCursor.slice(at);
 }
 
 // ── History, dirty state, layout ─────────────────────────────────────────────
