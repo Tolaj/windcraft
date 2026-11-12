@@ -58,28 +58,20 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
   <br><sub><b>Select anything.</b> The Properties panel shows its Tailwind classes, and the code panel highlights the exact element.</sub>
 </p>
 
-<table>
-  <tr>
-    <td valign="top" width="50%">
-      <img src="docs/media/interactions.png" alt="The Interactions panel: when a button is clicked, change the classes of the menu" width="430">
-      <br><b>Interactions, no JavaScript.</b> Click a button, change classes on the menu. One-click Tabs and Modal.
-    </td>
-    <td valign="top" width="50%">
-      <img src="docs/media/animations.png" alt="The animation library: a grid of presets with a live preview and settings" width="430">
-      <br><b>Animations.</b> A preset library, a keyframe editor, scroll effects. The keyframes go into your Tailwind config.
-    </td>
-  </tr>
-  <tr>
-    <td valign="top" width="50%">
-      <img src="docs/media/config.png" alt="The Config tab of the code panel with a Tailwind config that adds a brand colour" width="430">
-      <br><b>Your Tailwind config.</b> Edit <code>tailwind.config.js</code> (Tailwind 3) or <code>global.css</code> (Tailwind 4) with plugins. It applies as you type.
-    </td>
-    <td valign="top" width="50%">
-      <img src="docs/media/responsive.png" alt="A desktop frame and a mobile frame side by side on the canvas" width="430">
-      <br><b>Frames and breakpoints.</b> Desktop and mobile side by side. Edits land in the right breakpoint (<code>md:p-8</code>).
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/media/interactions.png" alt="The Interactions panel: when the menu button is clicked, show or hide the navigation" width="880">
+  <br><sub><b>Interactions, no JavaScript.</b> Say what a button does: show or hide, change classes, scroll, copy, go to another frame. One-click Tabs and Modal.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/media/animations.png" alt="The animation library: a grid of presets with a live preview and settings" width="760">
+  <br><sub><b>Animations.</b> A preset library, a keyframe editor and scroll effects. The keyframes go into your Tailwind config.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/media/config.png" alt="The Config tab of the code panel showing the project's Tailwind config" width="880">
+  <br><sub><b>Your Tailwind config.</b> Edit <code>tailwind.config.js</code> (Tailwind 3) or <code>global.css</code> (Tailwind 4), with plugins. It applies as you type.</sub>
+</p>
 
 ## What you can do
 
