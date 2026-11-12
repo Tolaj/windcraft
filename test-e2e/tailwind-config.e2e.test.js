@@ -232,3 +232,38 @@ test("a new animation is written into the project's config and works after a rel
     assert.equal(name, "zoom-in", "Tailwind turns the config's animation into the animate-zoom-in class");
     await page.close();
 });
+
+test("an animation made in the keyframe editor is written into the config as keyframes", { skip: skip || false, timeout: 170000 }, async () => {
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    await page.waitForSelector("#inspector", { state: "attached" });
+    await page.waitForTimeout(3500);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
+    const frame = await frameWith(page, "a");
+    const b = await frame.locator("#a").boundingBox();
+    await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.dblclick(b.x + b.width / 2, b.y + b.height / 2);
+    await page.click('#inspector [title^="Make a new animation"]');
+    await page.click('[data-mode="editor"]');
+    assert.equal(await page.inputValue("#animName"), "my-animation", "a fresh animation gets a name of its own");
+    await page.check('#animEditor [data-on="translateY"]');
+    await page.fill('#animEditor [data-num="translateY"]', "30");
+    const tr = await page.locator("#animEditor [data-track]").boundingBox();
+    await page.mouse.click(tr.x + tr.width * 0.6, tr.y + 24); // a stop at 60%
+    await page.check('#animEditor [data-on="scale"]');
+    await page.fill('#animEditor [data-num="scale"]', "1.2");
+    await page.check('#animEditor [data-on="opacity"]');
+    await page.fill('#animEditor [data-num="opacity"]', "1");
+    assert.equal(await page.$$eval("#animEditor [data-stop]", (s) => s.length), 3, "three stops: 0%, 60%, 100%");
+    await page.fill("#animName", "kf-pop");
+    await page.click("#animCreate");
+    await page.waitForSelector("#animDlg:not([open])", { state: "attached" });
+    assert.equal(await page.textContent("#animErr"), "");
+    await page.goto(`${stack.base}/projects/${ids.project}`);
+    await page.click("#tabTheme"); await page.click('[data-engine="3"]');
+    const file = await page.inputValue("[data-ta]");
+    assert.match(file, /"kf-pop": "kf-pop 0\.6s ease-out 0s 1 normal both"/);
+    assert.match(file, /"0%": \{[^}]*"transform": "translateY\(30px\)"/);
+    assert.match(file, /"60%": \{[^}]*"transform": "scale\(1\.2\)"/);
+    await page.close();
+});
