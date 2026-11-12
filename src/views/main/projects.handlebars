@@ -2,7 +2,7 @@
     <div class="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
             <h1 class="text-4xl font-bold text-gray-900 mb-2">Projects</h1>
-            <p class="text-gray-600">Group the pages and sections of a website or app, like a Figma file. Claude can file designs straight into a project.</p>
+            <p class="text-gray-600">Group the frames and parts of a website or app, like a Figma file. Claude can file designs straight into a project.</p>
         </div>
         <div class="flex items-center gap-2">
         <a href="/projects/design-guide.md?download=1" class="inline-flex h-9 items-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50" title="A markdown guide generated from your designs, for a CLAUDE.md or an agent">Design guide</a>
@@ -34,8 +34,8 @@
                 {{#if (gt this.catNames.length 5)}}<span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] leading-4 text-gray-500">+{{minus this.catNames.length 5}}</span>{{/if}}
             </div>
             <div class="mt-3 flex gap-4 text-sm text-gray-700">
-                <span><strong class="text-gray-900">{{this.pages}}</strong> page{{#unless (eq this.pages 1)}}s{{/unless}}</span>
-                <span><strong class="text-gray-900">{{this.components}}</strong> component{{#unless (eq this.components 1)}}s{{/unless}}</span>
+                <span><strong class="text-gray-900">{{this.pages}}</strong> frame{{#unless (eq this.pages 1)}}s{{/unless}}</span>
+                <span><strong class="text-gray-900">{{this.components}}</strong> part{{#unless (eq this.components 1)}}s{{/unless}}</span>
             </div>
         </a>
         {{/each}}

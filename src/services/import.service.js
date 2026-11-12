@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import Component from "../models/component.model.js";
+import Project from "../models/project.model.js";
 import { buildProfile, enrichProfileWithAI } from "./profile.service.js";
 import { normalizeTags } from "../controllers/component.controller.js";
 import { parseDocument } from "@windcraft/core/split-sections.js";
@@ -102,9 +103,17 @@ export async function syncSections(userId, page, { doc, baseTags = [], project, 
     return { sections, created, removed: gone.length };
 }
 
-/** A page saved from the editor (or made there): its parts are made or updated to match. Only pages in a project have parts. */
+/** Whether a project makes parts on its own (its "Auto-create parts" setting; on unless it was turned off). A save outside a project always may. */
+export async function projectMakesParts(projectId) {
+    if (!projectId) return true;
+    const p = await Project.findById(projectId).select("autoParts").lean();
+    return !p || p.autoParts !== false;
+}
+
+/** A page saved from the editor (or made there): its parts are made or updated to match. Only pages in a project have parts, and only while the project's setting is on. */
 export async function syncPartsOf(userId, page) {
     if (!page || page.kind !== "page" || !page.project) return { sections: [], created: [], removed: 0 };
+    if (!(await projectMakesParts(page.project))) return { sections: [], created: [], removed: 0 };
     return syncSections(userId, page, { doc: parseDocument(page.htmlCode), baseTags: [], project: page.project, isNew: false });
 }
 
@@ -154,7 +163,7 @@ export async function importDesign(userId, { title, html, description, tags = []
     const isNew = created.includes(page);
     // sections are only linked to their page inside a project: outside one, a page saved again gets no new copies
     let sections = [], removedSections = 0;
-    if (split && (isNew || project)) {
+    if (split && (isNew || project) && (await projectMakesParts(project))) {
         const r = await syncSections(userId, page, { doc, baseTags, project, isNew });
         sections = r.sections; removedSections = r.removed; created.push(...r.created);
     }

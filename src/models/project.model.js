@@ -9,6 +9,8 @@ const projectSchema = new mongoose.Schema(
         sharedHead: { type: String, default: "", maxlength: 20000 },
         // the project's theme (brand colour, gray palette, font, radius): see packages/core/theme.js; null until it is set, then the default applies
         theme: { type: mongoose.Schema.Types.Mixed, default: null },
+        // parts (a frame's header, hero, sections, footer...): made automatically, and listed on the project page, only while this is on
+        autoParts: { type: Boolean, default: true },
         // the share link: anyone with /p/<shareToken> can look at the project and copy its code (no account); empty = not shared
         shareToken: { type: String, default: "", index: true },
         // the prototype link: anyone with /prototype/<protoToken> can click through the pages, full screen, and nothing else (no code, no editing); empty = not shared

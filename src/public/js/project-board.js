@@ -41,6 +41,7 @@ const KINDS = [["nav", "Navigation"], ["hero", "Hero"], ["section", "Sections"],
 const extractCache = new Map(); // page id -> { key, found }
 function extractedAll() {
     const out = [];
+    if (project.autoParts === false) return out; // parts are made only while the project's "Auto-create parts" is on
     pages().forEach((pg) => {
         const key = `${pg.version}|${(pg.htmlCode || "").length}`;
         let hit = extractCache.get(pg.id);
@@ -338,7 +339,7 @@ function renderHeader() {
     const pg = pages().filter((i) => i.kind !== "component");
     const comp = items.filter((i) => i.kind === "component").length;
     const parts = comp + extractedAll().length; // saved components and the parts the rules find in the pages
-    $("projStats").textContent = `${pg.length} page${pg.length === 1 ? "" : "s"} · ${parts} component${parts === 1 ? "" : "s"}`;
+    $("projStats").textContent = `${pg.length} frame${pg.length === 1 ? "" : "s"} · ${parts} part${parts === 1 ? "" : "s"}`;
     $("newDesignBtn").href = `/design/new?project=${project.id}&kind=component`; // the same as New project: a blank page, the code below it
     const ab = $("activeBtn");
     ab.textContent = project.active ? "Active project ✓" : "Set as active";
@@ -394,8 +395,8 @@ function renderOutline() {
     if (tab === "theme") { [["tabPages", "page"], ["tabComponents", "component"]].forEach(([id]) => { $(id).className = "flex-1 whitespace-nowrap border-b-2 border-transparent px-2 py-2.5 text-neutral-500 hover:text-neutral-900"; }); return; }
     $("filters").classList.remove("hidden");
     const pc = pages().filter((i) => i.kind !== "component").length, saved = items.filter((i) => i.kind === "component"), found = extractedAll();
-    $("tabPages").title = `${pc} page${pc === 1 ? "" : "s"}`;
-    $("tabComponents").title = `${found.length + saved.length} component${found.length + saved.length === 1 ? "" : "s"}`;
+    $("tabPages").title = `${pc} frame${pc === 1 ? "" : "s"}`;
+    $("tabComponents").title = `${found.length + saved.length} part${found.length + saved.length === 1 ? "" : "s"}`;
     [["tabPages", "page"], ["tabComponents", "component"]].forEach(([id, t]) => {
         $(id).className = `flex-1 whitespace-nowrap border-b-2 px-2 py-2.5 ${tab === t ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}`;
     });
@@ -406,9 +407,9 @@ function renderOutline() {
         const g = p.group || "";
         const heading = g !== prev && (g || prev) ? `<div class="group-head">${esc(g || "No group")}</div>` : "";
         prev = g;
-        const row = (it, depth) => `<div class="layer-row cursor-pointer gap-1 px-1 ${it.id === selectedId ? "is-selected" : ""}" style="padding-left:${depth * 14 + 6}px" data-pick="${it.id}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${it.kind === "section" ? partKind(it) : it.kind === "component" ? "comp" : "page"}</span><span class="truncate" title="${esc(it.title)}">${esc(partName(it))}</span></div>`;
+        const row = (it, depth) => `<div class="layer-row cursor-pointer gap-1 px-1 ${it.id === selectedId ? "is-selected" : ""}" style="padding-left:${depth * 14 + 6}px" data-pick="${it.id}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${it.kind === "section" ? partKind(it) : it.kind === "component" ? "part" : "frame"}</span><span class="truncate" title="${esc(it.title)}">${esc(partName(it))}</span></div>`;
         return heading + row(p, 0);
-    }).join("") || `<div class="p-3 text-neutral-500">${filterOn() ? "Nothing matches." : "No pages yet."}</div>`;
+    }).join("") || `<div class="p-3 text-neutral-500">${filterOn() ? "Nothing matches." : "No frames yet."}</div>`;
     dimBoard();
 }
 function renderComponents(saved, found) {
@@ -416,17 +417,35 @@ function renderComponents(saved, found) {
     const match = (text) => words.every((w) => text.toLowerCase().includes(w));
     const mine = filter.kind ? [] : saved.filter((c) => match(`${c.title} ${c.description || ""} ${(c.tags || []).join(" ")}`));
     const row = (id, tag, name, from) => `<div class="layer-row cursor-pointer gap-1 px-1 ${id === selectedId ? "is-selected" : ""}" style="padding-left:6px" data-pick="${esc(id)}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${tag}</span><span class="truncate" title="${esc(name)}">${esc(name)}</span>${from ? `<span class="ml-auto max-w-[70px] shrink-0 truncate pl-2 text-[10px] text-neutral-400" title="from ${esc(from)}">${esc(from)}</span>` : ""}</div>`;
-    let html = mine.length ? `<div class="group-head">Saved components</div>${mine.map((c) => row(c.id, "comp", c.title, "")).join("")}` : "";
+    const on = project.autoParts !== false;
+    const toggle = `<label class="m-2 flex cursor-pointer items-start gap-2 rounded-md border border-neutral-200 bg-white p-2 text-[11px] leading-4 text-neutral-600"><input id="partsToggle" type="checkbox" ${on ? "checked" : ""} class="mt-0.5 h-3.5 w-3.5 shrink-0 accent-black"><span><b class="text-neutral-900">Auto-create parts</b><br>Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.</span></label>`;
+    let html = mine.length ? `<div class="group-head">Saved parts</div>${mine.map((c) => row(c.id, "part", c.title, "")).join("")}` : "";
     KINDS.forEach(([k, name]) => {
         if (filter.kind && filter.kind !== k) return;
         const list = found.filter((x) => x.kind === k && match(`${x.name} ${x.pageTitle} ${k}`));
         if (list.length) html += `<div class="group-head">${name} · ${list.length}</div>${list.map((x) => row(x.id, k, x.kind === "button" ? x.name.replace(/^Button: /, "") : x.name, x.pageTitle)).join("")}`;
     });
-    $("outline").innerHTML = html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your pages."}</div>`;
+    $("outline").innerHTML = toggle + (html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : on ? "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your frames." : "Parts are off for this project, so none are made or listed. Turn on Auto-create parts above to make them."}</div>`);
 }
 $("tabPages").addEventListener("click", () => { tab = "page"; renderFilters(); renderOutline(); });
 $("tabComponents").addEventListener("click", () => { tab = "component"; renderFilters(); renderOutline(); });
 $("tabTheme").addEventListener("click", () => { tab = "theme"; renderOutline(); renderTheme(); });
+// Auto-create parts: on, the parts of every frame are made and listed; off, none are (nothing already made is deleted)
+$("outline").addEventListener("change", async (e) => {
+    if (e.target.id !== "partsToggle") return;
+    const on = e.target.checked;
+    try {
+        const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoParts: on }) });
+        if (!res.ok) throw new Error("not saved");
+        project.autoParts = on;
+        extractCache.clear();
+        renderHeader(); renderFilters(); renderOutline();
+        if (tab === "component") { buildFrames(); fitAll(); }
+    } catch {
+        e.target.checked = !on;
+        alert("Could not change the setting. Try again.");
+    }
+});
 
 // ── Theme: brand colour, gray, font, radius; saved to the project and drawn in every preview ──────────────────────────────────────────
 const FONTS = ["Inter", "Roboto", "Open Sans", "Poppins", "Lato", "Montserrat", "Nunito", "DM Sans", "Work Sans", "Source Sans 3", "Playfair Display", SYSTEM_FONT];
@@ -493,7 +512,7 @@ function renderTheme() {
     $("thFont").addEventListener("input", (e) => { theme = normalizeTheme({ ...theme, font: e.target.value }); });
     $("thSave").addEventListener("click", async () => {
         $("thMsg").textContent = "Saving…";
-        try { await saveTheme(normalizeTheme({ ...theme, font: $("thFont").value })); editor.set({ theme }); $("thMsg").textContent = "Applied to every page and component in this project."; }
+        try { await saveTheme(normalizeTheme({ ...theme, font: $("thFont").value })); editor.set({ theme }); $("thMsg").textContent = "Applied to every frame and part in this project."; }
         catch (err) { $("thMsg").textContent = err.message; }
     });
 }
@@ -533,9 +552,9 @@ function renderDetails() {
         <p class="mt-1 text-neutral-500">${esc(it.description || "")}</p>
         ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}
         <button type="button" id="focusBtn" class="mt-4 h-8 w-full rounded-md border border-neutral-200 text-xs hover:bg-neutral-50">Zoom to this frame (Shift+2)</button>
-        ${it.kind === "section" ? "" : `<p class="mt-3 text-neutral-500">Tailwind config: ${hasTw(it.twConfig) ? `<b class="text-neutral-800">this page has its own file</b> on top of the project's` : "the project's only"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>`}
+        ${it.kind === "section" ? "" : `<p class="mt-3 text-neutral-500">Tailwind config: ${hasTw(it.twConfig) ? `<b class="text-neutral-800">this frame has its own file</b> on top of the project's` : "the project's only"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>`}
         <a href="/design/${it.id}" class="mt-2 flex h-8 items-center justify-center rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Open in editor</a>
-        ${it.kind === "section" ? "" : `<label class="mt-3 block text-neutral-500">Category <span class="text-neutral-400">(a pricing page is a page; every other category is a component)</span></label>
+        ${it.kind === "section" ? "" : `<label class="mt-3 block text-neutral-500">Category <span class="text-neutral-400">(a Pricing Page is a frame; every other category is a part)</span></label>
         <select id="detCat" class="fi">${(data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((c) => `<option value="${esc(c.slug)}" ${it.category === c.slug ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>
         <label class="mt-3 block text-neutral-500">Tags <span class="text-neutral-400">(comma separated)</span></label>
         <input id="detTags" class="fi" value="${esc((it.tags || []).join(", "))}" placeholder="hero, dark, saas" spellcheck="false">`}
@@ -647,7 +666,7 @@ $("renameBtn").addEventListener("click", async () => {
 });
 $("deleteProjBtn").addEventListener("click", async () => {
     const n = items.filter((i) => i.kind !== "section").length;
-    if (!confirm(`Delete the project "${project.name}" and everything in it (${n} page${n === 1 ? "" : "s"} and component${n === 1 ? "" : "s"}, with their sections and history)? This can't be undone.`)) return;
+    if (!confirm(`Delete the project "${project.name}" and everything in it (${n} frame${n === 1 ? "" : "s"} and part${n === 1 ? "" : "s"}, with their history)? This can't be undone.`)) return;
     const res = await fetch(`/api/projects/${project.id}`, { method: "DELETE" });
     if ((await res.json()).success) location.href = "/projects";
 });

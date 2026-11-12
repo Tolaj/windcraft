@@ -6,6 +6,7 @@ import Component from "../models/component.model.js";
 import FigmaSource from "../models/figmaSource.model.js";
 import { listProjects, getActiveProject, setActiveProject } from "../services/project.service.js";
 import { buildDesignGuide } from "../services/guide.service.js";
+import { syncPartsOf } from "../services/import.service.js";
 import { categories } from "./home.routes.js";
 import { normalizeTheme } from "@windcraft/core/theme.js";
 
@@ -59,7 +60,7 @@ projectPages.get("/:id", async (req, res) => {
             .sort("order createdAt")
             .lean();
         const data = {
-            project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", active: Boolean(active && String(active._id) === String(project._id)) },
+            project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", autoParts: project.autoParts !== false, active: Boolean(active && String(active._id) === String(project._id)) },
             categories: Object.entries(Object.entries(categories).reduce((g, [slug, c]) => ((g[c.group] ||= []).push({ slug, name: c.name }), g), {})).map(([group, list]) => ({ group, items: list })), // for each design's category
             projects: (await Project.find({ owner: req.session.user.id }).select("name").sort("name").lean()).map((x) => ({ id: String(x._id), name: x.name })), // for "Move to project"
             items: items.map((c) => ({
@@ -133,9 +134,18 @@ projectApi.put("/:id", async (req, res) => {
     if (req.body && req.body.theme !== undefined) update.theme = normalizeTheme(req.body.theme); // anything invalid falls back to the default, field by field
     if (req.body && req.body.description !== undefined) update.description = description;
     if (req.body && req.body.brief !== undefined) update.brief = String(req.body.brief).slice(0, 4000);
+    if (req.body && typeof req.body.autoParts === "boolean") update.autoParts = req.body.autoParts;
+    const before = update.autoParts === true ? await Project.findOne({ _id: req.params.id, owner: req.session.user.id }).select("autoParts").lean() : null;
     const p = await Project.findOneAndUpdate({ _id: req.params.id, owner: req.session.user.id }, update, { new: true });
     if (!p) return res.status(404).json({ success: false, message: "Not found" });
-    res.json({ success: true, data: { id: String(p._id), name: p.name, description: p.description, theme: normalizeTheme(p.theme) } });
+    // turned on after being off: the parts of the frames already there are made now (in the background; each frame's parts are made again when it is saved)
+    if (before && before.autoParts === false) {
+        (async () => {
+            const frames = await Component.find({ createdBy: req.session.user.id, project: p._id, kind: "page" });
+            for (const f of frames) { try { await syncPartsOf(req.session.user.id, f); } catch (err) { console.error("Parts error:", err); } }
+        })();
+    }
+    res.json({ success: true, data: { id: String(p._id), name: p.name, description: p.description, autoParts: p.autoParts !== false, theme: normalizeTheme(p.theme) } });
 });
 
 // Makes this the project Claude works in by default (or clears it with { active: false }).

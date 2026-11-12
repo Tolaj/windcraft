@@ -66,7 +66,7 @@ test("a page's own file is stored on the page and laid over the project's", { sk
     assert.deepEqual(colours, { a: "rgb(124, 58, 237)", b: "rgb(15, 118, 110)" }, "the page's colour and the project's both apply");
     await page.goto(`${stack.base}/projects/${ids.project}`);
     await page.click("#outline [data-pick]");
-    assert.match(await page.textContent("#details"), /this page has its own file/);
+    assert.match(await page.textContent("#details"), /this frame has its own file/);
     await page.close();
 });
 
@@ -85,7 +85,7 @@ test("the parts saved from a page are not in the editor's pages list or on its c
     await page.waitForTimeout(2500);
     assert.ok(!/Header/.test(await page.textContent("#outline")), "the project's Pages tab lists pages only");
     assert.equal(await page.$$eval(".fwrap", (w) => w.length), 4, "and its board has a frame for each of the four pages, none for the part");
-    assert.match(await page.textContent("#projStats"), /^4 pages ·/);
+    assert.match(await page.textContent("#projStats"), /^4 frames ·/);
     await page.close();
 });
 

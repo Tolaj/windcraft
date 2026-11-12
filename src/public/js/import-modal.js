@@ -98,7 +98,7 @@ goBtn.addEventListener("click", async () => {
         const res = await fetch("/api/components/import", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ items, split: document.getElementById("splitToggle").checked, tags: "imported", project: window.__PROJECT_ID }),
+            body: JSON.stringify({ items, tags: "imported", project: window.__PROJECT_ID }),
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.message || "Import failed");

@@ -28,8 +28,8 @@
     <div class="flex min-h-0 flex-1">
         <aside class="flex w-60 shrink-0 flex-col border-r border-neutral-200 bg-white">
             <div class="flex border-b border-neutral-200 text-[11px] font-semibold" role="tablist">
-                <button id="tabPages" type="button" role="tab" class="flex-1 whitespace-nowrap border-b-2 border-neutral-900 px-2 py-2.5 text-neutral-900">Pages</button>
-                <button id="tabComponents" type="button" role="tab" class="flex-1 whitespace-nowrap border-b-2 border-transparent px-2 py-2.5 text-neutral-500 hover:text-neutral-900">Components</button>
+                <button id="tabPages" type="button" role="tab" class="flex-1 whitespace-nowrap border-b-2 border-neutral-900 px-2 py-2.5 text-neutral-900">Frames</button>
+                <button id="tabComponents" type="button" role="tab" class="flex-1 whitespace-nowrap border-b-2 border-transparent px-2 py-2.5 text-neutral-500 hover:text-neutral-900">Parts</button>
                 <button id="tabTheme" type="button" role="tab" class="flex-1 whitespace-nowrap border-b-2 border-transparent px-2 py-2.5 text-neutral-500 hover:text-neutral-900">Config</button>
             </div>
             <div id="filters" class="space-y-1.5 border-b border-neutral-200 p-2 text-[11px]">
@@ -47,7 +47,7 @@
             <div id="boardEmpty" class="pointer-events-none absolute inset-0 hidden items-center justify-center">
                 <div class="max-w-md rounded-xl border border-dashed border-neutral-400 bg-white/70 p-8 text-center">
                     <h2 class="text-sm font-semibold text-neutral-900">This project is empty</h2>
-                    <p class="mt-1 text-xs text-neutral-600">Press <strong>+ New design</strong>, or ask Claude to design a page and save it into this project.</p>
+                    <p class="mt-1 text-xs text-neutral-600">Press <strong>+ New design</strong>, or ask Claude to design a frame and save it into this project.</p>
                 </div>
             </div>
             <p class="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-white/80 px-3 py-1 text-[11px] text-neutral-500">Drag the background to pan, scroll to pan, Ctrl/Cmd + scroll to zoom, drag a frame to move it, double-click to open it</p>
@@ -82,7 +82,7 @@
     <div class="space-y-4 p-5">
         <label id="dropZone" class="block cursor-pointer rounded-lg border-2 border-dashed border-gray-300 p-8 text-center transition-colors hover:border-gray-500">
             <span class="block text-sm font-medium text-gray-900">Drop HTML or .zip files here</span>
-            <span class="mt-1 block text-xs text-gray-500">or click to choose. A zip can hold many pages.</span>
+            <span class="mt-1 block text-xs text-gray-500">or click to choose. A zip can hold many frames.</span>
             <input type="file" id="importInput" accept=".html,.htm,.zip,text/html,application/zip" multiple class="hidden">
         </label>
         <ul id="importFiles" class="hidden max-h-28 divide-y divide-gray-100 overflow-auto rounded-lg border border-gray-200 text-sm"></ul>
@@ -93,10 +93,7 @@
             <textarea id="pasteHtml" rows="5" spellcheck="false" placeholder="<!doctype html> ..." class="w-full rounded-md border border-gray-300 p-3 font-mono text-[12px] leading-5 placeholder-gray-400 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"></textarea>
         </div>
 
-        <label class="flex cursor-pointer items-start gap-2 text-sm text-gray-700">
-            <input id="splitToggle" type="checkbox" checked class="mt-1 h-4 w-4 rounded border-gray-300 accent-black">
-            <span><strong class="text-gray-900">Split pages into sections.</strong> Each page is saved whole, and its header, hero, pricing, footer and so on are saved as separate components you can reuse.</span>
-        </label>
+        <p class="text-xs text-gray-500">Parts of each frame (header, hero, footer and so on) are made if this project's <strong class="text-gray-700">Auto-create parts</strong> is on (Parts tab).</p>
         <p id="importStatus" class="hidden text-sm"></p>
     </div>
     <div class="flex justify-end gap-2 border-t border-gray-200 px-5 py-3">
