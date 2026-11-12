@@ -392,6 +392,9 @@ select.fi, .vbar select { -webkit-appearance: none; appearance: none; padding-ri
 .fsec .row { gap: 6px; }
 /* where a set value comes from: a blue edge for a Tailwind class, amber for CSS */
 .nf { position: relative; }
+.nfb { flex: 1; min-width: 0; height: 26px; padding: 0 8px; border: 1px solid #e0e0e0; border-radius: 5px; background: #fff; color: #111; font-size: 11px; cursor: pointer; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nfb:hover { background: #f5f5f5; border-color: #cfcfcf; }
+.nfb:focus-visible { outline: 2px solid #111; outline-offset: 1px; }
 /* a field with suggestions (Tailwind colours, sizes...) shows them as you type, without Chrome's ▼ that looks like a dropdown */
 #panel input[list]::-webkit-calendar-picker-indicator { display: none !important; }
 .nf.src-tw { box-shadow: inset 2px 0 0 #38bdf8; }

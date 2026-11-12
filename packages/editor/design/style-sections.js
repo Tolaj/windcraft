@@ -293,7 +293,7 @@ const AnimationSelect = ({ value, custom, onChange }) => {
         <option value="" selected=${!value}>–</option>
         <optgroup label="Tailwind">${BUILTIN_ANIMATIONS.map(([v, l]) => html`<option value=${v} selected=${v === value}>${l}</option>`)}</optgroup>
         ${custom.length ? html`<optgroup label="Your animations">${custom.map((v) => html`<option value=${v} selected=${v === value}>${v}</option>`)}</optgroup>` : null}
-        ${value && !known ? html`<option value=${value} selected>${value}</option>` : null}</select>`;
+        ${value && !known ? html`<option value=${value} selected>${value} (not in your config)</option>` : null}</select>`;
 };
 const SVG_TAGS = ["svg", "g", "path", "line", "polyline", "polygon", "circle", "ellipse", "rect"];
 const small = "nfs wide";
@@ -302,8 +302,8 @@ function EffectsBlock({ s, actions }) {
     const [e, setE] = useState({ preset: "fade-up", gap: 40, trigger: "load", secs: 0, drawSecs: 1.6, drawGap: 150, outline: true });
     const text = s.text && s.text.trim() ? s.text : "", split = s.attrs && s.attrs["data-split"], isSvg = SVG_TAGS.includes(s.tag);
     const when = (v, on) => html`<div class="frow"><label class="nf" title="When it plays"><span class="nfl">When</span><select class=${small} onChange=${(ev) => on(ev.target.value)}>${TRIGGERS.filter(([k]) => ["load", "scroll", "click"].includes(k)).map(([k, l]) => html`<option value=${k} selected=${k === v}>${l}</option>`)}</select></label></div>`;
-    const btn = (label, fn, title) => html`<div class="frow"><button type="button" class=${small} style="cursor:pointer;text-align:center" title=${title || label} onClick=${fn}>${label}</button></div>`;
-    if (split) return html`<div class="fsech" style="margin-top:8px"><span>Text effect</span></div><p class="muted" style="margin:0 0 4px">This text arrives ${split === "words" ? "word by word" : "letter by letter"}.</p>${btn("Remove the effect", actions.effectUnreveal)}`;
+    const btn = (label, fn, title) => html`<button type="button" class="nfb" title=${title || label} onClick=${fn}>${label}</button>`;
+    if (split) return html`<div class="fsech" style="margin-top:8px"><span>Text effect</span></div><p class="muted" style="margin:0 0 4px">This text arrives ${split === "words" ? "word by word" : "letter by letter"}.</p><div class="frow">${btn("Remove the effect", actions.effectUnreveal)}</div>`;
     if (text) {
         const secs = e.secs || Math.round(Math.max(1, Math.min(8, text.length / 14)) * 10) / 10;
         return html`<div class="fsech" style="margin-top:8px"><span>Text effects</span></div>
@@ -312,15 +312,14 @@ function EffectsBlock({ s, actions }) {
             <div class="frow"><${NumField} label="Gap" title="Milliseconds between one letter (or word) and the next" value=${String(e.gap)} onCommit=${(v) => setE({ ...e, gap: Math.max(0, Math.min(1000, Number(v) || 0)) })} /><span class="nfl" style="width:auto">ms</span></div>
             <div class="frow">${btn("By letter", () => actions.effectReveal({ by: "letters", preset: e.preset, gap: e.gap, trigger: e.trigger }), "Split the text into letters that arrive one after another")}${btn("By word", () => actions.effectReveal({ by: "words", preset: e.preset, gap: Math.max(e.gap, 80), trigger: e.trigger }), "Split the text into words that arrive one after another")}</div>
             <div class="frow"><${NumField} label="Type" title="Seconds to type the whole text" value=${String(secs)} onCommit=${(v) => setE({ ...e, secs: Math.max(0.5, Math.min(60, Number(v) || 3)) })} /><span class="nfl" style="width:auto">s</span></div>
-            ${btn("Typewriter", () => actions.effectTypewriter({ secs, trigger: e.trigger }), "Type the text out with a blinking caret")}
-            ${btn("Remove the typewriter", actions.effectUntype)}`;
+            <div class="frow">${btn("Typewriter", () => actions.effectTypewriter({ secs, trigger: e.trigger }), "Type the text out with a blinking caret")}${btn("Remove it", actions.effectUntype, "Take the typewriter off")}</div>`;
     }
     if (isSvg) return html`<div class="fsech" style="margin-top:8px"><span>Draw the lines</span></div>
         ${when(e.trigger, (v) => setE({ ...e, trigger: v }))}
         <div class="frow"><${NumField} label="Time" title="Seconds each line takes to draw" value=${String(e.drawSecs)} onCommit=${(v) => setE({ ...e, drawSecs: Math.max(0.2, Math.min(30, Number(v) || 1.6)) })} /><span class="nfl" style="width:auto">s</span></div>
         <div class="frow"><${NumField} label="Gap" title="Milliseconds between one line and the next" value=${String(e.drawGap)} onCommit=${(v) => setE({ ...e, drawGap: Math.max(0, Math.min(2000, Number(v) || 0)) })} /><span class="nfl" style="width:auto">ms</span></div>
         <div class="frow"><label class="nf" style="gap:6px;cursor:pointer" title="Give shapes an outline and no fill, so there is a line to draw"><input type="checkbox" checked=${e.outline} onChange=${(ev) => setE({ ...e, outline: ev.target.checked })} /><span class="nfl" style="width:auto">Outline only</span></label></div>
-        ${btn("Draw the lines", () => actions.effectDraw({ secs: e.drawSecs, gap: e.drawGap, outline: e.outline, trigger: e.trigger }))}${btn("Remove the drawing", actions.effectUndraw)}`;
+        <div class="frow">${btn("Draw the lines", () => actions.effectDraw({ secs: e.drawSecs, gap: e.drawGap, outline: e.outline, trigger: e.trigger }))}${btn("Remove it", actions.effectUndraw, "Take the drawing off")}</div>`;
     return null;
 }
 
@@ -330,20 +329,24 @@ export function AnimationSection({ s, actions }) {
     const ui = useUi();
     const t = readTrigger(s.classes, s.attrs || {}), custom = ui.animations || [];
     const [st, setSt] = useState({ name: "", trigger: "scroll", step: 80 });
+    const reduceMotion = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const missing = t && !BUILTIN_ANIMATIONS.some(([v]) => v === t.name) && !custom.includes(t.name);
     const stName = st.name || t?.name || custom[0] || "pulse";
     return html`<${FSection} title="Animation" extra=${html`<${IconBtn} icon=${I.plus} title="Make a new animation, or pick one from the library (the keyframes go into your Tailwind config)" onClick=${actions.newAnimation} />`}>
         <div class="frow"><label class=${`nf ${t ? "src-tw" : "unset"}`} title="The animation this element plays">
             <span class="nfl">Play</span><${AnimationSelect} value=${t?.name || ""} custom=${custom} onChange=${(v) => (v ? actions.setAnimation(v, t?.trigger || "load") : actions.clearAnimation())} /></label>
             ${t ? html`<${Remove} title="Remove the animation" onClick=${actions.clearAnimation} />` : null}</div>
+        ${t && reduceMotion && String(s.classes).includes("motion-reduce:animate-none") ? html`<p class="muted" style="margin:0 0 4px;color:#b45309">Your device asks for reduced motion, and this animation respects it, so it stays still in Interact, Preview and here. Turn "Reduce motion" off in your system's accessibility settings to see it.</p>` : null}
+        ${missing ? html`<p class="muted" style="margin:0 0 4px;color:#b45309">"${t.name}" is not in your Tailwind config any more, so nothing plays. Pick another animation, remove this one, or add it back in the config.</p>` : null}
         ${t ? html`<div class="frow"><label class="nf src-tw" title="When it plays"><span class="nfl">When</span>
             <select class="nfs wide" onChange=${(e) => actions.setAnimation(t.name, e.target.value)}>${TRIGGERS.map(([v, l]) => html`<option value=${v} selected=${v === t.trigger}>${l}</option>`)}</select></label></div>
-            <div class="frow"><button type="button" class="nfs wide" style="cursor:pointer;text-align:center" title="The editor shows designs at rest; this lets the animation run for a few seconds (hover and focus need the pointer)" onClick=${actions.previewAnim}>Preview the animation</button></div>` : null}
+            <div class="frow"><button type="button" class="nfb" title="The editor shows designs at rest; this lets the animation run for a few seconds (hover and focus need the pointer)" onClick=${actions.previewAnim}>Preview the animation</button></div>` : null}
         ${s.kids >= 2 ? html`<div class="fsech" style="margin-top:8px"><span>Children, one after another</span></div>
             <div class="frow"><label class="nf" title="The animation each child plays"><span class="nfl">Play</span><${AnimationSelect} value=${stName} custom=${custom} onChange=${(v) => setSt({ ...st, name: v })} /></label></div>
             <div class="frow"><label class="nf" title="When each child plays"><span class="nfl">When</span><select class="nfs wide" onChange=${(e) => setSt({ ...st, trigger: e.target.value })}>${TRIGGERS.map(([v, l]) => html`<option value=${v} selected=${v === st.trigger}>${l}</option>`)}</select></label></div>
             <div class="frow"><${NumField} label="Gap" title="Milliseconds between one child and the next" value=${String(st.step)} onCommit=${(v) => setSt({ ...st, step: Math.max(0, Math.min(2000, Number(v) || 0)) })} /><span class="nfl" style="width:auto">ms</span></div>
-            <div class="frow"><button type="button" class="nfs wide" style="cursor:pointer;text-align:center" onClick=${() => actions.staggerChildren({ name: stName, trigger: st.trigger, step: st.step })}>Animate the ${s.kids} children</button>
-                <button type="button" class="nfs" style="cursor:pointer" title="Take the animation off every child" onClick=${() => actions.staggerChildren({ clear: true })}>Clear</button></div>` : null}
+            <div class="frow"><button type="button" class="nfb" onClick=${() => actions.staggerChildren({ name: stName, trigger: st.trigger, step: st.step })}>Animate the ${s.kids} children</button>
+                <button type="button" class="nfb" style="flex:none" title="Take the animation off every child" onClick=${() => actions.staggerChildren({ clear: true })}>Clear</button></div>` : null}
         <${EffectsBlock} s=${s} actions=${actions} />
     </${FSection}>`;
 }

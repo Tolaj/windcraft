@@ -10,21 +10,22 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const field = "rounded-md border border-neutral-200 bg-white px-2 py-1";
 const SHAPES = [["square", "Square", "rounded-lg"], ["circle", "Circle", "rounded-full"], ["bar", "Text", "rounded"]];
 
-export function mountKeyframeEditor(el, { getTiming = () => ({}), onChange = () => {} } = {}) {
+export function mountKeyframeEditor(el, { getTiming = () => ({}), onChange = () => {}, box: outer = null } = {}) {
     let stops = blankStops(), sel = 0, shape = "square", scrub = null;
     const q = (s) => el.querySelector(s);
     el.innerHTML = `<div class="flex h-full min-h-0 flex-col text-xs">
         <div class="flex flex-wrap items-center gap-3 border-b border-neutral-200 px-4 py-2">
             <label class="flex items-center gap-2"><span class="text-neutral-500">Start from</span><select data-from class="${field}"><option value="">A blank animation</option>${PRESETS.map((p) => `<option value="${p.id}">${esc(p.label)}</option>`).join("")}</select></label>
             <label class="flex items-center gap-2"><span class="text-neutral-500">Preview shape</span><select data-shape class="${field}">${SHAPES.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
-            <button type="button" data-replay class="h-7 rounded-md border border-neutral-200 bg-white px-3 hover:bg-neutral-100">Replay</button>
+            <button type="button" data-replay class="${outer ? "hidden " : ""}h-7 rounded-md border border-neutral-200 bg-white px-3 hover:bg-neutral-100">Replay</button>
             <label class="ml-auto flex items-center gap-2"><span class="text-neutral-500">Scrub</span><input data-scrub type="range" min="0" max="100" value="0" class="w-40 accent-black" aria-label="Scrub through the animation"></label></div>
         <div class="flex min-h-0 flex-1 gap-4 overflow-auto p-4">
-            <div class="w-44 shrink-0"><div class="flex h-40 items-center justify-center overflow-hidden rounded-lg border border-neutral-200 bg-white"><div data-box class="pv-box h-12 w-12 bg-neutral-900 text-white"></div></div><p class="mt-2 text-[11px] text-neutral-500">The preview plays with the time and easing below.</p></div>
+            ${outer ? "" : `<div class="w-44 shrink-0"><div class="flex h-40 items-center justify-center overflow-hidden rounded-lg border border-neutral-200 bg-white"><div data-box class="pv-box h-12 w-12 bg-neutral-900 text-white"></div></div><p class="mt-2 text-[11px] text-neutral-500">The preview plays with the time and easing below.</p></div>`}
             <div class="min-w-0 flex-1">
+                <div class="sticky -top-4 z-10 -mx-4 -mt-4 border-b border-neutral-200 bg-white px-4 pb-2 pt-4">
                 <p class="mb-1 font-semibold text-neutral-700">Timeline <span class="font-normal text-neutral-500">· click the bar to add a stop, drag a stop to move it</span></p>
                 <div class="relative mx-3 h-12 select-none" data-track><div class="absolute inset-x-0 top-5 h-1.5 rounded-full bg-neutral-200"></div><div data-stops></div></div>
-                <div class="mx-3 flex justify-between text-[10px] text-neutral-400"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+                <div class="mx-3 flex justify-between text-[10px] text-neutral-400"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div></div>
                 <div class="mt-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3" data-props></div>
                 <p class="mt-2 min-h-[1rem] text-amber-800" data-problem role="status"></p></div></div></div>`;
 
@@ -53,8 +54,8 @@ export function mountKeyframeEditor(el, { getTiming = () => ({}), onChange = () 
             <div class="mt-3 flex items-center gap-2 border-t border-neutral-200 pt-3"><span class="text-neutral-500">Easing from here to the next stop</span><select data-ease class="${field}">${[["", "As the animation"], ["ease-in", "Ease in"], ["ease-out", "Ease out"], ["ease-in-out", "Ease in and out"], ["linear", "Linear"]].map(([v, l]) => `<option value="${v}" ${s.ease === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>`;
     }
     function renderPreview() {
-        const box = q("[data-box]"), [, , round] = SHAPES.find((x) => x[0] === shape);
-        box.className = `pv-box bg-neutral-900 ${round} ${shape === "bar" ? "h-4 w-28" : "h-12 w-12"}`;
+        const box = outer || q("[data-box]"), [, , round] = SHAPES.find((x) => x[0] === shape);
+        box.className = `pv-box bg-neutral-900 ${round} ${shape === "bar" ? "h-4 w-24" : outer ? "h-10 w-10" : "h-12 w-12"}`;
         let st = document.getElementById("kfLive"); if (!st) { st = document.createElement("style"); st.id = "kfLive"; document.head.appendChild(st); }
         st.textContent = keyframesCss("pv-live", kf());
         const t = getTiming() || {};

@@ -379,3 +379,56 @@ test("text arrives letter by letter, an SVG's lines draw, and an animation can f
     assert.match(tl, /view|auto/);
     await out.close(); await page.close(); await fresh.close();
 });
+
+test("the animation dialog keeps its preview in view and its cards moving, reuses an animation already in the config, and flags one removed from it", { skip: skip || false, timeout: 170000 }, async () => {
+    const fresh = await browser.newContext({ viewport: { width: 1500, height: 1500 } });
+    await fresh.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const page = await fresh.newPage();
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    await page.waitForSelector("#inspector", { state: "attached" });
+    await page.waitForTimeout(3500);
+    if (!(await page.locator("#inspector").isVisible())) await page.mouse.click(1326, 33);
+    const frame = await frameWith(page, "b");
+    await frame.waitForFunction(() => window.tailwind && window.tailwind.config && document.querySelector("style[data-wc-agent-style]"));
+    await page.waitForTimeout(1500);
+    const bb = await frame.locator("#b").boundingBox();
+    await page.mouse.dblclick(bb.x + bb.width / 2, bb.y + bb.height / 2);
+    await page.mouse.dblclick(bb.x + bb.width / 2, bb.y + bb.height / 2);
+    await page.click('#inspector [title^="Make a new animation"]');
+    // 1. the cards never sit at rest: an exit card is seen, taken away and seen again
+    await page.click('[data-group="exit"]');
+    const seen = new Set();
+    for (let i = 0; i < 16; i++) { seen.add(await page.$eval('[data-preset="fade-out"] .pv-box', (e) => getComputedStyle(e).opacity)); await page.waitForTimeout(250); }
+    assert.ok(seen.size > 3, "the card's box keeps changing over four seconds");
+    // 2. in the keyframe editor the preview stays where it is while the settings scroll
+    await page.click('[data-mode="editor"]');
+    const before = await page.locator("#animBig").boundingBox();
+    await page.mouse.move(before.x - 300, before.y + 300);
+    await page.mouse.wheel(0, 700); await page.waitForTimeout(400);
+    const after = await page.locator("#animBig").boundingBox();
+    assert.equal(Math.round(after.y), Math.round(before.y), "the preview did not scroll away");
+    assert.ok(await page.locator("#animEditor [data-track]").isVisible(), "nor did the timeline");
+    // 3. a library animation that is already in the config (zoom-in, from the earlier test) is used again without a complaint
+    await page.click('[data-mode="library"]');
+    await page.click('[data-group="all"]');
+    await page.click('[data-preset="zoom-in"]');
+    await page.click("#animCreate");
+    await page.waitForSelector("#animDlg:not([open])", { state: "attached", timeout: 8000 }).catch(async () => { throw new Error(`the dialog did not close: ${await page.textContent("#animErr")}`); });
+    assert.equal(await page.textContent("#animErr"), "");
+    assert.match(await frame.evaluate(() => document.getElementById("b").className), /animate-zoom-in/);
+    await page.keyboard.press("Control+s"); await page.waitForTimeout(1500);
+    // 4. take the animation out of the config: the element still names it, and the panel says so
+    const theme = { brand: "#2563eb", gray: "neutral", font: "Inter", radius: "md", engine: "3", configJs: `module.exports = {\n  theme: { extend: { colors: { proj: "#0f766e" } } },\n};\n`, configCss: "", lock: {} };
+    const put = await fresh.request.put(`${stack.base}/api/projects/${ids.project}`, { data: { theme } });
+    assert.equal(put.status(), 200);
+    await page.goto(`${stack.base}/design/${ids.page}`);
+    const f2 = await frameWith(page, "b");
+    await f2.waitForFunction(() => window.tailwind && window.tailwind.config && document.querySelector("style[data-wc-agent-style]"));
+    await page.waitForTimeout(1500);
+    const b2 = await f2.locator("#b").boundingBox();
+    await page.mouse.dblclick(b2.x + b2.width / 2, b2.y + b2.height / 2);
+    await page.mouse.dblclick(b2.x + b2.width / 2, b2.y + b2.height / 2);
+    await page.waitForSelector("text=is not in your Tailwind config any more", { timeout: 10000 });
+    assert.ok((await page.$$eval("#inspector select option", (o) => o.map((x) => x.textContent))).some((t) => /zoom-in \(not in your config\)/.test(t)), "the select names it and says it is missing");
+    await page.close(); await fresh.close();
+});
