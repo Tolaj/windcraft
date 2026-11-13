@@ -80,10 +80,10 @@
     /* the card's picture: a real screenshot of the category's best design, in a small window (a category with no picture keeps the drawn wireframe) */
     #contentGrid .card-image:not(.no-thumb) { padding: 12px 24px 0; }
     #contentGrid .card-image:not(.no-thumb) .thumb-fallback, #contentGrid .card-image.no-thumb .thumb-win { display: none; }
-    .thumb-win { height: 100%; overflow: hidden; background: #fff; border-radius: 8px 8px 0 0; box-shadow: 0 1px 4px rgba(0, 0, 0, .18); }
-    .thumb-bar { display: flex; align-items: center; gap: 3px; height: 12px; padding-left: 6px; border-bottom: 1px solid #eee; }
+    .thumb-win { display: flex; flex-direction: column; height: 100%; overflow: hidden; background: #fff; border-radius: 8px 8px 0 0; box-shadow: 0 1px 4px rgba(0, 0, 0, .18); }
+    .thumb-bar { flex: none; display: flex; align-items: center; gap: 3px; height: 12px; padding-left: 6px; border-bottom: 1px solid #eee; }
     .thumb-bar i { width: 4px; height: 4px; border-radius: 9999px; background: #d1d5db; }
-    .thumb-img { display: block; width: 100%; }
+    .thumb-img { display: block; width: 100%; flex: 1; min-height: 0; object-fit: cover; object-position: center; }
 </style>
 <div id="contentGrid" class="hidden">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-6">

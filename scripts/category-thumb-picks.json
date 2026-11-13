@@ -1,27 +1,66 @@
 {
   "apps-ai-prompt": "AI Prompt 06",
-  "apps-charts": "Charts 07",
-  "apps-general": "Application Components 02",
-  "apps-invoice": "Invoice 10",
+  "apps-charts": {
+    "design": "Charts 07",
+    "fill": "#ffffff",
+    "mode": "card"
+  },
+  "apps-general": {
+    "design": "Application Components 02",
+    "mode": "center"
+  },
+  "apps-invoice": {
+    "design": "Invoice 10",
+    "mode": "center"
+  },
   "apps-stats": "Stats 03",
   "apps-tables": "Tables 03",
-  "ecommerce-products": "Product Listings 04",
-  "footer-contact": "Contact Sections 03",
-  "footer-footers": "Footers 08",
-  "forms-authentication": "Authentication 02",
-  "forms-feedback": "Feedback 05",
-  "forms-subscribe": "Subscribe 02",
+  "ecommerce-products": {
+    "design": "Product Listings 04",
+    "mode": "center"
+  },
+  "footer-contact": {
+    "design": "Contact Sections 03",
+    "mode": "center"
+  },
+  "footer-footers": {
+    "design": "Footers 08",
+    "mode": "center"
+  },
+  "forms-authentication": {
+    "design": "Authentication 09",
+    "fill": "#ffffff",
+    "mode": "card"
+  },
+  "forms-feedback": {
+    "design": "Feedback 01",
+    "mode": "center"
+  },
+  "forms-subscribe": {
+    "design": "Subscribe 02",
+    "mode": "center"
+  },
   "forms-textarea": "Textarea Inputs 10",
   "layout-basic": "Layouts 04",
-  "marketing-announcements": "Announcement Banners 08",
+  "marketing-announcements": {
+    "design": "Announcement Banners 08",
+    "mode": "center"
+  },
   "marketing-blog": "Blog Sections 07",
   "marketing-cards": "Card Sections 02",
-  "marketing-clients": "Clients Sections 10",
+  "marketing-clients": {
+    "design": "Clients Sections 08",
+    "mode": "center"
+  },
   "marketing-faq": "FAQ Sections 07",
   "marketing-features": "Features 06",
   "marketing-galleries": "Galleries 02",
   "marketing-hero": "Hero Sections 09",
-  "marketing-hero-forms": "Hero Forms 10",
+  "marketing-hero-forms": {
+    "boost": true,
+    "design": "Hero Forms 10",
+    "mode": "center"
+  },
   "marketing-icons": "Icon Sections 01",
   "marketing-pricing": "Pricing Sections 01",
   "marketing-team": "Team Sections 05",
@@ -29,10 +68,26 @@
   "marketing-timeline": "Timeline 09",
   "navigation-mega-menu": "Mega Menu 10",
   "navigation-navbars": "Navbars / Headers 08",
-  "pages-pricing": "Pricing Page 02",
-  "ui-buttons": "Button Groups 07",
-  "ui-cookie-banners": "Cookie Banners 10",
-  "ui-dropdowns": "Dropdowns 07",
-  "ui-modals": "Modals 09",
+  "pages-pricing": {
+    "boost": true,
+    "design": "Pricing Page 02",
+    "mode": "center"
+  },
+  "ui-buttons": {
+    "design": "Button Groups 07",
+    "mode": "center"
+  },
+  "ui-cookie-banners": {
+    "design": "Cookie Banners 04",
+    "mode": "center"
+  },
+  "ui-dropdowns": {
+    "design": "Dropdowns 09",
+    "mode": "center"
+  },
+  "ui-modals": {
+    "design": "Modals 09",
+    "mode": "center"
+  },
   "ui-selects": "Selects 05"
 }
