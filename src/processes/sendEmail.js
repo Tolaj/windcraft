@@ -60,8 +60,8 @@ const sendEmail = async (to, subject, text, html) => {
             from: `"Tailwind UI" <${GMAIL_ID}>`,
             to,
             subject,
-            text: text || "Hello from Tailwind UI Components.",
-            html: html || "<p>Hello from Tailwind UI Components.</p>",
+            text: text || "Hello from Windcraft.",
+            html: html || "<p>Hello from Windcraft.</p>",
             envelope: { from: GMAIL_ID, to },
             dsn: {
                 id: String(Date.now()),

@@ -92,7 +92,7 @@ router.get("/", async (req, res) => {
         res.status(200).render("main/home", {
             activePage: 'home',
             layout: 'main',
-            title: 'Tailwind UI Components',
+            title: 'Windcraft',
             user: req.session.user || null,
             categories: categoryCards,
             pageCount: categoryCards.filter(c => c.kind === 'page').reduce((n, c) => n + c.count, 0),
