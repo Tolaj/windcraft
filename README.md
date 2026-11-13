@@ -22,9 +22,13 @@
 
 </div>
 
+<div align="center">
+
 ## Contents
 
 [What it is](#what-it-is) · [Documentation](#documentation) · [Screenshots](#screenshots) · [What you can do](#what-you-can-do) · [Get started](#get-started) · [How it is built](#how-it-is-built) · [Status](#status) · [Roadmap](#roadmap) · [Contributing](#contributing) · [License](#license)
+
+</div>
 
 ## What it is
 
