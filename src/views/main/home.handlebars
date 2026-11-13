@@ -73,7 +73,12 @@
     </div>
 
     <!-- Actual Content -->
-    <div id="contentGrid" class="hidden">
+    <style>
+    /* a narrow card has no room for the word: only "+10" shows (the card is the container, not the screen) */
+    #contentGrid .component-card { container-type: inline-size; }
+    @container (max-width: 235px) { .new-word { display: none; } }
+</style>
+<div id="contentGrid" class="hidden">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-6">
 
             {{#each categories}}
@@ -85,18 +90,11 @@
                         {{> category-thumbnail slug=this.slug}}
                     </div>
                     <div class="flex items-center h-[30%] justify-between bg-white p-4">
-                        <div>
-                            <div class="flex items-center gap-2 mb-1">
-                                <h4 class="font-semibold text-primary text-sm group-hover:text-primary transition">
-                                    {{this.name}}
-                                </h4>
-                                {{#if this.hasNew}}
-                                <span
-                                    class="bg-secondary text-primary text-xs px-2 py-0.5 rounded-full font-medium">+{{this.newCount}}
-                                    NEW</span>
-                                {{/if}}
-                            </div>
-                            <p class="text-sm text-gray-500">{{this.count}} components</p>
+                        <div class="min-w-0 flex-1">
+                            <h4 class="mb-1 truncate font-semibold text-primary text-sm group-hover:text-primary transition" title="{{this.name}}">{{this.name}}</h4>
+                            <p class="flex items-center gap-2 whitespace-nowrap text-sm text-gray-500">{{this.count}} components
+                                {{#if this.hasNew}}<span class="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-primary">+{{this.newCount}}<span class="new-word"> NEW</span></span>{{/if}}
+                            </p>
                         </div>
                     </div>
                 </div>
