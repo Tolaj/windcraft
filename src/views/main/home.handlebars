@@ -93,18 +93,12 @@
     .sp-bar { display: flex; gap: 3px; align-items: center; height: 14px; padding-left: 7px; border-bottom: 1px solid #eee; background: #fff; }
     .sp-bar i { width: 4px; height: 4px; border-radius: 9999px; background: #d1d5db; }
     .spread-card img { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; }
-    /* the opening (see the script below): the designs wait; they come out of the fog of the vortex where they are, as a tight fan that opens out, turning a little in 3D, ghostly and blurred at first, then sharp */
-    #hero .spread { perspective: 1100px; }
+    /* the opening (see the script below): the designs wait, then tumble about in the vortex (3D, ghostly and blurred) and settle into the fan */
+    #hero .spread { perspective: 1100px; perspective-origin: 50% 55%; }
     #hero .spread.pre .spread-card { opacity: 0; }
-    #hero .spread.emerge .spread-card { animation: sp-emerge 1.5s cubic-bezier(.22, .8, .25, 1) var(--d, 0s) backwards; }
-    @keyframes sp-emerge {
-        0% { opacity: 0; filter: blur(14px); transform: translate(var(--dx), var(--dy)) rotateY(-42deg) rotateX(16deg) rotate(calc(var(--r) * .3)) scale(.8); }
-        40% { opacity: .55; filter: blur(7px); }
-        100% { opacity: 1; filter: blur(0); transform: rotate(var(--r)); }
-    }
     #introSvg { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 2000; overflow: visible; }
     #introSvg path { vector-effect: non-scaling-stroke; }
-    @media (prefers-reduced-motion: reduce) { #hero .spread.pre .spread-card { opacity: 1; } #hero .spread.emerge .spread-card { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { #hero .spread.pre .spread-card { opacity: 1; } }
     @container (max-width: 235px) { .new-word { display: none; } }
     /* the card's picture: a real screenshot of the category's best design, in a small window (a category with no picture keeps the drawn wireframe) */
     #contentGrid .card-image:not(.no-thumb) { padding: 12px 24px 0; }
@@ -269,7 +263,12 @@
         }
 
         // ---- times (ms from the start)
-        var T_CARDS = 900, T_IN = 1750, T_OUT = 1250, T_DRAW = T_IN + T_OUT, D_DRAW = 950;
+        var T_CARDS = 600, T_CONV = 2000, D_CONV = 1000, T_IN = 1750, T_OUT = 1250, T_DRAW = T_IN + T_OUT, D_DRAW = 950;
+        var cinfo = [].slice.call(sp.querySelectorAll(".spread-card")).map(function (c, i, all2) {
+            var rc = c.getBoundingClientRect(), rr = function (a, b) { return a + Math.random() * (b - a); };
+            c.style.transition = "none"; c.style.opacity = "0";
+            return { c: c, fx: rc.left + rc.width / 2, fy: rc.top + rc.height / 2, r: parseFloat(getComputedStyle(c).getPropertyValue("--r")) || 0, th0: i / all2.length * 2 * Math.PI + rr(0, 0.8), w: rr(1.7, 3.4), ra: rr(45, 130), rb: rr(14, 46), dz: rr(80, 160), ax: rr(10, 26), ay: rr(18, 38), az: rr(8, 24), wx: rr(1.6, 3.2), wy: rr(1.4, 3), wz: rr(1.6, 3.2), p1: rr(0, 6), p2: rr(0, 6), p3: rr(0, 6) };
+        });
         var t0 = performance.now(), fired = {};
         (function frame() {
             var ts = performance.now() - t0;
@@ -279,15 +278,27 @@
             drawRibbon(rb1, pts1, cum1, tail, Math.max(head, tail + 0.001), 11);
             if (ts > T_DRAW + 650) rb1.parts.forEach(function (qq) { qq.setAttribute("d", ""); });
             // the swirl streaks run and fade
-            rings.forEach(function (el, i) { var q = clamp((ts - (T_CARDS - 150 + i * 60)) / 1500); el.setAttribute("opacity", (Math.sin(Math.PI * q) * 0.5).toFixed(3)); el.style.strokeDashoffset = String(-ts * (0.35 + i * 0.12) * (i % 2 ? -1 : 1)); });
+            rings.forEach(function (el, i) { var q = clamp((ts - (T_CARDS - 150 + i * 60)) / 2300); el.setAttribute("opacity", (Math.sin(Math.PI * q) * 0.5).toFixed(3)); el.style.strokeDashoffset = String(-ts * (0.35 + i * 0.12) * (i % 2 ? -1 : 1)); });
             // the mist builds up round the vortex, then thins away once the designs are out
-            var menv = clamp((ts - (T_CARDS - 450)) / 500) * (1 - clamp((ts - (T_CARDS + 700)) / 900));
+            var menv = clamp((ts - (T_CARDS - 450)) / 500) * (1 - clamp((ts - (T_CONV - 200)) / 1100));
             mist.forEach(function (m) { m.el.style.strokeDashoffset = String(-(m.off0 + ts * 0.5 * m.speed)); m.el.setAttribute("opacity", (menv * m.base * (0.8 + 0.2 * Math.sin(ts / 160 + m.ph))).toFixed(3)); });
-            // the designs come out of the fog: a tight fan (each design a little way towards the middle of the vortex) that opens out into its place
-            if (!fired.cards && ts >= T_CARDS) {
-                fired.cards = 1;
-                sp.querySelectorAll(".spread-card").forEach(function (c, i) { var rc = c.getBoundingClientRect(); c.style.setProperty("--dx", ((VC[0] - (rc.left + rc.width / 2)) * 0.5) + "px"); c.style.setProperty("--dy", ((VC[1] - (rc.top + rc.height / 2)) * 0.5) + "px"); c.style.setProperty("--d", (Math.abs(i - 2) * 0.11) + "s"); });
-                sp.classList.remove("pre"); sp.classList.add("emerge");
+            // the designs tumble about in the vortex, each its own way (in 3D: they swing round it, turn over, nearer and further), ghostly and blurred; then they settle into the fan
+            if (ts >= T_CARDS && !fired.done) {
+                if (!fired.cards) { fired.cards = 1; sp.classList.remove("pre"); }
+                var sc0 = easeIO(clamp((ts - T_CONV) / D_CONV)), kk = 1 - sc0;
+                cinfo.forEach(function (ci, i) {
+                    var te = ts - T_CARDS - i * 80;
+                    if (te < 0) { ci.c.style.opacity = "0"; return; }
+                    var th = ci.th0 + te / 1000 * ci.w * (1 - 0.55 * sc0), a = ci.ra * (0.3 + 0.7 * kk), b = ci.rb * (0.3 + 0.7 * kk);
+                    var ex = a * Math.cos(th), ey = -b * Math.sin(th), ox = VC[0] + ex * cT - ey * sT, oy = VC[1] + ex * sT + ey * cT, z = ci.dz * Math.sin(th) * kk;
+                    var tx = lerp(ox - ci.fx, 0, sc0), ty = lerp(oy - ci.fy, 0, sc0);
+                    var rx = kk * ci.ax * Math.sin(te / 1000 * ci.wx + ci.p1), ry = kk * (ci.ay * Math.sin(te / 1000 * ci.wy + ci.p2) + 26 * Math.cos(th)), rz = ci.r + kk * ci.az * Math.sin(te / 1000 * ci.wz + ci.p3);
+                    ci.c.style.transform = "translate3d(" + tx.toFixed(1) + "px," + ty.toFixed(1) + "px," + z.toFixed(1) + "px) rotateX(" + rx.toFixed(1) + "deg) rotateY(" + ry.toFixed(1) + "deg) rotateZ(" + rz.toFixed(1) + "deg) scale(" + lerp(0.82, 1, sc0).toFixed(3) + ")";
+                    ci.c.style.opacity = (clamp(te / 220) * lerp(0.78, 1, sc0)).toFixed(3);
+                    ci.c.style.filter = "blur(" + lerp(3.6, 0, clamp((sc0 - 0.2) / 0.8)).toFixed(2) + "px)";
+                    ci.c.style.zIndex = String(100 + Math.round(z));
+                });
+                if (sc0 >= 1) { fired.done = 1; cinfo.forEach(function (ci) { ci.c.style.transform = ""; ci.c.style.filter = ""; ci.c.style.opacity = ""; ci.c.style.zIndex = ""; ci.c.style.transition = ""; }); }
             }
             // the mark is drawn, stroke after stroke, where the ribbon has arrived
             var at = 0;
