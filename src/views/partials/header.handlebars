@@ -7,7 +7,7 @@
             <div id="toggleLogoContainer" class="flex items-center gap-4">
                 <!-- Sidebar Toggle Button -->
                 <button type="button" id="sidebarToggle"
-                    class="{{#if (eq activePage 'category')}}order-first{{else}}order-2{{/if}} size-8 flex justify-center items-center gap-x-2 border border-gray-400 rounded-xl text-gray-800 hover:text-gray-500 focus:outline-hidden focus:text-gray-500"
+                    class="{{#if (or (eq activePage 'category') (and (not user) (eq activePage 'home')))}}order-first{{else}}order-2{{/if}} size-8 flex justify-center items-center gap-x-2 border border-gray-400 rounded-xl text-gray-800 hover:text-gray-500 focus:outline-hidden focus:text-gray-500"
                     aria-label="Toggle sidebar" onclick="toggleSidebar()">
                     <span class="sr-only">Toggle Sidebar</span>
                     <svg class="shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -124,6 +124,16 @@
                 </div>
             </div>
             {{/if}}{{/if}}
+
+            {{#unless user}}{{#if (any activePage "home" "category" "component")}}
+            <!-- New design, signed out: it asks to sign in first -->
+            <a href="/auth/sign-in" id="navNewDesign" class="h-8 px-3 text-sm hover:text-white hover:bg-primary hover:cursor-pointer hover:shadow-xl flex justify-center items-center gap-x-2 border border-gray-300 rounded-lg" title="Sign in to write or paste code, see it, and save it into a project">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4">
+                    <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
+                </svg>
+                <span class="hidden sm:inline">New design</span>
+            </a>
+            {{/if}}{{/unless}}
 
             {{#if user}}
             {{#if (any activePage "home" "category" "component")}}
