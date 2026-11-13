@@ -306,7 +306,7 @@
             }
             // the mark is uncovered along the spiral, from its right end to its left end, where the ribbon has arrived
             var pr = clamp((ts - T_DRAW) / D_DRAW);
-            brush.style.strokeDasharray = easeIO(pr) + " 3"; rest.setAttribute("opacity", clamp((pr - 0.88) / 0.12).toFixed(3));
+            brush.style.strokeDasharray = easeIO(pr) + " 3"; brush.style.opacity = pr > 0 ? "1" : "0";   // (a zero-length dash with round ends is a dot: it would uncover a bit of the logo before its time) rest.setAttribute("opacity", clamp((pr - 0.88) / 0.12).toFixed(3));
             if (ts >= T_DRAW + D_DRAW + 80) { arrive(); return; }
             requestAnimationFrame(frame);
         })();
