@@ -38,7 +38,8 @@
   },
   "forms-subscribe": {
     "design": "Subscribe 02",
-    "mode": "center"
+    "fill": "#ffffff",
+    "mode": "band"
   },
   "forms-textarea": "Textarea Inputs 10",
   "layout-basic": "Layouts 04",
@@ -64,7 +65,10 @@
   "marketing-icons": "Icon Sections 01",
   "marketing-pricing": "Pricing Sections 01",
   "marketing-team": "Team Sections 05",
-  "marketing-testimonials": "Testimonials 04",
+  "marketing-testimonials": {
+    "design": "Testimonials 03",
+    "mode": "center"
+  },
   "marketing-timeline": "Timeline 09",
   "navigation-mega-menu": "Mega Menu 10",
   "navigation-navbars": "Navbars / Headers 08",

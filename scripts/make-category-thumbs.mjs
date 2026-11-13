@@ -43,7 +43,7 @@ const boostBorders = () => page.evaluate(() => {
     for (const e of document.body.querySelectorAll("*")) {
         const cs = getComputedStyle(e); if (!(parseFloat(cs.borderTopWidth) > 0) || cs.borderTopStyle === "none") continue;
         const own = rgb(cs.backgroundColor), base = own && own[3] > 0.5 ? own : under(e), bc = rgb(cs.borderTopColor);
-        if (bc && lum(base) < 70 && lum(bc) < 110) e.style.setProperty("border-color", "rgba(255,255,255,.5)", "important");
+        if (bc && lum(base) < 70 && lum(bc) < 110) { e.style.setProperty("border-color", "rgba(255,255,255,.85)", "important"); if (parseFloat(cs.borderTopWidth) < 2) e.style.setProperty("border-width", "2px", "important"); }
     }
 });
 
@@ -73,13 +73,18 @@ const compose = (b64, o) => composer.evaluate(async ({ b64, o }) => {
     else {
         const px = (sx, sy) => { const t = document.createElement("canvas"); t.width = 1; t.height = 1; const g = t.getContext("2d"); g.drawImage(img, sx, sy, 1, 1, 0, 0, 1, 1); const d = g.getImageData(0, 0, 1, 1).data; return `rgb(${d[0]},${d[1]},${d[2]})`; };
         const W = img.width, H = img.height;
+        x.fillStyle = px(0, 0); x.fillRect(0, 0, o.outW, o.outH); // (everything first, so no hairline gap is left between the pieces: it would come out black)
+        x.imageSmoothingEnabled = false; // (a stretched strip of edge pixels, not blended: blending leaves a faint line where it meets the page)
         if (ry > 0) x.drawImage(img, 0, 0, W, 1, rx, 0, rw, ry);
         if (ry + rh < o.outH) x.drawImage(img, 0, H - 1, W, 1, rx, ry + rh, rw, o.outH - (ry + rh));
         if (rx > 0) x.drawImage(img, 0, 0, 1, H, 0, ry, rx, rh);
         if (rx + rw < o.outW) x.drawImage(img, W - 1, 0, 1, H, rx + rw, ry, o.outW - (rx + rw), rh);
         for (const [sx, sy, dx, dy, dw, dh] of [[0, 0, 0, 0, rx, ry], [W - 1, 0, rx + rw, 0, o.outW - (rx + rw), ry], [0, H - 1, 0, ry + rh, rx, o.outH - (ry + rh)], [W - 1, H - 1, rx + rw, ry + rh, o.outW - (rx + rw), o.outH - (ry + rh)]]) if (dw > 0 && dh > 0) { x.fillStyle = px(sx, sy); x.fillRect(dx, dy, dw, dh); }
     }
+    x.imageSmoothingEnabled = true;
+    if (o.round) { x.save(); x.beginPath(); x.roundRect(rx, ry, rw, rh, o.round * sc); x.clip(); }
     x.drawImage(img, rx, ry, rw, rh);
+    if (o.round) x.restore();
     return c.toDataURL("image/jpeg", 0.85).split(",")[1];
 }, { b64, o });
 
@@ -95,6 +100,13 @@ async function render(c) {
     await page.waitForTimeout(1500);
     if (spec.boost) await boostBorders();
     const m = await measure();
+    if (spec.mode === "band") { // a full-width band (a section on a plain page): shown as a rounded band on white, like it looks on the category page
+        const el = page.locator("body > :not(link):not(script):not(style):not(meta)").first();
+        const box = await el.boundingBox();
+        const png = await el.screenshot({ type: "png" });
+        const k = 64, cw = Math.max(box.width + 2 * k, (box.height + 2 * k) * ASP), ch = cw / ASP;
+        return Buffer.from(await compose(png.toString("base64"), { outW: OUT_W, outH: OUT_H, cw, cx: 0, cy: 0, ox: (cw - box.width) / 2, oy: (ch - box.height) / 2, fill: spec.fill || "#ffffff", round: 28 }), "base64");
+    }
     if (spec.mode === "card") {
         const found = await page.evaluate(() => {
             const rgb = (s) => { const q = /rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?\)/.exec(s); return q ? q[4] === undefined ? 1 : +q[4] : 0; };
