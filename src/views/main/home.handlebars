@@ -167,8 +167,8 @@
 <script>
     // The hero's opening, once per visit (the page head decides: it hides the mark of the logo with html.intro, the wordmark stays):
     //  1. a thick black ribbon sweeps in from the right edge and circles into a vortex over the right of the hero; the designs come out of the vortex and settle into the fan;
-    //  2. a second ribbon sweeps in low from the right, to the left, and curls up into the logo: it draws the exact mark (the centre lines of the real drawing), big;
-    //  3. the mark flies up into its place in the header and the real logo takes over.
+    //  2. the spin ends and the ribbon leaves the vortex, flying (rippling) across to the top left corner, where it draws the exact mark of the logo (the centre lines of the real drawing) in place;
+    //  3. the real logo takes over from the drawing.
     (function () {
         var root = document.documentElement, hero = document.getElementById("hero"), sp = document.querySelector("#hero .spread"), brand = document.querySelector("[data-brand]");
         var done = function () { root.classList.remove("intro"); if (sp) sp.classList.remove("pre"); };
@@ -229,7 +229,14 @@
         var orbitAt = function (th) { var k = 1 - 0.16 * th / (2 * Math.PI), a = 270 * k * Math.cos(th), b = -78 * k * Math.sin(th); return [VC[0] + a * cT - b * sT, VC[1] + a * sT + b * cT]; };
         var o0 = orbitAt(0), pts1 = wavy([[W + 70, VC[1] - 170], [W - 140, VC[1] - 160], [o0[0] + 160, o0[1] - 70], o0], 34, 16, 1.4, "mid"), k1;
         for (k1 = 1; k1 <= 220; k1++) pts1.push(orbitAt(k1 / 220 * TURNS * 2 * Math.PI));
-        var cum1 = cumOf(pts1), tot1 = cum1[cum1.length - 1], rb1 = makeRibbon();
+        var orbitEnd = pts1.length - 1, E = pts1[orbitEnd], E2 = pts1[orbitEnd - 3], tx = E[0] - E2[0], ty = E[1] - E2[1], tl = Math.hypot(tx, ty) || 1;
+        // where the mark is, in the header (the left fifth of the logo image, as high as the image), and the strokes of it: the first one starts where the ribbon arrives
+        var ix = B.left + (B.height * (150 / 152)) / 2, iy = B.top + B.height / 2, ms = B.height / 152, bx = function (p) { return B.left + p[0] * ms; }, by = function (p) { return B.top + p[1] * ms; };
+        var f0 = [bx(MARK[0][0]), by(MARK[0][0])];
+        // the way out: the ribbon leaves the vortex along the way it was going and ripples across to the top left corner
+        var exit = wavy([E, [E[0] + tx / tl * 220, E[1] + ty / tl * 220], [f0[0] + 340, f0[1] + 150], f0], 90, 44, 4, "end");
+        for (k1 = 1; k1 < exit.length; k1++) pts1.push(exit[k1]);
+        var cum1 = cumOf(pts1), tot1 = cum1[cum1.length - 1], lenOrbit = cum1[orbitEnd], rb1 = makeRibbon();
 
         // the swirl: pale streaks that run round the same ellipse, blurred, while the designs come out
         var rings = [], k;
@@ -238,32 +245,28 @@
             el.style.strokeDasharray = (250 + k * 60) + " " + (170 + k * 40); svg.insertBefore(el, svg.children[1]); rings.push(el);
         }
 
-        // ---- the second ribbon: in low from the right, to the left, up to where the mark is drawn big, below the header logo
-        var bs = 0.72, bw = 160 * bs, bh = 152 * bs, bl = R.left - bw * 0.62, bt = R.top + R.height * 0.3, bx = function (p) { return bl + p[0] * bs; }, by = function (p) { return bt + p[1] * bs; };
-        var f0 = [bx(MARK[0][0]), by(MARK[0][0])];
-        var pts2 = wavy([[W + 90, R.bottom + 40], [VC[0] + 260, R.bottom + 150], [f0[0] + 420, f0[1] + 190], f0], 70, 26, 2.2, "end"), cum2 = cumOf(pts2), tot2 = cum2[cum2.length - 1], rb2 = makeRibbon();
-
-        // ---- the mark, big: stroke after stroke along the centre lines of the real drawing
-        var big = mk("g", {}), strokes = [], lens = [], all = 0, j;
-        svg.appendChild(big);
+        // ---- the mark: stroke after stroke along the centre lines of the real drawing, at the size it has in the header
+        var strokes = [], lens = [], all = 0, j, mark = mk("g", {});
+        svg.appendChild(mark);
         for (k = 0; k < MARK.length; k++) {
             var pp = MARK[k].map(function (p) { return [bx(p), by(p)]; }), d = "M" + pp[0][0].toFixed(2) + " " + pp[0][1].toFixed(2), l = 0;
             for (j = 1; j < pp.length - 1; j++) d += "Q" + pp[j][0].toFixed(2) + " " + pp[j][1].toFixed(2) + " " + ((pp[j][0] + pp[j + 1][0]) / 2).toFixed(2) + " " + ((pp[j][1] + pp[j + 1][1]) / 2).toFixed(2);
             d += "L" + pp[pp.length - 1][0].toFixed(2) + " " + pp[pp.length - 1][1].toFixed(2);
             for (j = 1; j < MARK[k].length; j++) l += Math.hypot(MARK[k][j][0] - MARK[k][j - 1][0], MARK[k][j][1] - MARK[k][j - 1][1]);
-            var st = mk("path", { d: d, pathLength: "1", fill: "none", stroke: "#26262b", "stroke-width": (MARK_W * bs * 0.92).toFixed(2), "stroke-linecap": "round", "stroke-linejoin": "round" });
-            st.style.strokeDasharray = "0 3"; st.style.opacity = "0"; big.appendChild(st); strokes.push(st); lens.push(l); all += l;
+            var st = mk("path", { d: d, pathLength: "1", fill: "none", stroke: "#3f3f46", "stroke-width": Math.max(1.3, MARK_W * ms * 1.05).toFixed(2), "stroke-linecap": "round", "stroke-linejoin": "round" });
+            st.style.strokeDasharray = "0 3"; st.style.opacity = "0"; mark.appendChild(st); strokes.push(st); lens.push(l); all += l;
         }
 
         // ---- times (ms from the start)
-        var T_CARDS = 900, T_R1 = 1750, T_R1END = 2300, T_R2 = 2450, T_R2HEAD = 1050, T_DRAW = 3350, D_DRAW = 1050, T_FLY = 4500, D_FLY = 750;
-        var ix = B.left + (B.height * (150 / 152)) / 2, iy = B.top + B.height / 2, ms = B.height / 152;
+        var T_CARDS = 900, T_IN = 1750, T_OUT = 1250, T_DRAW = T_IN + T_OUT, D_DRAW = 950;
         var t0 = performance.now(), fired = {};
-        (function frame(now) {
-            var ts = now - t0;
-            // ribbon 1: the head runs round, the tail follows a long way behind and then catches up
-            var h1 = easeOut(clamp(ts / T_R1)), head1 = h1 * tot1, tail1 = ts < T_R1 ? Math.max(0, head1 - tot1 * 0.5) : lerp(Math.max(0, tot1 - tot1 * 0.5), tot1, easeIO(clamp((ts - T_R1) / (T_R1END - T_R1))));
-            drawRibbon(rb1, pts1, cum1, tail1, Math.max(head1, tail1 + 0.001), 11);
+        (function frame() {
+            var ts = performance.now() - t0;
+            // the ribbon: its head runs in and round the vortex, then out of it and across to the mark; its tail follows a long way behind and then catches up
+            var head = ts < T_IN ? easeOut(clamp(ts / T_IN)) * lenOrbit : lenOrbit + easeIO(clamp((ts - T_IN) / T_OUT)) * (tot1 - lenOrbit);
+            var LAG = 1500, tail = ts < T_DRAW ? Math.max(0, head - LAG) : lerp(Math.max(0, tot1 - LAG), tot1, easeIO(clamp((ts - T_DRAW) / 600)));
+            drawRibbon(rb1, pts1, cum1, tail, Math.max(head, tail + 0.001), 11);
+            if (ts > T_DRAW + 650) rb1.parts.forEach(function (qq) { qq.setAttribute("d", ""); });
             // the swirl streaks run and fade
             rings.forEach(function (el, i) { var q = clamp((ts - (T_CARDS - 150 + i * 60)) / 1500); el.setAttribute("opacity", (Math.sin(Math.PI * q) * 0.5).toFixed(3)); el.style.strokeDashoffset = String(-ts * (0.35 + i * 0.12) * (i % 2 ? -1 : 1)); });
             // the designs come out of the vortex
@@ -272,24 +275,14 @@
                 sp.querySelectorAll(".spread-card").forEach(function (c) { var rc = c.getBoundingClientRect(); c.style.setProperty("--dx", (VC[0] - (rc.left + rc.width / 2)) + "px"); c.style.setProperty("--dy", (VC[1] - (rc.top + rc.height / 2)) + "px"); });
                 sp.classList.remove("pre"); sp.classList.add("fly");
             }
-            // ribbon 2: sweeps in and its tail runs into the mark as the mark is drawn
-            var q2 = clamp((ts - T_R2) / T_R2HEAD), head2 = easeIO(q2) * tot2, tail2 = ts < T_R2 + T_R2HEAD ? Math.max(0, head2 - tot2 * 0.55) : lerp(tot2 * 0.45, tot2, easeIO(clamp((ts - T_R2 - T_R2HEAD) / 500)));
-            drawRibbon(rb2, pts2, cum2, tail2, Math.max(head2, tail2 + 0.001), 9);
-            if (ts > T_R2 + T_R2HEAD + 520) rb2.parts.forEach(function (qq) { qq.setAttribute("d", ""); });
-            // the mark is drawn, stroke after stroke
+            // the mark is drawn, stroke after stroke, where the ribbon has arrived
             var at = 0;
             for (k = 0; k < strokes.length; k++) { var a0 = at / all, a1 = (at + lens[k]) / all, p = clamp(((ts - T_DRAW) / D_DRAW - a0) / (a1 - a0)); strokes[k].style.strokeDasharray = p + " 3"; strokes[k].style.opacity = p > 0 ? "1" : "0"; at += lens[k]; }
-            // the big mark flies up into its place in the header
-            if (ts >= T_FLY && !fired.fly) {
-                fired.fly = 1;
-                big.style.transformBox = "view-box"; big.style.transformOrigin = (bl + bw / 2) + "px " + (bt + bh / 2) + "px";
-                big.animate([{ transform: "translate(0,0) scale(1)" }, { transform: "translate(" + (ix - (bl + bw / 2)) + "px," + (iy - (bt + bh / 2)) + "px) scale(" + (ms / bs) + ")" }], { duration: D_FLY, easing: "cubic-bezier(.6,.05,.2,1)", fill: "forwards" });
-            }
-            if (ts >= T_FLY + D_FLY - 60) { arrive(); return; }
+            if (ts >= T_DRAW + D_DRAW + 80) { arrive(); return; }
             requestAnimationFrame(frame);
-        })(t0);
+        })();
 
-        // the real logo is there: it is revealed where the mark landed, and the drawing goes
+        // the real logo takes over from the drawing (it is revealed where the drawing is), and the drawing goes
         function arrive() {
             root.classList.remove("intro");
             svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, delay: 120, fill: "forwards" }).onfinish = function () { svg.remove(); };
