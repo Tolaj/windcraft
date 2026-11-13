@@ -14,12 +14,16 @@ if (!chrome) throw new Error("Chrome was not found (set CHROME_PATH)");
 if (!process.env.MONGO_URI) throw new Error("MONGO_URI is not set (run with --env-file=.env)");
 
 await mongoose.connect(process.env.MONGO_URI);
-const best = await Component.aggregate([
-    { $match: { isPublished: true, category: { $nin: [null, ""] }, kind: { $ne: "section" } } },
-    { $sort: { likes: -1, createdAt: 1 } },
-    { $group: { _id: "$category", id: { $first: "$_id" }, title: { $first: "$title" }, htmlCode: { $first: "$htmlCode" } } },
-    { $sort: { _id: 1 } },
-]);
+// Which design shows for a category: the one chosen for it in category-thumb-picks.json (the title starts with the pick, "Hero Sections 09"), else the most liked, then the oldest.
+const picks = JSON.parse(fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "category-thumb-picks.json"), "utf8"));
+const all = await Component.find({ isPublished: true, category: { $nin: [null, ""] }, kind: { $ne: "section" } }).select("title category htmlCode likes createdAt").sort({ likes: -1, createdAt: 1 }).lean();
+const byCat = new Map();
+for (const c of all) (byCat.get(c.category) || byCat.set(c.category, []).get(c.category)).push(c);
+const best = [...byCat.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([slug, list]) => {
+    const chosen = picks[slug] && list.find((c) => c.title.startsWith(picks[slug]));
+    const c = chosen || list[0];
+    return { _id: slug, title: c.title, htmlCode: c.htmlCode, picked: Boolean(chosen) };
+});
 await mongoose.disconnect();
 
 fs.mkdirSync(OUT, { recursive: true });
@@ -49,7 +53,7 @@ for (const c of best) {
         }
     }
     fs.writeFileSync(path.join(OUT, `${c._id}.jpg`), await page.screenshot({ type: "jpeg", quality: 82, clip }));
-    console.log(`${c._id.padEnd(26)} ${c.title}  [h ${h}, x ${Math.round(x0)}-${Math.round(x1)}]`);
+    console.log(`${c._id.padEnd(26)} ${c.title}${c.picked ? "" : "  (no pick: the most liked)"}  [h ${h}, x ${Math.round(x0)}-${Math.round(x1)}]`);
 }
 await browser.close();
 console.log(`\n${best.length} pictures in ${OUT}`);
