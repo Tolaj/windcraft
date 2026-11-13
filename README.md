@@ -5,7 +5,7 @@
 
 ### Design in Tailwind. Keep it as code.
 
-**A visual design editor where every click writes real Tailwind HTML.**
+**A visual design editor where every click writes real Tailwind HTML, with a library of 360 Tailwind components and pages.**
 
 [![npm](https://img.shields.io/npm/v/windcraft-editor?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/windcraft-editor)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
@@ -32,6 +32,8 @@ Windcraft is an editor for web pages where the page is plain HTML with Tailwind 
 
 There is no export step and no Windcraft-only format. What you see in the editor is the HTML you ship, so you can paste it into a codebase or hand it to a coding agent as it is.
 
+Windcraft also comes with a **library of 360 Tailwind designs**: 350 components and 10 full pages, in categories such as pricing, hero sections, authentication, tables, charts, forms and footers. Every one is plain HTML with Tailwind classes. Copy it as it is, or open it in the editor and change it. Through the [MCP server](#mcp-claude-claude-code-cursor), Claude, Claude Code and Cursor can search the library, use a design in your project, and save a new one back ("save to library").
+
 You can start from a blank page, from a Figma design (with a plugin that runs on your computer), or from a description (with Claude or a local model).
 
 ## Documentation
@@ -52,6 +54,11 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
 | [Roadmap and Status](https://github.com/Tolaj/windcraft/wiki/Roadmap-and-Status) | What is solid, what is new, where to help |
 
 ## Screenshots
+
+<p align="center">
+  <img src="docs/media/gallery.png" alt="The Windcraft gallery: 360 Tailwind components and pages in categories, each with a preview" width="760">
+  <br><sub><b>A library of 360 Tailwind components and pages.</b> Browse by category, copy the HTML, or open any design in the editor.</sub>
+</p>
 
 <p align="center">
   <img src="docs/media/editor.png" alt="The Windcraft editor with a heading selected: its Tailwind properties on the right and its code highlighted below" width="760">
@@ -83,6 +90,7 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
 
 ## What you can do
 
+- **Start from a library.** 360 Tailwind components and pages (350 components, 10 pages), all plain HTML. Copy one, or open it in the editor. With the MCP server, Claude or Cursor can search it, use a design in your project, and save new ones to it.
 - **Edit visually.** Select, move, resize, align, group, copy and paste. Draw frames, shapes, text, images and buttons. Drag to rearrange. Edits are written for the device you are editing (Mobile plain, Tablet `md:`, Desktop `lg:`).
 - **Work with the code.** A Properties panel where every field is a Tailwind class, edited at its source, with breakpoints and states. A code panel with HTML, CSS, JS and Config tabs. Paste HTML from anywhere.
 - **Make it respond.** Interactions (click or hover to show, hide, change classes, scroll, copy, go to another frame), one-click Tabs and Modal, animations, scroll-linked effects, text effects, SVG drawing.
