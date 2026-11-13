@@ -189,7 +189,7 @@
         };
         var cumOf = function (pts) { var c = [0], k; for (k = 1; k < pts.length; k++) c.push(c[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1])); return c; };
         var R = sp.getBoundingClientRect(), H = hero.getBoundingClientRect(), B = brand.getBoundingClientRect(), W = window.innerWidth;
-        var MARK = [[[11,130],[13,132],[18,130],[28,120],[36,110],[41,107],[42,104],[46,96],[48,88],[54,72],[61,52],[60,50],[60,34],[59,26]],[[59,20],[59,26],[55,27],[50,33],[41,46],[36,56],[18,97],[14,112],[12,119],[11,130],[8,130],[6,128],[4,125],[4,112],[6,92],[12,70],[20,48],[27,33],[33,24],[44,13]],[[50,11],[54,12],[59,20],[69,17],[72,18],[75,21],[78,33],[85,33],[88,35],[90,38],[97,37],[102,38],[104,41],[106,46],[108,60]],[[106,66],[106,74],[103,89],[104,90]],[[93,72],[93,53],[91,41],[90,40]],[[90,39],[84,44],[79,45],[78,44],[78,38]],[[78,34],[78,36],[74,38],[66,48],[62,50]],[[76,56],[78,57],[78,61],[74,80],[70,94],[64,112],[58,124],[56,127],[52,128],[51,128],[51,123],[52,112],[57,94],[63,77],[72,58],[76,56],[78,54],[78,46]],[[124,68],[122,64],[118,60],[110,60],[107,62],[105,66],[101,67],[97,71],[92,74],[78,110],[68,130],[68,140],[70,142],[74,140],[84,128],[90,126],[92,116],[104,92],[108,88],[118,74],[123,72],[123,69],[124,68],[131,68],[134,70],[135,74],[135,82],[130,96],[132,98],[134,97],[140,92],[144,90]],[[144,91],[143,99],[138,108],[136,113],[137,134],[136,138]],[[112,126],[124,110],[132,98]],[[123,73],[123,82],[122,89],[116,102],[105,118],[99,124],[95,126],[92,127],[90,130]],[[67,132],[64,134],[59,137],[54,138],[52,137]],[[52,129],[51,137],[47,138],[42,143],[38,144],[36,142],[36,130],[40,115],[41,108]]], MARK_W = 5.2;
+        var MARK_W = 5.2;   // (the thickness of the logo's strokes, in the 152 px high drawing)
 
         var svg = mk("svg", { id: "introSvg", "aria-hidden": "true" }), defs = mk("defs", {});
         var fb = mk("filter", { id: "introBlur", x: "-20%", y: "-60%", width: "140%", height: "220%" }); fb.appendChild(mk("feGaussianBlur", { stdDeviation: "2.2" })); defs.appendChild(fb);
@@ -228,7 +228,7 @@
         var orbitEnd = pts1.length - 1, E = pts1[orbitEnd], E2 = pts1[orbitEnd - 3], tx = E[0] - E2[0], ty = E[1] - E2[1], tl = Math.hypot(tx, ty) || 1;
         // where the mark is, in the header (the left fifth of the logo image, as high as the image), and the strokes of it: the first one starts where the ribbon arrives
         var ix = B.left + (B.height * (150 / 152)) / 2, iy = B.top + B.height / 2, ms = B.height / 152, bx = function (p) { return B.left + p[0] * ms; }, by = function (p) { return B.top + p[1] * ms; };
-        var f0 = [bx(MARK[0][0]), by(MARK[0][0])];
+        var f0 = [bx([142, 100]), by([142, 100])];   // the logo is a spiral: it starts on the right (the small end) and winds out to the left (the big end): the ribbon arrives at its start
         // the way out: the ribbon leaves the vortex along the way it was going and ripples across to the top left corner
         var exit = wavy([E, [E[0] + tx / tl * 320, E[1] + ty / tl * 320], [f0[0] + 260, f0[1] + 110], f0], 90, 34, 3.2, "mid");
         for (k1 = 1; k1 < exit.length; k1++) pts1.push(exit[k1]);
@@ -253,17 +253,18 @@
         // how thick the ribbon is along its way: full in the vortex, then thinning out as it flies off to the logo, until at the logo it is as thick as the strokes of the mark are
         var wEnd = Math.max(1.3, MARK_W * ms * 1.05) / 8, ribbonW = function (L) { if (L <= lenOrbit) return 1; var q = clamp((L - lenOrbit) / (tot1 - lenOrbit)); return lerp(1, wEnd, Math.pow(q, 0.55)); };
 
-        // ---- the mark: stroke after stroke along the centre lines of the real drawing, at the size it has in the header
-        var strokes = [], lens = [], all = 0, j, mark = mk("g", {});
-        svg.appendChild(mark);
-        for (k = 0; k < MARK.length; k++) {
-            var pp = MARK[k].map(function (p) { return [bx(p), by(p)]; }), d = "M" + pp[0][0].toFixed(2) + " " + pp[0][1].toFixed(2), l = 0;
-            for (j = 1; j < pp.length - 1; j++) d += "Q" + pp[j][0].toFixed(2) + " " + pp[j][1].toFixed(2) + " " + ((pp[j][0] + pp[j + 1][0]) / 2).toFixed(2) + " " + ((pp[j][1] + pp[j + 1][1]) / 2).toFixed(2);
-            d += "L" + pp[pp.length - 1][0].toFixed(2) + " " + pp[pp.length - 1][1].toFixed(2);
-            for (j = 1; j < MARK[k].length; j++) l += Math.hypot(MARK[k][j][0] - MARK[k][j - 1][0], MARK[k][j][1] - MARK[k][j - 1][1]);
-            var st = mk("path", { d: d, pathLength: "1", fill: "none", stroke: "#3f3f46", "stroke-width": Math.max(1.3, MARK_W * ms * 1.05).toFixed(2), "stroke-linecap": "round", "stroke-linejoin": "round" });
-            st.style.strokeDasharray = "0 3"; st.style.opacity = "0"; mark.appendChild(st); strokes.push(st); lens.push(l); all += l;
+        // ---- the mark: the real logo, uncovered along a spiral that starts at its right end and winds out to its left end (a brush that follows the way the logo was drawn: loops that get bigger as they go left)
+        var coil = [], kc, NC = 340, LOOPS = 7, tilt = 20 * Math.PI / 180;
+        for (kc = 0; kc <= NC; kc++) {
+            var tt = kc / NC, a = tt * LOOPS * 2 * Math.PI, ryy = 12 + 54 * Math.pow(tt, 0.9), rxx = ryy * 0.3, cxx = 142 - 128 * tt, cyy = 100 - 30 * tt, ex = rxx * Math.cos(a), ey = ryy * Math.sin(a);
+            coil.push([bx([cxx + ex * Math.cos(tilt) + ey * Math.sin(tilt), cyy - ex * Math.sin(tilt) + ey * Math.cos(tilt)]), by([cxx + ex * Math.cos(tilt) + ey * Math.sin(tilt), cyy - ex * Math.sin(tilt) + ey * Math.cos(tilt)])]);
         }
+        var coilD = ""; coil.forEach(function (q, i) { coilD += (i ? "L" : "M") + q[0].toFixed(1) + " " + q[1].toFixed(1); });
+        var iconWpx = B.height * (150 / 152), mask = mk("mask", { id: "introMark", maskUnits: "userSpaceOnUse", x: B.left - 8, y: B.top - 8, width: iconWpx + 16, height: B.height + 16 });
+        var brush = mk("path", { d: coilD, pathLength: "1", fill: "none", stroke: "#fff", "stroke-width": (B.height * 0.2).toFixed(1), "stroke-linecap": "round", "stroke-linejoin": "round" }); brush.style.strokeDasharray = "0 3";
+        var rest = mk("rect", { x: B.left - 8, y: B.top - 8, width: iconWpx + 16, height: B.height + 16, fill: "#fff", opacity: 0 });   // (at the end, whatever the brush has not reached is uncovered too)
+        mask.appendChild(brush); mask.appendChild(rest); defs.appendChild(mask);
+        svg.appendChild(mk("image", { href: "/public/images/logo.png", x: B.left, y: B.top, width: B.width, height: B.height, mask: "url(#introMark)" }));
 
         // ---- times (ms from the start)
         var T_CARDS = 600, T_CONV = 2000, D_CONV = 1000, T_IN = 1750, T_OUT = 1250, T_DRAW = T_IN + T_OUT, D_DRAW = 950;
@@ -303,9 +304,9 @@
                 });
                 if (sc0 >= 1) { fired.done = 1; cinfo.forEach(function (ci) { ci.c.style.transform = ""; ci.c.style.filter = ""; ci.c.style.opacity = ""; ci.c.style.zIndex = ""; ci.c.style.transition = ""; }); }
             }
-            // the mark is drawn, stroke after stroke, where the ribbon has arrived
-            var at = 0;
-            for (k = 0; k < strokes.length; k++) { var a0 = at / all, a1 = (at + lens[k]) / all, p = clamp(((ts - T_DRAW) / D_DRAW - a0) / (a1 - a0)); strokes[k].style.strokeDasharray = p + " 3"; strokes[k].style.opacity = p > 0 ? "1" : "0"; at += lens[k]; }
+            // the mark is uncovered along the spiral, from its right end to its left end, where the ribbon has arrived
+            var pr = clamp((ts - T_DRAW) / D_DRAW);
+            brush.style.strokeDasharray = easeIO(pr) + " 3"; rest.setAttribute("opacity", clamp((pr - 0.88) / 0.12).toFixed(3));
             if (ts >= T_DRAW + D_DRAW + 80) { arrive(); return; }
             requestAnimationFrame(frame);
         })();
