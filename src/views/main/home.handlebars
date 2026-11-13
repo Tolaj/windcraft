@@ -199,7 +199,7 @@
         // a ribbon: the part of a polyline between two lengths, as a black shape that is thick in the middle and thins out to nothing at both ends; the tail also fades
         var FADE = 7;   // the tail fades in this many steps; the rest of the ribbon is one black shape
         var makeRibbon = function () { var g = mk("g", {}), parts = [], k; for (k = 0; k <= FADE; k++) { var q = mk("path", { fill: "#16161a" }); g.appendChild(q); parts.push(q); } svg.appendChild(g); return { g: g, parts: parts }; };
-        var drawRibbon = function (rb, pts, cum, a, b, wmax) {
+        var drawRibbon = function (rb, pts, cum, a, b, wmax, wfun) {
             if (b - a < 2) { rb.parts.forEach(function (q) { q.setAttribute("d", ""); }); return; }
             var at = function (Ls) { var lo = 0, hi = cum.length - 1; while (hi - lo > 1) { var m = (lo + hi) >> 1; if (cum[m] <= Ls) lo = m; else hi = m; } var f = (Ls - cum[lo]) / ((cum[hi] - cum[lo]) || 1); return [lerp(pts[lo][0], pts[hi][0], f), lerp(pts[lo][1], pts[hi][1], f)]; };
             var widthAt = function (u) { return wmax * Math.pow(Math.min(1, u / 0.5), 1.1) * (u > 0.95 ? 1 - (u - 0.95) / 0.05 * 0.5 : 1); };
@@ -209,7 +209,7 @@
                 for (k = 0; k < cum.length; k++) if (cum[k] > A && cum[k] < Bn) seg.push([pts[k], cum[k]]); seg.push([at(Bn), Bn]);
                 var Lp = [], Rp = [];
                 for (k = 0; k < seg.length; k++) {
-                    var p0 = seg[Math.max(0, k - 1)][0], p1 = seg[Math.min(seg.length - 1, k + 1)][0], nx = -(p1[1] - p0[1]), ny = p1[0] - p0[0], ln = Math.hypot(nx, ny) || 1, w = widthAt((seg[k][1] - a) / span) / 2;
+                    var p0 = seg[Math.max(0, k - 1)][0], p1 = seg[Math.min(seg.length - 1, k + 1)][0], nx = -(p1[1] - p0[1]), ny = p1[0] - p0[0], ln = Math.hypot(nx, ny) || 1, w = widthAt((seg[k][1] - a) / span) * (wfun ? wfun(seg[k][1]) : 1) / 2;
                     Lp.push([seg[k][0][0] + nx / ln * w, seg[k][0][1] + ny / ln * w]); Rp.push([seg[k][0][0] - nx / ln * w, seg[k][0][1] - ny / ln * w]);
                 }
                 var d = "M" + Lp[0][0].toFixed(1) + " " + Lp[0][1].toFixed(1); for (k = 1; k < Lp.length; k++) d += "L" + Lp[k][0].toFixed(1) + " " + Lp[k][1].toFixed(1);
@@ -250,6 +250,9 @@
             mist.push({ el: me, speed: (0.5 + Math.random()) * (Math.random() < 0.8 ? 1 : -1), base: 0.55 + Math.random() * 0.4, off0: Math.random() * len0, ph: Math.random() * 6 });
         }
 
+        // how thick the ribbon is along its way: full in the vortex, then thinning out as it flies off to the logo, until at the logo it is as thick as the strokes of the mark are
+        var wEnd = Math.max(1.3, MARK_W * ms * 1.05) / 8, ribbonW = function (L) { if (L <= lenOrbit) return 1; var q = clamp((L - lenOrbit) / (tot1 - lenOrbit)); return lerp(1, wEnd, Math.pow(q, 0.55)); };
+
         // ---- the mark: stroke after stroke along the centre lines of the real drawing, at the size it has in the header
         var strokes = [], lens = [], all = 0, j, mark = mk("g", {});
         svg.appendChild(mark);
@@ -275,7 +278,7 @@
             // the ribbon: its head runs in and round the vortex, then out of it and across to the mark; its tail follows a long way behind and then catches up
             var head = ts < T_IN ? easeOut(clamp(ts / T_IN)) * lenOrbit : lenOrbit + easeIO(clamp((ts - T_IN) / T_OUT)) * (tot1 - lenOrbit);
             var LAG = 1500, tail = ts < T_DRAW ? Math.max(0, head - LAG) : lerp(Math.max(0, tot1 - LAG), tot1, easeIO(clamp((ts - T_DRAW) / 600)));
-            drawRibbon(rb1, pts1, cum1, tail, Math.max(head, tail + 0.001), 11);
+            drawRibbon(rb1, pts1, cum1, tail, Math.max(head, tail + 0.001), 8, ribbonW);
             if (ts > T_DRAW + 650) rb1.parts.forEach(function (qq) { qq.setAttribute("d", ""); });
             // the swirl streaks run and fade
             rings.forEach(function (el, i) { var q = clamp((ts - (T_CARDS - 150 + i * 60)) / 2300); el.setAttribute("opacity", (Math.sin(Math.PI * q) * 0.5).toFixed(3)); el.style.strokeDashoffset = String(-ts * (0.35 + i * 0.12) * (i % 2 ? -1 : 1)); });
