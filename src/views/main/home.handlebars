@@ -1,7 +1,15 @@
 <!-- Main Content Area -->
 <main class="flex-1">
     <!-- Hero -->
-    <section class="mx-6 mt-6 rounded-xl border border-gray-200 bg-white p-6 md:p-8">
+    <section id="hero" class="relative mx-6 mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white p-6 md:p-8">
+        <!-- a spread of designs from the gallery, in the room beside the text (only where there is room: the section is wide) -->
+        <div class="spread" aria-hidden="true">
+            <figure class="spread-card" style="--x:0%;--y:48px;--r:-11deg;--z:1"><div class="sp-bar"><i></i><i></i><i></i></div><img src="/public/images/categories/layout-basic.jpg" alt="" loading="lazy" onerror="this.closest('figure').remove()"></figure>
+            <figure class="spread-card" style="--x:15%;--y:22px;--r:-5deg;--z:2"><div class="sp-bar"><i></i><i></i><i></i></div><img src="/public/images/categories/marketing-pricing.jpg" alt="" loading="lazy" onerror="this.closest('figure').remove()"></figure>
+            <figure class="spread-card" style="--x:31%;--y:2px;--r:0deg;--z:5"><div class="sp-bar"><i></i><i></i><i></i></div><img src="/public/images/categories/marketing-hero.jpg" alt="" loading="lazy" onerror="this.closest('figure').remove()"></figure>
+            <figure class="spread-card" style="--x:47%;--y:22px;--r:5deg;--z:4"><div class="sp-bar"><i></i><i></i><i></i></div><img src="/public/images/categories/ecommerce-products.jpg" alt="" loading="lazy" onerror="this.closest('figure').remove()"></figure>
+            <figure class="spread-card" style="--x:62%;--y:48px;--r:11deg;--z:3"><div class="sp-bar"><i></i><i></i><i></i></div><img src="/public/images/categories/apps-charts.jpg" alt="" loading="lazy" onerror="this.closest('figure').remove()"></figure>
+        </div>
         <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Design in Tailwind, keep it as code</p>
         <h1 class="mt-2 max-w-2xl text-3xl font-semibold tracking-[-0.04em] text-gray-900 md:text-4xl">The component library your AI tools can actually use.</h1>
         <p class="mt-3 max-w-2xl text-[15px] text-gray-600">Bring a design in from Figma, or write and edit it here. Keep everything in projects, export it to React, Vue and Svelte, and let coding agents read and write it over MCP instead of guessing.</p>
@@ -76,6 +84,15 @@
     <style>
     /* a narrow card has no room for the word: only "+10" shows (the card is the container, not the screen) */
     #contentGrid .component-card { container-type: inline-size; }
+    /* the hero's spread of designs: a fan of cards beside the text, shown when the hero is wide enough to have the room */
+    #hero { container-type: inline-size; }
+    #hero .spread { display: none; position: absolute; top: 24px; right: 32px; width: min(calc(100% - 760px), 600px); height: 240px; pointer-events: none; }
+    @container (min-width: 1020px) { #hero .spread { display: block; } }
+    .spread-card { position: absolute; left: var(--x); top: var(--y); z-index: var(--z); width: 38%; margin: 0; overflow: hidden; border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; box-shadow: 0 10px 30px rgba(0, 0, 0, .14), 0 2px 6px rgba(0, 0, 0, .08); transform: rotate(var(--r)); transform-origin: 50% 100%; transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
+    #hero:hover .spread-card { transform: rotate(calc(var(--r) * 1.35)) translateY(calc(var(--z) * -1px)); }
+    .sp-bar { display: flex; gap: 3px; align-items: center; height: 14px; padding-left: 7px; border-bottom: 1px solid #eee; background: #fff; }
+    .sp-bar i { width: 4px; height: 4px; border-radius: 9999px; background: #d1d5db; }
+    .spread-card img { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; }
     @container (max-width: 235px) { .new-word { display: none; } }
     /* the card's picture: a real screenshot of the category's best design, in a small window (a category with no picture keeps the drawn wireframe) */
     #contentGrid .card-image:not(.no-thumb) { padding: 12px 24px 0; }
