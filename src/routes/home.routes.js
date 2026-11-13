@@ -86,7 +86,8 @@ router.get("/", async (req, res) => {
                     newCount: r.newCount,
                     hasNew: r.newCount > 0
                 };
-            });
+            })
+            .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true })); // A to Z
 
         res.status(200).render("main/home", {
             activePage: 'home',
