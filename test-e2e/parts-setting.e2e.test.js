@@ -21,11 +21,7 @@ const SITE = `<!doctype html><html><head><title>Site</title></head><body>
 <section><h2>What customers say</h2><p>Teams tell us the apps are fast, clear and easy to learn, and that setup took them only a few minutes in the afternoon.</p></section>
 <footer><p>Made for small businesses everywhere, with care.</p></footer></body></html>`;
 
-const projectData = async (ctx) => {
-    const html = await (await ctx.request.get(`${stack.base}/projects/${ids.project}`)).text();
-    const m = /<script id="projectData" type="application\/json">(.*?)<\/script>/s.exec(html);
-    return JSON.parse(m[1].replace(/\\u003c/g, "<"));
-};
+const projectData = async (ctx) => (await (await ctx.request.get(`${stack.base}/api/projects/${ids.project}/board`)).json()).data;
 const partsOf = (data, title) => { const page = data.items.find((i) => i.title === title && i.kind === "page"); return page ? data.items.filter((i) => i.kind === "section" && i.parent === page.id) : null; };
 const importFrame = async (ctx, title) => {
     const r = await ctx.request.post(`${stack.base}/api/components/import`, { data: { items: [{ title, html: SITE }], project: ids.project } });
