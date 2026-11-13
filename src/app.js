@@ -21,6 +21,8 @@ const __dirname = path.dirname(__filename);
 
 // middlewares
 app.use("/public", express.static(path.join(__dirname, "public")));
+// browsers ask for /favicon.ico on their own, whatever the page says
+app.get("/favicon.ico", (req, res) => res.sendFile(path.join(__dirname, "public", "favicon.ico")));
 // @windcraft/core as the browser sees it (the layouts map the package name to this path with an import map)
 app.use("/editor", express.static(path.join(__dirname, "..", "packages", "editor"), { index: false }));
 app.use("/core", express.static(path.join(__dirname, "..", "packages", "core"), { index: false }));
