@@ -56,11 +56,6 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
 ## Screenshots
 
 <p align="center">
-  <img src="docs/media/gallery.png" alt="The Windcraft gallery: 360 Tailwind components and pages in categories, each with a preview" width="760">
-  <br><sub><b>A library of 360 Tailwind components and pages.</b> Browse by category, copy the HTML, or open any design in the editor.</sub>
-</p>
-
-<p align="center">
   <img src="docs/media/editor.png" alt="The Windcraft editor with a heading selected: its Tailwind properties on the right and its code highlighted below" width="760">
   <br><sub><b>Select anything.</b> The Properties panel shows its Tailwind classes, and the code panel highlights the exact element.</sub>
 </p>
@@ -82,8 +77,8 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
       <br><b>Your Tailwind config.</b> Edit <code>tailwind.config.js</code> (Tailwind 3) or <code>global.css</code> (Tailwind 4), with plugins. It applies as you type.
     </td>
     <td valign="top" width="50%">
-      <img src="docs/media/frames.png" alt="Three frames of a project on one canvas, with the Frames and Layers lists and a selected box showing its children as dashed outlines" width="420">
-      <br><b>Frames and layers.</b> Every frame of a project on one canvas, every element in a tree. Select a box and its children show as dashed outlines.
+      <img src="docs/media/gallery.png" alt="The Windcraft gallery: 360 Tailwind components and pages in categories, each with a preview" width="420">
+      <br><b>A library of 360 Tailwind components and pages.</b> Browse by category, copy the HTML, or open any design in the editor.
     </td>
   </tr>
 </table>
