@@ -51,32 +51,40 @@ projectPages.get("/design-guide.md", async (req, res) => {
 });
 
 projectPages.get("/:id", async (req, res) => {
+    // The page opens at once with a spinner; the board's data (all the frames' code) comes from /api/projects/:id/board
     try {
         if (!mongoose.isValidObjectId(req.params.id)) throw new Error("bad id");
-        const project = await Project.findOne({ _id: req.params.id, owner: req.session.user.id }).lean();
+        const project = await Project.findOne({ _id: req.params.id, owner: req.session.user.id }).select("name").lean();
         if (!project) throw new Error("missing");
-        const active = await getActiveProject(req.session.user.id);
-        const items = await Component.find({ createdBy: req.session.user.id, project: project._id })
-            .select("title description kind parent order group tags version htmlCode board category useAsReference twConfig isPublished updatedAt")
-            .sort("order createdAt")
-            .lean();
-        const data = {
-            project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", autoParts: project.autoParts !== false, active: Boolean(active && String(active._id) === String(project._id)) },
-            categories: Object.entries(Object.entries(categories).reduce((g, [slug, c]) => ((g[c.group] ||= []).push({ slug, name: c.name }), g), {})).map(([group, list]) => ({ group, items: list })), // for each design's category
-            projects: (await Project.find({ owner: req.session.user.id }).select("name").sort("name").lean()).map((x) => ({ id: String(x._id), name: x.name })), // for "Move to project"
-            items: items.map((c) => ({
-                id: String(c._id), title: c.title, useAsReference: c.useAsReference !== false, twConfig: c.twConfig || null, group: c.group || "", description: c.description, kind: c.kind, parent: c.parent ? String(c.parent) : null,
-                version: c.version || 1, tags: c.tags || [], category: c.category || "", isPublished: c.isPublished === true, htmlCode: c.htmlCode, frameW: c.frameW || null, board: c.board && Number.isFinite(c.board.x) ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) } : null, updatedAt: c.updatedAt,
-            })),
-        };
-        res.render("main/project", {
-            layout: "canvas", projectId: String(project._id), title: project.name, projectName: project.name,
-            dataJson: JSON.stringify(data).replace(/</g, "\\u003c").replace(/[\u2028\u2029]/g, ""),
-        });
+        res.render("main/project", { layout: "canvas", projectId: String(project._id), title: project.name, projectName: project.name });
     } catch {
         res.status(404).render("error", { layout: "main", title: "Not found", message: "That project doesn't exist.", user: req.session.user });
     }
 });
+
+/** Everything the project board opens with: the project, its frames and parts (with their code) and the lists the panels need. */
+async function boardData(userId, projectId) {
+    const project = await Project.findOne({ _id: projectId, owner: userId }).lean();
+    if (!project) return null;
+    const [active, items, others] = await Promise.all([ // (three independent reads, together)
+        getActiveProject(userId),
+        Component.find({ createdBy: userId, project: project._id })
+        .select("title description kind parent order group tags version htmlCode board category useAsReference twConfig isPublished updatedAt")
+        .sort("order createdAt")
+        .lean(),
+        Project.find({ owner: userId }).select("name").sort("name").lean(),
+    ]);
+    const data = {
+        project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", autoParts: project.autoParts !== false, active: Boolean(active && String(active._id) === String(project._id)) },
+        categories: Object.entries(Object.entries(categories).reduce((g, [slug, c]) => ((g[c.group] ||= []).push({ slug, name: c.name }), g), {})).map(([group, list]) => ({ group, items: list })), // for each design's category
+        projects: others.map((x) => ({ id: String(x._id), name: x.name })), // for "Move to project"
+        items: items.map((c) => ({
+            id: String(c._id), title: c.title, useAsReference: c.useAsReference !== false, twConfig: c.twConfig || null, group: c.group || "", description: c.description, kind: c.kind, parent: c.parent ? String(c.parent) : null,
+            version: c.version || 1, tags: c.tags || [], category: c.category || "", isPublished: c.isPublished === true, htmlCode: c.htmlCode, frameW: c.frameW || null, board: c.board && Number.isFinite(c.board.x) ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) } : null, updatedAt: c.updatedAt,
+        })),
+    };
+    return data;
+}
 
 // ── API ──────────────────────────────────────────────────────────────────────
 export const projectApi = express.Router();
@@ -92,6 +100,17 @@ const sizeOf = (p, old) => {
 };
 
 const clean = (b) => ({ name: String(b.name || "").trim().slice(0, 80), description: String(b.description || "").trim().slice(0, 300) });
+
+projectApi.get("/:id/board", async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ success: false, message: "Not found" });
+        const data = await boardData(req.session.user.id, req.params.id);
+        if (!data) return res.status(404).json({ success: false, message: "Not found" });
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message || "Could not open the project" });
+    }
+});
 
 projectApi.get("/", async (req, res) => res.json({ success: true, data: await listProjects(req.session.user.id) }));
 

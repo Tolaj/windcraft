@@ -11,7 +11,25 @@ import { parseDocument } from "@windcraft/core/split-sections.js";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const data = JSON.parse($("projectData").textContent);
+// The page is already open (with a spinner over it): the board's data comes from the server now.
+const loader = $("pageLoader");
+async function loadBoard() {
+    const res = await fetch(`/api/projects/${window.__PROJECT_ID}/board`);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.success) throw new Error(body.message || `The server answered ${res.status}`);
+    return body.data;
+}
+let data;
+try { data = await loadBoard(); } catch (err) {
+    loader.querySelector("i").style.display = "none";
+    loader.querySelector("span").textContent = "The project could not be opened. Your work is safe: try again.";
+    const retry = document.createElement("button");
+    retry.type = "button"; retry.textContent = "Try again";
+    retry.style.cssText = "height:28px;padding:0 12px;border:0;border-radius:6px;background:#262626;color:#fff;font:600 12px system-ui,sans-serif;cursor:pointer";
+    retry.addEventListener("click", () => location.reload());
+    loader.append(retry);
+    throw err;
+}
 const project = data.project;
 let items = data.items;
 setPreviewTheme(project.theme); // the previews are drawn with the project's theme
@@ -736,6 +754,7 @@ renderDetails();
 applyView();
 fitAll();
 if (location.hash === "#config" || location.hash === "#plugins") { tab = "theme"; renderOutline(); renderTheme(); } // the editor links here
+loader.classList.add("is-done"); setTimeout(() => loader.remove(), 250); // the board is drawn: the spinner goes
 
 // ── Share link: anyone with it can look at the project and copy its code (no account, nothing editable) ──────────────
 (() => {

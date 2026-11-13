@@ -14,10 +14,7 @@ before(async () => {
 });
 after(async () => { if (skip) return; if (browser) await within(browser.close()); if (stack) await within(stack.stop(), 20000); });
 
-const projectData = async (ctx) => {
-    const html = await (await ctx.request.get(`${stack.base}/projects/${ids.project}`)).text();
-    return JSON.parse(/<script id="projectData" type="application\/json">(.*?)<\/script>/s.exec(html)[1].replace(/\\u003c/g, "<"));
-};
+const projectData = async (ctx) => (await (await ctx.request.get(`${stack.base}/api/projects/${ids.project}/board`)).json()).data;
 const frames = (data) => data.items.filter((i) => i.kind !== "section");
 
 test("Publish all frames: on publishes every frame, off makes them private, one private frame turns it off (project page and editor)", { skip: skip || false, timeout: 240000 }, async () => {
