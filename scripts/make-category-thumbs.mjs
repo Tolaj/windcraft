@@ -123,7 +123,9 @@ async function render(c) {
         });
         if (!found) throw new Error(`${c.title}: no card found`);
         const png = await page.locator("[data-thumb-card]").screenshot({ type: "png", omitBackground: true });
-        const k = 64, cw = Math.max(found.w + 2 * k, (found.h + 2 * k) * ASP), ch = cw / ASP;
+        // the window on a card can be 2.1 times wider than high, and then the picture is cut at its top and bottom to a little over two thirds: a tall card is given room, so that all of it shows with air around it
+        const k = 64; let cw = Math.max(found.w + 2 * k, (found.h + 2 * k) * ASP), ch = cw / ASP;
+        if (found.h > ch * 0.66) { ch = found.h / 0.66; cw = ch * ASP; }
         return Buffer.from(await compose(png.toString("base64"), { outW: OUT_W, outH: OUT_H, cw, cx: 0, cy: 0, ox: (cw - found.w) / 2, oy: (ch - found.h) / 2, fill: spec.fill || "#ffffff" }), "base64");
     }
     // no mode given: a tall design shows its top; a short one that is full width (a navbar, a banner) hangs from the top of a white page; a short one in the middle is centered
@@ -144,7 +146,9 @@ async function render(c) {
 }
 
 await composer.setContent("<body></body>");
+const only = process.argv.slice(2); // optional: slugs to make (npm run thumbs:categories -- forms-authentication), else all
 for (const c of best) {
+    if (only.length && !only.includes(c._id)) continue;
     fs.writeFileSync(path.join(OUT, `${c._id}.jpg`), await render(c));
     console.log(`${c._id.padEnd(26)} ${c.title}${c.picked ? "" : "  (no pick: the most liked)"}`);
 }
