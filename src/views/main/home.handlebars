@@ -221,7 +221,7 @@
         };
 
         // ---- the first ribbon: in from the right edge, then round and round (an ellipse that tightens a little) over the middle of the fan
-        var VC = [R.left + R.width * 0.5, R.top + R.height * 0.55], T = -0.22, cT = Math.cos(T), sT = Math.sin(T), TURNS = 1.8;
+        var VC = [R.left + R.width * 0.5, R.top + R.height * 0.55], T = -0.22, cT = Math.cos(T), sT = Math.sin(T), TURNS = 2 + 55 / 360;   // the spin ends on the upper right of the ellipse, where its tangent points up and to the left: the way to the logo
         var orbitAt = function (th) { var k = 1 - 0.16 * th / (2 * Math.PI), a = 270 * k * Math.cos(th), b = -78 * k * Math.sin(th); return [VC[0] + a * cT - b * sT, VC[1] + a * sT + b * cT]; };
         var o0 = orbitAt(0), pts1 = wavy([[W + 70, VC[1] - 170], [W - 140, VC[1] - 160], [o0[0] + 160, o0[1] - 70], o0], 34, 16, 1.4, "mid"), k1;
         for (k1 = 1; k1 <= 220; k1++) pts1.push(orbitAt(k1 / 220 * TURNS * 2 * Math.PI));
@@ -230,7 +230,7 @@
         var ix = B.left + (B.height * (150 / 152)) / 2, iy = B.top + B.height / 2, ms = B.height / 152, bx = function (p) { return B.left + p[0] * ms; }, by = function (p) { return B.top + p[1] * ms; };
         var f0 = [bx(MARK[0][0]), by(MARK[0][0])];
         // the way out: the ribbon leaves the vortex along the way it was going and ripples across to the top left corner
-        var exit = wavy([E, [E[0] + tx / tl * 220, E[1] + ty / tl * 220], [f0[0] + 340, f0[1] + 150], f0], 90, 44, 4, "end");
+        var exit = wavy([E, [E[0] + tx / tl * 320, E[1] + ty / tl * 320], [f0[0] + 260, f0[1] + 110], f0], 90, 34, 3.2, "mid");
         for (k1 = 1; k1 < exit.length; k1++) pts1.push(exit[k1]);
         var cum1 = cumOf(pts1), tot1 = cum1[cum1.length - 1], lenOrbit = cum1[orbitEnd], rb1 = makeRibbon();
 
