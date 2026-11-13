@@ -95,7 +95,7 @@
     .spread-card img { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; }
     /* the opening (see the script below): the cards wait while a line winds into a spiral and flies to the logo, then fly out of the logo into the fan */
     #hero .spread.pre .spread-card { opacity: 0; }
-    #hero .spread.fly .spread-card { animation: sp-fly 1s cubic-bezier(.2, .9, .25, 1.06) calc(var(--i) * .11s) backwards; }
+    #hero .spread.fly .spread-card { animation: sp-fly 1.15s cubic-bezier(.2, .9, .25, 1.06) calc(var(--i) * .1s) backwards; }
     @keyframes sp-fly {
         0% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(540deg) scale(.08); }
         16% { opacity: 1; }
@@ -166,116 +166,133 @@
 
 <script>
     // The hero's opening, once per visit (the page head decides: it hides the mark of the logo with html.intro, the wordmark stays):
-    //  1. a wavy line flies in from the right edge and winds into a spiral lying on its side, with smoke coming off it;
-    //  2. the spiral untangles into a wavy line again;
-    //  3. the line flies on, rippling along a curve, to where the logo's mark is (its tail thins out as it goes);
-    //  4. there it draws the mark, stroke after stroke, along the real drawing; the real logo takes over;
-    //  5. the designs fly out of the logo into the fan.
+    //  1. a thick black ribbon sweeps in from the right edge and circles into a vortex over the right of the hero; the designs come out of the vortex and settle into the fan;
+    //  2. a second ribbon sweeps in low from the right, to the left, and curls up into the logo: it draws the exact mark (the centre lines of the real drawing), big;
+    //  3. the mark flies up into its place in the header and the real logo takes over.
     (function () {
-        var root = document.documentElement, sp = document.querySelector("#hero .spread"), brand = document.querySelector("[data-brand]");
+        var root = document.documentElement, hero = document.getElementById("hero"), sp = document.querySelector("#hero .spread"), brand = document.querySelector("[data-brand]");
         var done = function () { root.classList.remove("intro"); if (sp) sp.classList.remove("pre"); };
         if (!root.classList.contains("intro")) return;
         try { sessionStorage.setItem("wc:hero-played", "1"); } catch (e) { /* ignore */ }
-        if (!sp || !brand || getComputedStyle(sp).display === "none" || !sp.animate) return done();
+        if (!hero || !sp || !brand || getComputedStyle(sp).display === "none" || !sp.animate) return done();
         sp.classList.add("pre");
 
         var NS = "http://www.w3.org/2000/svg", mk = function (n, a) { var e = document.createElementNS(NS, n); for (var k in a) e.setAttribute(k, a[k]); return e; };
         var bez = function (P, t) { var u = 1 - t; return [u * u * u * P[0][0] + 3 * u * u * t * P[1][0] + 3 * u * t * t * P[2][0] + t * t * t * P[3][0], u * u * u * P[0][1] + 3 * u * u * t * P[1][1] + 3 * u * t * t * P[2][1] + t * t * t * P[3][1]]; };
-        var lerp = function (a, b, u) { return a + (b - a) * u; }, easeIO = function (x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }, easeOut = function (x) { return 1 - Math.pow(1 - x, 2.2); };
-        // a curve with ripples: the points of a bezier moved sideways by a sine (amp px, `waves` of them), zero at both ends unless `fade` is "end" (then it dies away towards the end)
+        var lerp = function (a, b, u) { return a + (b - a) * u; }, clamp = function (x) { return Math.min(1, Math.max(0, x)); };
+        var easeIO = function (x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }, easeOut = function (x) { return 1 - Math.pow(1 - x, 2.4); };
+        // a curve with ripples: the points of a bezier moved sideways by a sine; zero at both ends ("mid") or dying away towards the end ("end")
         var wavy = function (P, count, amp, waves, mode) {
-            var out = [], k, t, q, q2, nx, ny, len, off;
+            var out = [], k, t, q, q1, q2, nx, ny, len, off;
             for (k = 0; k <= count; k++) {
-                t = k / count; q = bez(P, t); q2 = bez(P, Math.min(1, t + 0.01)); var q1 = bez(P, Math.max(0, t - 0.01));
+                t = k / count; q = bez(P, t); q2 = bez(P, Math.min(1, t + 0.01)); q1 = bez(P, Math.max(0, t - 0.01));
                 nx = -(q2[1] - q1[1]); ny = q2[0] - q1[0]; len = Math.hypot(nx, ny) || 1;
                 off = amp * Math.sin(t * waves * 2 * Math.PI) * (mode === "end" ? (1 - t) : Math.sin(Math.PI * t));
                 out.push([q[0] + nx / len * off, q[1] + ny / len * off]);
             }
             return out;
         };
-        var R = sp.getBoundingClientRect(), B = brand.getBoundingClientRect(), W = window.innerWidth;
-        var cy = R.top + R.height * 0.52, hx = R.left + R.width * 0.74, L = R.width * 0.3;
-        var MARK = [[[11,130],[13,132],[18,130],[28,120],[36,110],[41,107],[42,104],[46,96],[48,88],[54,72],[61,52],[60,50],[60,34],[59,26]],[[59,20],[59,26],[55,27],[50,33],[41,46],[36,56],[18,97],[14,112],[12,119],[11,130],[8,130],[6,128],[4,125],[4,112],[6,92],[12,70],[20,48],[27,33],[33,24],[44,13]],[[50,11],[54,12],[59,20],[69,17],[72,18],[75,21],[78,33],[85,33],[88,35],[90,38],[97,37],[102,38],[104,41],[106,46],[108,60]],[[106,66],[106,74],[103,89],[104,90]],[[93,72],[93,53],[91,41],[90,40]],[[90,39],[84,44],[79,45],[78,44],[78,38]],[[78,34],[78,36],[74,38],[66,48],[62,50]],[[76,56],[78,57],[78,61],[74,80],[70,94],[64,112],[58,124],[56,127],[52,128],[51,128],[51,123],[52,112],[57,94],[63,77],[72,58],[76,56],[78,54],[78,46]],[[124,68],[122,64],[118,60],[110,60],[107,62],[105,66],[101,67],[97,71],[92,74],[78,110],[68,130],[68,140],[70,142],[74,140],[84,128],[90,126],[92,116],[104,92],[108,88],[118,74],[123,72],[123,69],[124,68],[131,68],[134,70],[135,74],[135,82],[130,96],[132,98],[134,97],[140,92],[144,90]],[[144,91],[143,99],[138,108],[136,113],[137,134],[136,138]],[[112,126],[124,110],[132,98]],[[123,73],[123,82],[122,89],[116,102],[105,118],[99,124],[95,126],[92,127],[90,130]],[[67,132],[64,134],[59,137],[54,138],[52,137]],[[52,129],[51,137],[47,138],[42,143],[38,144],[36,142],[36,130],[40,115],[41,108]]], MARK_W = 5.2;
-        var i, t;
-
-        // the line from the right edge (rippling), and the spiral it winds into; each point of the spiral also has a place on a wavy line, for the untangling
-        var A = [[W + 70, cy - 120], [W - 120, cy - 150], [hx + 190, cy - 40], [hx + 22, cy]], entry = wavy(A, 40, 24, 2.5, "mid");
-        var loops = 7, n = 420, tilt = -0.2, ct = Math.cos(tilt), st = Math.sin(tilt), LINE = R.width * 0.55;
-        var coilAt = function (t) { var a = t * loops * 2 * Math.PI, r = 7 + 56 * Math.pow(1 - t, 0.85), ex = r * 0.52 * Math.cos(a), ey = r * Math.sin(a); return [hx - t * L + ex * ct - ey * st, cy + ex * st + ey * ct]; };
-        var lineAt = function (t) { return [hx + 22 - t * LINE, cy + 20 * Math.sin(t * 2 * Math.PI * 2.2)]; };
-        var shape = function (u) { var out = entry.slice(), k; for (k = 1; k <= n; k++) { var tt = k / n, c = coilAt(tt), l = lineAt(tt); out.push([lerp(c[0], l[0], u), lerp(c[1], l[1], u)]); } return out; };
-
-        var svg = mk("svg", { id: "introSvg", "aria-hidden": "true" }), defs = mk("defs", {}), blur = mk("filter", { id: "introSmoke", x: "-50%", y: "-50%", width: "200%", height: "200%" }), dust = mk("g", { filter: "url(#introSmoke)" });
-        var ribbon = mk("path", { fill: "#2b2b2b" });
-        blur.appendChild(mk("feGaussianBlur", { stdDeviation: "5" })); defs.appendChild(blur); svg.appendChild(defs); svg.appendChild(dust); svg.appendChild(ribbon); document.body.appendChild(svg);
-        var T1 = 1300, HOLD = 200, T2 = 750, T3 = 900, T4 = 1150;
-
-        // the ribbon: the part of a polyline between two lengths, drawn as a thin shape that is full width at the head and runs out to nothing at the tail
         var cumOf = function (pts) { var c = [0], k; for (k = 1; k < pts.length; k++) c.push(c[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1])); return c; };
-        var draw = function (pts, cum, a, b) {
-            if (b - a < 1) { ribbon.setAttribute("d", ""); return; }
+        var R = sp.getBoundingClientRect(), H = hero.getBoundingClientRect(), B = brand.getBoundingClientRect(), W = window.innerWidth;
+        var MARK = [[[11,130],[13,132],[18,130],[28,120],[36,110],[41,107],[42,104],[46,96],[48,88],[54,72],[61,52],[60,50],[60,34],[59,26]],[[59,20],[59,26],[55,27],[50,33],[41,46],[36,56],[18,97],[14,112],[12,119],[11,130],[8,130],[6,128],[4,125],[4,112],[6,92],[12,70],[20,48],[27,33],[33,24],[44,13]],[[50,11],[54,12],[59,20],[69,17],[72,18],[75,21],[78,33],[85,33],[88,35],[90,38],[97,37],[102,38],[104,41],[106,46],[108,60]],[[106,66],[106,74],[103,89],[104,90]],[[93,72],[93,53],[91,41],[90,40]],[[90,39],[84,44],[79,45],[78,44],[78,38]],[[78,34],[78,36],[74,38],[66,48],[62,50]],[[76,56],[78,57],[78,61],[74,80],[70,94],[64,112],[58,124],[56,127],[52,128],[51,128],[51,123],[52,112],[57,94],[63,77],[72,58],[76,56],[78,54],[78,46]],[[124,68],[122,64],[118,60],[110,60],[107,62],[105,66],[101,67],[97,71],[92,74],[78,110],[68,130],[68,140],[70,142],[74,140],[84,128],[90,126],[92,116],[104,92],[108,88],[118,74],[123,72],[123,69],[124,68],[131,68],[134,70],[135,74],[135,82],[130,96],[132,98],[134,97],[140,92],[144,90]],[[144,91],[143,99],[138,108],[136,113],[137,134],[136,138]],[[112,126],[124,110],[132,98]],[[123,73],[123,82],[122,89],[116,102],[105,118],[99,124],[95,126],[92,127],[90,130]],[[67,132],[64,134],[59,137],[54,138],[52,137]],[[52,129],[51,137],[47,138],[42,143],[38,144],[36,142],[36,130],[40,115],[41,108]]], MARK_W = 5.2;
+
+        var svg = mk("svg", { id: "introSvg", "aria-hidden": "true" }), defs = mk("defs", {});
+        var fb = mk("filter", { id: "introBlur", x: "-20%", y: "-60%", width: "140%", height: "220%" }); fb.appendChild(mk("feGaussianBlur", { stdDeviation: "2.2" })); defs.appendChild(fb);
+        svg.appendChild(defs); document.body.appendChild(svg);
+
+        // a ribbon: the part of a polyline between two lengths, as a black shape that is thick in the middle and thins out to nothing at both ends; the tail also fades
+        var FADE = 7;   // the tail fades in this many steps; the rest of the ribbon is one black shape
+        var makeRibbon = function () { var g = mk("g", {}), parts = [], k; for (k = 0; k <= FADE; k++) { var q = mk("path", { fill: "#16161a" }); g.appendChild(q); parts.push(q); } svg.appendChild(g); return { g: g, parts: parts }; };
+        var drawRibbon = function (rb, pts, cum, a, b, wmax) {
+            if (b - a < 2) { rb.parts.forEach(function (q) { q.setAttribute("d", ""); }); return; }
             var at = function (Ls) { var lo = 0, hi = cum.length - 1; while (hi - lo > 1) { var m = (lo + hi) >> 1; if (cum[m] <= Ls) lo = m; else hi = m; } var f = (Ls - cum[lo]) / ((cum[hi] - cum[lo]) || 1); return [lerp(pts[lo][0], pts[hi][0], f), lerp(pts[lo][1], pts[hi][1], f)]; };
-            var seg = [[at(a), a]], k; for (k = 0; k < cum.length; k++) if (cum[k] > a && cum[k] < b) seg.push([pts[k], cum[k]]); seg.push([at(b), b]);
-            var Lp = [], Rp = [], tail = Math.min(260, (b - a) * 0.8);
-            for (k = 0; k < seg.length; k++) {
-                var p0 = seg[Math.max(0, k - 1)][0], p1 = seg[Math.min(seg.length - 1, k + 1)][0], nx = -(p1[1] - p0[1]), ny = p1[0] - p0[0], ln = Math.hypot(nx, ny) || 1, dd = seg[k][1] - a, w = 2.7 * Math.pow(Math.min(1, dd / tail), 1.3) / 2;
-                Lp.push([seg[k][0][0] + nx / ln * w, seg[k][0][1] + ny / ln * w]); Rp.push([seg[k][0][0] - nx / ln * w, seg[k][0][1] - ny / ln * w]);
-            }
-            var d = "M" + Lp[0][0].toFixed(1) + " " + Lp[0][1].toFixed(1); for (k = 1; k < Lp.length; k++) d += "L" + Lp[k][0].toFixed(1) + " " + Lp[k][1].toFixed(1);
-            for (k = Rp.length - 1; k >= 0; k--) d += "L" + Rp[k][0].toFixed(1) + " " + Rp[k][1].toFixed(1);
-            ribbon.setAttribute("d", d + "Z");
+            var widthAt = function (u) { return wmax * Math.pow(Math.min(1, u / 0.5), 1.1) * (u > 0.95 ? 1 - (u - 0.95) / 0.05 * 0.5 : 1); };
+            var span = b - a, k, j, FZ = 0.4;
+            var shape = function (u0, u1, over) {
+                var A = a + span * u0, Bn = Math.min(b, a + span * u1 + over), seg = [[at(A), A]];
+                for (k = 0; k < cum.length; k++) if (cum[k] > A && cum[k] < Bn) seg.push([pts[k], cum[k]]); seg.push([at(Bn), Bn]);
+                var Lp = [], Rp = [];
+                for (k = 0; k < seg.length; k++) {
+                    var p0 = seg[Math.max(0, k - 1)][0], p1 = seg[Math.min(seg.length - 1, k + 1)][0], nx = -(p1[1] - p0[1]), ny = p1[0] - p0[0], ln = Math.hypot(nx, ny) || 1, w = widthAt((seg[k][1] - a) / span) / 2;
+                    Lp.push([seg[k][0][0] + nx / ln * w, seg[k][0][1] + ny / ln * w]); Rp.push([seg[k][0][0] - nx / ln * w, seg[k][0][1] - ny / ln * w]);
+                }
+                var d = "M" + Lp[0][0].toFixed(1) + " " + Lp[0][1].toFixed(1); for (k = 1; k < Lp.length; k++) d += "L" + Lp[k][0].toFixed(1) + " " + Lp[k][1].toFixed(1);
+                for (k = Rp.length - 1; k >= 0; k--) d += "L" + Rp[k][0].toFixed(1) + " " + Rp[k][1].toFixed(1);
+                return d + "Z";
+            };
+            for (j = 0; j < FADE; j++) { rb.parts[j].setAttribute("d", shape(FZ * j / FADE, FZ * (j + 1) / FADE, span * 0.004)); rb.parts[j].setAttribute("fill-opacity", ((j + 0.7) / (FADE + 0.4)).toFixed(2)); }
+            rb.parts[FADE].setAttribute("d", shape(FZ, 1, 0)); rb.parts[FADE].setAttribute("fill-opacity", "1");
         };
 
-        // the smoke: soft grey puffs that come off the line as it is drawn, swell, and drift away up and to the right
-        var puff = function (x, y, delay) {
-            var r0 = 4 + Math.random() * 9, c = mk("circle", { cx: x + (Math.random() - 0.5) * 22, cy: y + (Math.random() - 0.5) * 22, r: r0.toFixed(1), fill: Math.random() < 0.5 ? "#9ca3af" : "#cbd5e1" });
-            dust.appendChild(c); c.style.transformBox = "fill-box"; c.style.transformOrigin = "center";
-            c.animate([{ opacity: 0, transform: "translate(0,0) scale(.6)" }, { opacity: 0.34, offset: 0.25 }, { opacity: 0, transform: "translate(" + (30 + Math.random() * 110) + "px," + (-8 - Math.random() * 58) + "px) scale(" + (2 + Math.random() * 1.6) + ")" }], { duration: 1300 + Math.random() * 1200, delay: Math.max(0, delay), easing: "ease-out", fill: "backwards" });
-        };
-        var p0 = shape(0);
-        for (i = 0; i < 70; i++) { var k0 = 41 + Math.floor(Math.random() * n), pt = p0[Math.min(k0, p0.length - 1)]; puff(pt[0], pt[1], T1 * (k0 - 41) / n - 60); }
+        // ---- the first ribbon: in from the right edge, then round and round (an ellipse that tightens a little) over the middle of the fan
+        var VC = [R.left + R.width * 0.5, R.top + R.height * 0.55], T = -0.22, cT = Math.cos(T), sT = Math.sin(T), TURNS = 1.8;
+        var orbitAt = function (th) { var k = 1 - 0.16 * th / (2 * Math.PI), a = 270 * k * Math.cos(th), b = -78 * k * Math.sin(th); return [VC[0] + a * cT - b * sT, VC[1] + a * sT + b * cT]; };
+        var o0 = orbitAt(0), pts1 = wavy([[W + 70, VC[1] - 170], [W - 140, VC[1] - 160], [o0[0] + 160, o0[1] - 70], o0], 34, 16, 1.4, "mid"), k1;
+        for (k1 = 1; k1 <= 220; k1++) pts1.push(orbitAt(k1 / 220 * TURNS * 2 * Math.PI));
+        var cum1 = cumOf(pts1), tot1 = cum1[cum1.length - 1], rb1 = makeRibbon();
 
-        // the timeline of the line (1 to 3), one frame at a time
-        var iconW = B.height * (150 / 152), ix = B.left + iconW / 2, iy = B.top + B.height / 2, ms = B.height / 152, mx = function (p) { return B.left + p[0] * ms; }, my = function (p) { return B.top + p[1] * ms; }, first = MARK[0][0];
-        var pts0 = p0, cum0 = cumOf(pts0), tot0 = cum0[cum0.length - 1], t0 = performance.now(), flowPts = null, flowCum = null, hS = 0;
-        (function frame(now) {
-            var ts = now - t0;
-            if (ts < T1) { draw(pts0, cum0, 0, tot0 * easeOut(ts / T1)); return requestAnimationFrame(frame); }
-            if (ts < T1 + HOLD) { draw(pts0, cum0, 0, tot0); return requestAnimationFrame(frame); }
-            if (ts < T1 + HOLD + T2) { var u = easeIO((ts - T1 - HOLD) / T2), ps = shape(u), cs = cumOf(ps); draw(ps, cs, 0, cs[cs.length - 1]); return requestAnimationFrame(frame); }
-            if (!flowPts) {
-                // the line, now a wavy line, goes on from its left end in a rippling curve up to the start of the mark's first stroke
-                var base = shape(1), end = base[base.length - 1], C = [end, [end[0] - 140, end[1] - 30], [mx(first) + 120, my(first) + 100], [mx(first), my(first)]], fl = wavy(C, 80, 30, 3, "end");
-                flowPts = base.concat(fl.slice(1)); flowCum = cumOf(flowPts); hS = cumOf(base)[base.length - 1] / flowCum[flowCum.length - 1];
-            }
-            var q = (ts - T1 - HOLD - T2) / T3, tot = flowCum[flowCum.length - 1];
-            if (q < 1) { var s2 = easeIO(q), h = hS + (1 - hS) * s2, tau = Math.pow(s2, 1.35); draw(flowPts, flowCum, tau * tot, Math.max(h, tau + 0.0001) * tot); return requestAnimationFrame(frame); }
-            ribbon.setAttribute("d", ""); form();
-        })(t0);
-
-        function form() {
-            // the line draws the mark, stroke after stroke, along the centre lines of the real drawing; then the real logo takes over from it
-            var lens = [], all = 0, k, j;
-            for (k = 0; k < MARK.length; k++) { var l = 0; for (j = 1; j < MARK[k].length; j++) l += Math.hypot(MARK[k][j][0] - MARK[k][j - 1][0], MARK[k][j][1] - MARK[k][j - 1][1]); lens.push(l); all += l; }
-            var at = 0, wd = Math.max(1.3, MARK_W * ms * 1.05);
-            for (k = 0; k < MARK.length; k++) {
-                var pts = MARK[k].map(function (p) { return [mx(p), my(p)]; }), d = "M" + pts[0][0].toFixed(2) + " " + pts[0][1].toFixed(2);
-                for (j = 1; j < pts.length - 1; j++) d += "Q" + pts[j][0].toFixed(2) + " " + pts[j][1].toFixed(2) + " " + ((pts[j][0] + pts[j + 1][0]) / 2).toFixed(2) + " " + ((pts[j][1] + pts[j + 1][1]) / 2).toFixed(2);
-                d += "L" + pts[pts.length - 1][0].toFixed(2) + " " + pts[pts.length - 1][1].toFixed(2);
-                var sp2 = mk("path", { d: d, pathLength: "1", fill: "none", stroke: "#3f3f46", "stroke-width": wd.toFixed(2), "stroke-linecap": "round", "stroke-linejoin": "round" });
-                sp2.style.strokeDasharray = "0 3"; svg.appendChild(sp2);
-                sp2.animate([{ strokeDasharray: "0 3" }, { strokeDasharray: "1 3" }], { duration: Math.max(40, T4 * lens[k] / all), delay: T4 * at / all, easing: "linear", fill: "forwards" });
-                at += lens[k];
-            }
-            setTimeout(arrive, T4 + 60);
+        // the swirl: pale streaks that run round the same ellipse, blurred, while the designs come out
+        var rings = [], k;
+        for (k = 0; k < 4; k++) {
+            var el = mk("ellipse", { cx: VC[0], cy: VC[1], rx: 215 + k * 34, ry: 52 + k * 15, fill: "none", stroke: k % 2 ? "#9ca3af" : "#d1d5db", "stroke-width": 2.2 + k * 0.8, "stroke-linecap": "round", filter: "url(#introBlur)", opacity: 0, transform: "rotate(" + (T * 180 / Math.PI) + " " + VC[0] + " " + VC[1] + ")" });
+            el.style.strokeDasharray = (250 + k * 60) + " " + (170 + k * 40); svg.insertBefore(el, svg.children[1]); rings.push(el);
         }
 
-        // 5) the real logo is there, and the designs come out of it
+        // ---- the second ribbon: in low from the right, to the left, up to where the mark is drawn big, below the header logo
+        var bs = 0.72, bw = 160 * bs, bh = 152 * bs, bl = R.left - bw * 0.62, bt = R.top + R.height * 0.3, bx = function (p) { return bl + p[0] * bs; }, by = function (p) { return bt + p[1] * bs; };
+        var f0 = [bx(MARK[0][0]), by(MARK[0][0])];
+        var pts2 = wavy([[W + 90, R.bottom + 40], [VC[0] + 260, R.bottom + 150], [f0[0] + 420, f0[1] + 190], f0], 70, 26, 2.2, "end"), cum2 = cumOf(pts2), tot2 = cum2[cum2.length - 1], rb2 = makeRibbon();
+
+        // ---- the mark, big: stroke after stroke along the centre lines of the real drawing
+        var big = mk("g", {}), strokes = [], lens = [], all = 0, j;
+        svg.appendChild(big);
+        for (k = 0; k < MARK.length; k++) {
+            var pp = MARK[k].map(function (p) { return [bx(p), by(p)]; }), d = "M" + pp[0][0].toFixed(2) + " " + pp[0][1].toFixed(2), l = 0;
+            for (j = 1; j < pp.length - 1; j++) d += "Q" + pp[j][0].toFixed(2) + " " + pp[j][1].toFixed(2) + " " + ((pp[j][0] + pp[j + 1][0]) / 2).toFixed(2) + " " + ((pp[j][1] + pp[j + 1][1]) / 2).toFixed(2);
+            d += "L" + pp[pp.length - 1][0].toFixed(2) + " " + pp[pp.length - 1][1].toFixed(2);
+            for (j = 1; j < MARK[k].length; j++) l += Math.hypot(MARK[k][j][0] - MARK[k][j - 1][0], MARK[k][j][1] - MARK[k][j - 1][1]);
+            var st = mk("path", { d: d, pathLength: "1", fill: "none", stroke: "#26262b", "stroke-width": (MARK_W * bs * 0.92).toFixed(2), "stroke-linecap": "round", "stroke-linejoin": "round" });
+            st.style.strokeDasharray = "0 3"; st.style.opacity = "0"; big.appendChild(st); strokes.push(st); lens.push(l); all += l;
+        }
+
+        // ---- times (ms from the start)
+        var T_CARDS = 900, T_R1 = 1750, T_R1END = 2300, T_R2 = 2450, T_R2HEAD = 1050, T_DRAW = 3350, D_DRAW = 1050, T_FLY = 4500, D_FLY = 750;
+        var ix = B.left + (B.height * (150 / 152)) / 2, iy = B.top + B.height / 2, ms = B.height / 152;
+        var t0 = performance.now(), fired = {};
+        (function frame(now) {
+            var ts = now - t0;
+            // ribbon 1: the head runs round, the tail follows a long way behind and then catches up
+            var h1 = easeOut(clamp(ts / T_R1)), head1 = h1 * tot1, tail1 = ts < T_R1 ? Math.max(0, head1 - tot1 * 0.5) : lerp(Math.max(0, tot1 - tot1 * 0.5), tot1, easeIO(clamp((ts - T_R1) / (T_R1END - T_R1))));
+            drawRibbon(rb1, pts1, cum1, tail1, Math.max(head1, tail1 + 0.001), 11);
+            // the swirl streaks run and fade
+            rings.forEach(function (el, i) { var q = clamp((ts - (T_CARDS - 150 + i * 60)) / 1500); el.setAttribute("opacity", (Math.sin(Math.PI * q) * 0.5).toFixed(3)); el.style.strokeDashoffset = String(-ts * (0.35 + i * 0.12) * (i % 2 ? -1 : 1)); });
+            // the designs come out of the vortex
+            if (!fired.cards && ts >= T_CARDS) {
+                fired.cards = 1;
+                sp.querySelectorAll(".spread-card").forEach(function (c) { var rc = c.getBoundingClientRect(); c.style.setProperty("--dx", (VC[0] - (rc.left + rc.width / 2)) + "px"); c.style.setProperty("--dy", (VC[1] - (rc.top + rc.height / 2)) + "px"); });
+                sp.classList.remove("pre"); sp.classList.add("fly");
+            }
+            // ribbon 2: sweeps in and its tail runs into the mark as the mark is drawn
+            var q2 = clamp((ts - T_R2) / T_R2HEAD), head2 = easeIO(q2) * tot2, tail2 = ts < T_R2 + T_R2HEAD ? Math.max(0, head2 - tot2 * 0.55) : lerp(tot2 * 0.45, tot2, easeIO(clamp((ts - T_R2 - T_R2HEAD) / 500)));
+            drawRibbon(rb2, pts2, cum2, tail2, Math.max(head2, tail2 + 0.001), 9);
+            if (ts > T_R2 + T_R2HEAD + 520) rb2.parts.forEach(function (qq) { qq.setAttribute("d", ""); });
+            // the mark is drawn, stroke after stroke
+            var at = 0;
+            for (k = 0; k < strokes.length; k++) { var a0 = at / all, a1 = (at + lens[k]) / all, p = clamp(((ts - T_DRAW) / D_DRAW - a0) / (a1 - a0)); strokes[k].style.strokeDasharray = p + " 3"; strokes[k].style.opacity = p > 0 ? "1" : "0"; at += lens[k]; }
+            // the big mark flies up into its place in the header
+            if (ts >= T_FLY && !fired.fly) {
+                fired.fly = 1;
+                big.style.transformBox = "view-box"; big.style.transformOrigin = (bl + bw / 2) + "px " + (bt + bh / 2) + "px";
+                big.animate([{ transform: "translate(0,0) scale(1)" }, { transform: "translate(" + (ix - (bl + bw / 2)) + "px," + (iy - (bt + bh / 2)) + "px) scale(" + (ms / bs) + ")" }], { duration: D_FLY, easing: "cubic-bezier(.6,.05,.2,1)", fill: "forwards" });
+            }
+            if (ts >= T_FLY + D_FLY - 60) { arrive(); return; }
+            requestAnimationFrame(frame);
+        })(t0);
+
+        // the real logo is there: it is revealed where the mark landed, and the drawing goes
         function arrive() {
             root.classList.remove("intro");
-            svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, delay: 120, fill: "forwards" }).onfinish = function () { svg.remove(); };
-            sp.querySelectorAll(".spread-card").forEach(function (c) { var rc = c.getBoundingClientRect(); c.style.setProperty("--dx", (ix - (rc.left + rc.width / 2)) + "px"); c.style.setProperty("--dy", (iy - (rc.top + rc.height / 2)) + "px"); });
-            sp.classList.remove("pre"); sp.classList.add("fly");
+            svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, delay: 120, fill: "forwards" }).onfinish = function () { svg.remove(); };
         }
     })();
 </script>
