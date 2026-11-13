@@ -165,9 +165,12 @@
 {{> component-playground/index}}
 
 <script>
-    // The hero's opening, once per visit (the page head decides: it hides the mark of the logo with html.intro, the wordmark stays). A line comes in from the right edge and winds into a spiral
-    // lying on its side, with smoke coming off it; the line that came in is wound into the spiral, and the spiral flies to the top left corner, turns and shrinks into the exact place and shape
-    // of the logo's mark, which takes over from it. Then the designs fly out of the logo into the fan.
+    // The hero's opening, once per visit (the page head decides: it hides the mark of the logo with html.intro, the wordmark stays):
+    //  1. a line comes in from the right edge and winds into a spiral lying on its side, with smoke coming off it;
+    //  2. the spiral untangles into a line again;
+    //  3. the line flows on, along a curve, to where the logo's mark is;
+    //  4. there it winds itself into the mark: the real mark appears wherever the line has been (it is the image of the logo, uncovered along the line);
+    //  5. the designs fly out of the logo into the fan.
     (function () {
         var root = document.documentElement, sp = document.querySelector("#hero .spread"), brand = document.querySelector("[data-brand]");
         var done = function () { root.classList.remove("intro"); if (sp) sp.classList.remove("pre"); };
@@ -178,68 +181,90 @@
 
         var NS = "http://www.w3.org/2000/svg", mk = function (n, a) { var e = document.createElementNS(NS, n); for (var k in a) e.setAttribute(k, a[k]); return e; };
         var bez = function (P, t) { var u = 1 - t; return [u * u * u * P[0][0] + 3 * u * u * t * P[1][0] + 3 * u * t * t * P[2][0] + t * t * t * P[3][0], u * u * u * P[0][1] + 3 * u * u * t * P[1][1] + 3 * u * t * t * P[2][1] + t * t * t * P[3][1]]; };
+        var lerp = function (a, b, u) { return a + (b - a) * u; }, easeIO = function (x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }, easeOut = function (x) { return 1 - Math.pow(1 - x, 2.2); };
         var R = sp.getBoundingClientRect(), B = brand.getBoundingClientRect(), W = window.innerWidth;
         var cy = R.top + R.height * 0.52, hx = R.left + R.width * 0.74, L = R.width * 0.3;
-        // where the mark of the logo is: the left fifth of the image (150 of 828 px wide, as high as the image)
-        var iconW = B.height * (150 / 152), iconH = B.height, ix = B.left + iconW / 2, iy = B.top + B.height / 2;
-        var i, t, pts = [];
-        // 1) in from the right edge, down to the wide end of the spiral
-        var A = [[W + 70, cy - 120], [W - 120, cy - 150], [hx + 190, cy - 40], [hx + 22, cy]];
-        for (i = 0; i <= 40; i++) pts.push(bez(A, i / 40));
-        var enterEnd = pts.length - 1;
-        // 2) the spiral: it lies on its side, wide at the right and narrowing to its tip on the left; each loop is a flat ellipse, the whole a little tilted
-        var loops = 7, n = 420, a, r, tilt = -0.2, ct = Math.cos(tilt), st = Math.sin(tilt), x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-        for (i = 1; i <= n; i++) {
-            t = i / n; a = t * loops * 2 * Math.PI; r = 7 + 56 * Math.pow(1 - t, 0.85);
-            var ex = r * 0.52 * Math.cos(a), ey = r * Math.sin(a), q = [hx - t * L + ex * ct - ey * st, cy + ex * st + ey * ct];
-            pts.push(q); x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]);
-        }
-        var bx = (x0 + x1) / 2, by = (y0 + y1) / 2, bw = x1 - x0, bh = y1 - y0;
+        var iconW = B.height * (150 / 152), iconH = B.height;   // the mark of the logo: the left fifth of the image, as high as the image
+        // the logo's mark, as its strokes (the centre lines of the drawing in logo.png, 160 by 152, in the order a pen would draw them): the line draws these
+        var MARK = [[[11,130],[13,132],[18,130],[28,120],[36,110],[41,107],[42,104],[46,96],[48,88],[54,72],[61,52],[60,50],[60,34],[59,26]],[[59,20],[59,26],[55,27],[50,33],[41,46],[36,56],[18,97],[14,112],[12,119],[11,130],[8,130],[6,128],[4,125],[4,112],[6,92],[12,70],[20,48],[27,33],[33,24],[44,13]],[[50,11],[54,12],[59,20],[69,17],[72,18],[75,21],[78,33],[85,33],[88,35],[90,38],[97,37],[102,38],[104,41],[106,46],[108,60]],[[106,66],[106,74],[103,89],[104,90]],[[93,72],[93,53],[91,41],[90,40]],[[90,39],[84,44],[79,45],[78,44],[78,38]],[[78,34],[78,36],[74,38],[66,48],[62,50]],[[76,56],[78,57],[78,61],[74,80],[70,94],[64,112],[58,124],[56,127],[52,128],[51,128],[51,123],[52,112],[57,94],[63,77],[72,58],[76,56],[78,54],[78,46]],[[124,68],[122,64],[118,60],[110,60],[107,62],[105,66],[101,67],[97,71],[92,74],[78,110],[68,130],[68,140],[70,142],[74,140],[84,128],[90,126],[92,116],[104,92],[108,88],[118,74],[123,72],[123,69],[124,68],[131,68],[134,70],[135,74],[135,82],[130,96],[132,98],[134,97],[140,92],[144,90]],[[144,91],[143,99],[138,108],[136,113],[137,134],[136,138]],[[112,126],[124,110],[132,98]],[[123,73],[123,82],[122,89],[116,102],[105,118],[99,124],[95,126],[92,127],[90,130]],[[67,132],[64,134],[59,137],[54,138],[52,137]],[[52,129],[51,137],[47,138],[42,143],[38,144],[36,142],[36,130],[40,115],[41,108]]], MARK_W = 5.2;
+        var i, t;
 
-        var d = ""; for (i = 0; i < pts.length; i++) d += (i ? "L" : "M") + pts[i][0].toFixed(1) + " " + pts[i][1].toFixed(1);
+        // the line from the right edge, and the spiral it winds into; each point of the spiral also has a place on a straight line, for the untangling
+        var A = [[W + 70, cy - 120], [W - 120, cy - 150], [hx + 190, cy - 40], [hx + 22, cy]], entry = [];
+        for (i = 0; i <= 40; i++) entry.push(bez(A, i / 40));
+        var loops = 7, n = 420, tilt = -0.2, ct = Math.cos(tilt), st = Math.sin(tilt), LINE = R.width * 0.55;
+        var coilAt = function (t) { var a = t * loops * 2 * Math.PI, r = 7 + 56 * Math.pow(1 - t, 0.85), ex = r * 0.52 * Math.cos(a), ey = r * Math.sin(a); return [hx - t * L + ex * ct - ey * st, cy + ex * st + ey * ct]; };
+        var lineAt = function (t) { return [hx + 22 - t * LINE, cy]; };
+        var shape = function (u) { var out = entry.slice(), k; for (k = 1; k <= n; k++) { var tt = k / n, c = coilAt(tt), l = lineAt(tt); out.push([lerp(c[0], l[0], u), lerp(c[1], l[1], u)]); } return out; };
+        var toD = function (pts) { var d = "", k; for (k = 0; k < pts.length; k++) d += (k ? "L" : "M") + pts[k][0].toFixed(1) + " " + pts[k][1].toFixed(1); return d; };
+
         var svg = mk("svg", { id: "introSvg", "aria-hidden": "true" }), defs = mk("defs", {}), blur = mk("filter", { id: "introSmoke", x: "-50%", y: "-50%", width: "200%", height: "200%" }), dust = mk("g", { filter: "url(#introSmoke)" });
-        var g = mk("g", {}), path = mk("path", { d: d, pathLength: "1", fill: "none", stroke: "#3f3f46", "stroke-width": "2.6", "stroke-linecap": "round", "stroke-linejoin": "round" });
+        var path = mk("path", { d: toD(shape(0)), pathLength: "1", fill: "none", stroke: "#3f3f46", "stroke-width": "2.6", "stroke-linecap": "round", "stroke-linejoin": "round" });
         path.style.strokeDasharray = "0 3";
-        blur.appendChild(mk("feGaussianBlur", { stdDeviation: "5" })); defs.appendChild(blur); svg.appendChild(defs);
-        g.appendChild(path); svg.appendChild(dust); svg.appendChild(g); document.body.appendChild(svg);
-        var total = path.getTotalLength(), frac = function (idx) { var len = 0; for (var j = 1; j <= idx; j++) len += Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]); return len / total; };
-        var hEnter = frac(enterEnd);
+        blur.appendChild(mk("feGaussianBlur", { stdDeviation: "5" })); defs.appendChild(blur); svg.appendChild(defs); svg.appendChild(dust); svg.appendChild(path); document.body.appendChild(svg);
+        var total = path.getTotalLength();
+        var T1 = 1300, HOLD = 200, T2 = 750, T3 = 850, T4 = 1150;
 
-        // the line: drawn in (from the right edge to the tip of the spiral), a moment's rest, then the line that came in is wound up into the spiral (its tail runs along the path)
-        var T1 = 1500, HOLD = 420, T2 = 520, FLY = 1150, D = T1 + HOLD + T2 + FLY, kf = [];
-        var easeDraw = function (x) { return 1 - Math.pow(1 - x, 2.2) }, easeIO = function (x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
-        kf.push({ offset: 0, strokeDasharray: "0 3", strokeDashoffset: "0" });
-        for (i = 1; i <= 6; i++) kf.push({ offset: (T1 * i / 6) / D, strokeDasharray: easeDraw(i / 6) + " 3", strokeDashoffset: "0" });
-        kf.push({ offset: (T1 + HOLD) / D, strokeDasharray: "1 3", strokeDashoffset: "0" });
-        for (i = 1; i <= 8; i++) { var tau = hEnter * easeIO(i / 8); kf.push({ offset: (T1 + HOLD + T2 * i / 8) / D, strokeDasharray: (1 - tau) + " 3", strokeDashoffset: String(-tau) }); }
-        kf.push({ offset: 1, strokeDasharray: (1 - hEnter) + " 3", strokeDashoffset: String(-hEnter) });
-        path.animate(kf, { duration: D, easing: "linear", fill: "forwards" });
-
-        // the spiral flies to the mark of the logo (an arc, a turn, shrinking to the mark's own width and height)
-        g.style.transformBox = "view-box"; g.style.transformOrigin = bx + "px " + by + "px";
-        var dx = ix - bx, dy = iy - by, sxs = iconW / bw, sys = iconH / bh;
-        g.animate([
-            { transform: "translate(0px,0px) rotate(0deg) scale(1,1)" },
-            { transform: "translate(" + (dx * 0.5) + "px," + (dy * 0.35 - 80) + "px) rotate(95deg) scale(" + (0.5 * sxs + 0.5) + "," + (0.5 * sys + 0.5) + ")", offset: 0.5 },
-            { transform: "translate(" + dx + "px," + dy + "px) rotate(180deg) scale(" + sxs + "," + sys + ")" }
-        ], { duration: FLY, delay: T1 + HOLD + T2, easing: "cubic-bezier(.55,.05,.2,1)", fill: "both" });
+        // 1) drawn in, to the tip of the spiral
+        path.animate([{ strokeDasharray: "0 3" }, { strokeDasharray: "0.25 3", offset: 0.25 }, { strokeDasharray: "0.6 3", offset: 0.5 }, { strokeDasharray: "0.9 3", offset: 0.75 }, { strokeDasharray: "1 3" }], { duration: T1, easing: "cubic-bezier(.3,.3,.3,1)", fill: "forwards" });
 
         // the smoke: soft grey puffs that come off the line as it is drawn, swell, and drift away up and to the right
-        var inv = function (y) { return 1 - Math.pow(1 - Math.min(Math.max(y, 0), 1), 1 / 2.2); };
         var puff = function (x, y, delay) {
             var r0 = 4 + Math.random() * 9, c = mk("circle", { cx: x + (Math.random() - 0.5) * 22, cy: y + (Math.random() - 0.5) * 22, r: r0.toFixed(1), fill: Math.random() < 0.5 ? "#9ca3af" : "#cbd5e1" });
             dust.appendChild(c); c.style.transformBox = "fill-box"; c.style.transformOrigin = "center";
-            c.animate([{ opacity: 0, transform: "translate(0,0) scale(.6)" }, { opacity: 0.36, offset: 0.25 }, { opacity: 0, transform: "translate(" + (30 + Math.random() * 110) + "px," + (-8 - Math.random() * 58) + "px) scale(" + (2 + Math.random() * 1.6) + ")" }], { duration: 1300 + Math.random() * 1200, delay: Math.max(0, delay), easing: "ease-out", fill: "backwards" });
+            c.animate([{ opacity: 0, transform: "translate(0,0) scale(.6)" }, { opacity: 0.34, offset: 0.25 }, { opacity: 0, transform: "translate(" + (30 + Math.random() * 110) + "px," + (-8 - Math.random() * 58) + "px) scale(" + (2 + Math.random() * 1.6) + ")" }], { duration: 1300 + Math.random() * 1200, delay: Math.max(0, delay), easing: "ease-out", fill: "backwards" });
         };
-        for (i = 0; i < 80; i++) { var pp = hEnter + Math.random() * (1 - hEnter), pt = path.getPointAtLength(pp * total); puff(pt.x, pt.y, T1 * inv((pp - hEnter) / (1 - hEnter)) - 80); }
-        for (i = 0; i < 26; i++) { var k2 = Math.random(); puff(bx + (Math.random() - 0.5) * bw, by + (Math.random() - 0.5) * bh, T1 + HOLD + T2 + FLY * k2 * 0.8); }
+        var p0 = shape(0);
+        for (i = 0; i < 70; i++) { var k = 41 + Math.floor(Math.random() * n), pt = p0[Math.min(k, p0.length - 1)]; puff(pt[0], pt[1], T1 * (k - 41) / n - 60); }
 
-        // the arrival: the mark of the logo takes over from the spiral (it is revealed where the spiral lands), and the designs come out of the logo
+        // 2) the spiral untangles into a line (the path is redrawn as it goes), 3) the line flows to the logo, 4) and winds into the mark
+        var ix = B.left + iconW / 2, iy = B.top + B.height / 2, ms = B.height / 152, mx = function (p) { return B.left + p[0] * ms; }, my = function (p) { return B.top + p[1] * ms; }, first = MARK[0][0];
         setTimeout(function () {
+            var t0 = performance.now();
+            (function step(now) {
+                var u = Math.min(1, (now - t0) / T2); path.setAttribute("d", toD(shape(easeIO(u))));
+                if (u < 1) return requestAnimationFrame(step);
+                flow();
+            })(t0);
+        }, T1 + HOLD);
+
+        function flow() {
+            // the line, now straight, goes on from its left end in a curve up to the left edge of the mark
+            var base = shape(1), end = base[base.length - 1], C = [end, [end[0] - 120, end[1] - 20], [mx(first) + 110, my(first) + 90], [mx(first), my(first)]], full = base.slice();
+            for (var k = 1; k <= 70; k++) full.push(bez(C, k / 70));
+            path.setAttribute("d", toD(full));
+            var tot = path.getTotalLength(), straightEnd = 0, j;
+            for (j = 1; j < base.length; j++) straightEnd += Math.hypot(base[j][0] - base[j - 1][0], base[j][1] - base[j - 1][1]);
+            var hS = straightEnd / tot, kf = [{ offset: 0, strokeDasharray: "1 3", strokeDashoffset: "0" }];
+            for (var q = 1; q <= 10; q++) { var s2 = easeIO(q / 10), h = hS + (1 - hS) * s2, tau = Math.pow(s2, 1.4); kf.push({ offset: q / 10, strokeDasharray: Math.max(h - tau, 0) + " 3", strokeDashoffset: String(-tau) }); }
+            // (the head runs on to the mark while the tail catches up with it: it ends as a point at the mark)
+            path.animate(kf, { duration: T3, easing: "linear", fill: "forwards" });
+            setTimeout(form, T3 - 40);
+        }
+
+        function form() {
+            // the line draws the mark, stroke after stroke, along the centre lines of the real drawing; then the real logo takes over from it
+            var lens = [], all = 0, k, j;
+            for (k = 0; k < MARK.length; k++) { var l = 0; for (j = 1; j < MARK[k].length; j++) l += Math.hypot(MARK[k][j][0] - MARK[k][j - 1][0], MARK[k][j][1] - MARK[k][j - 1][1]); lens.push(l); all += l; }
+            var at = 0, wd = Math.max(1.3, MARK_W * ms * 1.05);
+            for (k = 0; k < MARK.length; k++) {
+                var pts = MARK[k].map(function (p) { return [mx(p), my(p)]; }), d = "M" + pts[0][0].toFixed(2) + " " + pts[0][1].toFixed(2);
+                for (j = 1; j < pts.length - 1; j++) d += "Q" + pts[j][0].toFixed(2) + " " + pts[j][1].toFixed(2) + " " + ((pts[j][0] + pts[j + 1][0]) / 2).toFixed(2) + " " + ((pts[j][1] + pts[j + 1][1]) / 2).toFixed(2);
+                d += "L" + pts[pts.length - 1][0].toFixed(2) + " " + pts[pts.length - 1][1].toFixed(2);
+                var sp2 = mk("path", { d: d, pathLength: "1", fill: "none", stroke: "#3f3f46", "stroke-width": wd.toFixed(2), "stroke-linecap": "round", "stroke-linejoin": "round" });
+                sp2.style.strokeDasharray = "0 3"; svg.appendChild(sp2);
+                sp2.animate([{ strokeDasharray: "0 3" }, { strokeDasharray: "1 3" }], { duration: Math.max(40, T4 * lens[k] / all), delay: T4 * at / all, easing: "linear", fill: "forwards" });
+                at += lens[k];
+            }
+            setTimeout(arrive, T4 + 60);
+        }
+
+        // 5) the real logo is there, and the designs come out of it
+        function arrive() {
             root.classList.remove("intro");
-            g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, delay: 80, fill: "forwards" }).onfinish = function () { svg.remove(); };
+            svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, delay: 120, fill: "forwards" }).onfinish = function () { svg.remove(); };
             sp.querySelectorAll(".spread-card").forEach(function (c) { var rc = c.getBoundingClientRect(); c.style.setProperty("--dx", (ix - (rc.left + rc.width / 2)) + "px"); c.style.setProperty("--dy", (iy - (rc.top + rc.height / 2)) + "px"); });
             sp.classList.remove("pre"); sp.classList.add("fly");
-        }, D - 60);
+        }
     })();
 </script>
