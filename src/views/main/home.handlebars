@@ -93,17 +93,18 @@
     .sp-bar { display: flex; gap: 3px; align-items: center; height: 14px; padding-left: 7px; border-bottom: 1px solid #eee; background: #fff; }
     .sp-bar i { width: 4px; height: 4px; border-radius: 9999px; background: #d1d5db; }
     .spread-card img { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; }
-    /* the opening (see the script below): the cards wait while a line winds into a spiral and flies to the logo, then fly out of the logo into the fan */
+    /* the opening (see the script below): the designs wait; they come out of the fog of the vortex where they are, as a tight fan that opens out, turning a little in 3D, ghostly and blurred at first, then sharp */
+    #hero .spread { perspective: 1100px; }
     #hero .spread.pre .spread-card { opacity: 0; }
-    #hero .spread.fly .spread-card { animation: sp-fly 1.15s cubic-bezier(.2, .9, .25, 1.06) calc(var(--i) * .1s) backwards; }
-    @keyframes sp-fly {
-        0% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(540deg) scale(.08); }
-        16% { opacity: 1; }
-        100% { opacity: 1; transform: rotate(var(--r)); }
+    #hero .spread.emerge .spread-card { animation: sp-emerge 1.5s cubic-bezier(.22, .8, .25, 1) var(--d, 0s) backwards; }
+    @keyframes sp-emerge {
+        0% { opacity: 0; filter: blur(14px); transform: translate(var(--dx), var(--dy)) rotateY(-42deg) rotateX(16deg) rotate(calc(var(--r) * .3)) scale(.8); }
+        40% { opacity: .55; filter: blur(7px); }
+        100% { opacity: 1; filter: blur(0); transform: rotate(var(--r)); }
     }
     #introSvg { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 2000; overflow: visible; }
     #introSvg path { vector-effect: non-scaling-stroke; }
-    @media (prefers-reduced-motion: reduce) { #hero .spread.pre .spread-card { opacity: 1; } #hero .spread.fly .spread-card { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { #hero .spread.pre .spread-card { opacity: 1; } #hero .spread.emerge .spread-card { animation: none; } }
     @container (max-width: 235px) { .new-word { display: none; } }
     /* the card's picture: a real screenshot of the category's best design, in a small window (a category with no picture keeps the drawn wireframe) */
     #contentGrid .card-image:not(.no-thumb) { padding: 12px 24px 0; }
@@ -198,6 +199,7 @@
 
         var svg = mk("svg", { id: "introSvg", "aria-hidden": "true" }), defs = mk("defs", {});
         var fb = mk("filter", { id: "introBlur", x: "-20%", y: "-60%", width: "140%", height: "220%" }); fb.appendChild(mk("feGaussianBlur", { stdDeviation: "2.2" })); defs.appendChild(fb);
+        var fm = mk("filter", { id: "introMist", x: "-30%", y: "-80%", width: "160%", height: "260%" }); fm.appendChild(mk("feGaussianBlur", { stdDeviation: "7" })); defs.appendChild(fm);
         svg.appendChild(defs); document.body.appendChild(svg);
 
         // a ribbon: the part of a polyline between two lengths, as a black shape that is thick in the middle and thins out to nothing at both ends; the tail also fades
@@ -245,6 +247,15 @@
             el.style.strokeDasharray = (250 + k * 60) + " " + (170 + k * 40); svg.insertBefore(el, svg.children[1]); rings.push(el);
         }
 
+        // the mist: wide white streaks that run round the vortex over the designs while they come out of it (they are what makes the designs look ghostly at first)
+        var mist = [], gMist = mk("g", {}); svg.appendChild(gMist);
+        for (k = 0; k < 8; k++) {
+            var rx0 = 150 + Math.random() * 190, ry0 = rx0 * (0.2 + Math.random() * 0.14), len0 = Math.PI * (3 * (rx0 + ry0) - Math.sqrt((3 * rx0 + ry0) * (rx0 + 3 * ry0))), fr = 0.25 + Math.random() * 0.3;
+            var me = mk("ellipse", { cx: VC[0] + (Math.random() - 0.5) * 50, cy: VC[1] + (Math.random() - 0.4) * 30, rx: rx0, ry: ry0, fill: "none", stroke: "#fff", "stroke-width": 22 + Math.random() * 36, "stroke-linecap": "round", filter: "url(#introMist)", opacity: 0, transform: "rotate(" + ((T * 180 / Math.PI) + (Math.random() - 0.5) * 14).toFixed(1) + " " + VC[0] + " " + VC[1] + ")" });
+            me.style.strokeDasharray = (len0 * fr).toFixed(0) + " " + (len0 * (1 - fr)).toFixed(0); gMist.appendChild(me);
+            mist.push({ el: me, speed: (0.5 + Math.random()) * (Math.random() < 0.8 ? 1 : -1), base: 0.55 + Math.random() * 0.4, off0: Math.random() * len0, ph: Math.random() * 6 });
+        }
+
         // ---- the mark: stroke after stroke along the centre lines of the real drawing, at the size it has in the header
         var strokes = [], lens = [], all = 0, j, mark = mk("g", {});
         svg.appendChild(mark);
@@ -269,11 +280,14 @@
             if (ts > T_DRAW + 650) rb1.parts.forEach(function (qq) { qq.setAttribute("d", ""); });
             // the swirl streaks run and fade
             rings.forEach(function (el, i) { var q = clamp((ts - (T_CARDS - 150 + i * 60)) / 1500); el.setAttribute("opacity", (Math.sin(Math.PI * q) * 0.5).toFixed(3)); el.style.strokeDashoffset = String(-ts * (0.35 + i * 0.12) * (i % 2 ? -1 : 1)); });
-            // the designs come out of the vortex
+            // the mist builds up round the vortex, then thins away once the designs are out
+            var menv = clamp((ts - (T_CARDS - 450)) / 500) * (1 - clamp((ts - (T_CARDS + 700)) / 900));
+            mist.forEach(function (m) { m.el.style.strokeDashoffset = String(-(m.off0 + ts * 0.5 * m.speed)); m.el.setAttribute("opacity", (menv * m.base * (0.8 + 0.2 * Math.sin(ts / 160 + m.ph))).toFixed(3)); });
+            // the designs come out of the fog: a tight fan (each design a little way towards the middle of the vortex) that opens out into its place
             if (!fired.cards && ts >= T_CARDS) {
                 fired.cards = 1;
-                sp.querySelectorAll(".spread-card").forEach(function (c) { var rc = c.getBoundingClientRect(); c.style.setProperty("--dx", (VC[0] - (rc.left + rc.width / 2)) + "px"); c.style.setProperty("--dy", (VC[1] - (rc.top + rc.height / 2)) + "px"); });
-                sp.classList.remove("pre"); sp.classList.add("fly");
+                sp.querySelectorAll(".spread-card").forEach(function (c, i) { var rc = c.getBoundingClientRect(); c.style.setProperty("--dx", ((VC[0] - (rc.left + rc.width / 2)) * 0.5) + "px"); c.style.setProperty("--dy", ((VC[1] - (rc.top + rc.height / 2)) * 0.5) + "px"); c.style.setProperty("--d", (Math.abs(i - 2) * 0.11) + "s"); });
+                sp.classList.remove("pre"); sp.classList.add("emerge");
             }
             // the mark is drawn, stroke after stroke, where the ribbon has arrived
             var at = 0;
