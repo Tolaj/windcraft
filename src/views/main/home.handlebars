@@ -166,10 +166,10 @@
 
 <script>
     // The hero's opening, once per visit (the page head decides: it hides the mark of the logo with html.intro, the wordmark stays):
-    //  1. a line comes in from the right edge and winds into a spiral lying on its side, with smoke coming off it;
-    //  2. the spiral untangles into a line again;
-    //  3. the line flows on, along a curve, to where the logo's mark is;
-    //  4. there it winds itself into the mark: the real mark appears wherever the line has been (it is the image of the logo, uncovered along the line);
+    //  1. a wavy line flies in from the right edge and winds into a spiral lying on its side, with smoke coming off it;
+    //  2. the spiral untangles into a wavy line again;
+    //  3. the line flies on, rippling along a curve, to where the logo's mark is (its tail thins out as it goes);
+    //  4. there it draws the mark, stroke after stroke, along the real drawing; the real logo takes over;
     //  5. the designs fly out of the logo into the fan.
     (function () {
         var root = document.documentElement, sp = document.querySelector("#hero .spread"), brand = document.querySelector("[data-brand]");
@@ -182,31 +182,49 @@
         var NS = "http://www.w3.org/2000/svg", mk = function (n, a) { var e = document.createElementNS(NS, n); for (var k in a) e.setAttribute(k, a[k]); return e; };
         var bez = function (P, t) { var u = 1 - t; return [u * u * u * P[0][0] + 3 * u * u * t * P[1][0] + 3 * u * t * t * P[2][0] + t * t * t * P[3][0], u * u * u * P[0][1] + 3 * u * u * t * P[1][1] + 3 * u * t * t * P[2][1] + t * t * t * P[3][1]]; };
         var lerp = function (a, b, u) { return a + (b - a) * u; }, easeIO = function (x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }, easeOut = function (x) { return 1 - Math.pow(1 - x, 2.2); };
+        // a curve with ripples: the points of a bezier moved sideways by a sine (amp px, `waves` of them), zero at both ends unless `fade` is "end" (then it dies away towards the end)
+        var wavy = function (P, count, amp, waves, mode) {
+            var out = [], k, t, q, q2, nx, ny, len, off;
+            for (k = 0; k <= count; k++) {
+                t = k / count; q = bez(P, t); q2 = bez(P, Math.min(1, t + 0.01)); var q1 = bez(P, Math.max(0, t - 0.01));
+                nx = -(q2[1] - q1[1]); ny = q2[0] - q1[0]; len = Math.hypot(nx, ny) || 1;
+                off = amp * Math.sin(t * waves * 2 * Math.PI) * (mode === "end" ? (1 - t) : Math.sin(Math.PI * t));
+                out.push([q[0] + nx / len * off, q[1] + ny / len * off]);
+            }
+            return out;
+        };
         var R = sp.getBoundingClientRect(), B = brand.getBoundingClientRect(), W = window.innerWidth;
         var cy = R.top + R.height * 0.52, hx = R.left + R.width * 0.74, L = R.width * 0.3;
-        var iconW = B.height * (150 / 152), iconH = B.height;   // the mark of the logo: the left fifth of the image, as high as the image
-        // the logo's mark, as its strokes (the centre lines of the drawing in logo.png, 160 by 152, in the order a pen would draw them): the line draws these
         var MARK = [[[11,130],[13,132],[18,130],[28,120],[36,110],[41,107],[42,104],[46,96],[48,88],[54,72],[61,52],[60,50],[60,34],[59,26]],[[59,20],[59,26],[55,27],[50,33],[41,46],[36,56],[18,97],[14,112],[12,119],[11,130],[8,130],[6,128],[4,125],[4,112],[6,92],[12,70],[20,48],[27,33],[33,24],[44,13]],[[50,11],[54,12],[59,20],[69,17],[72,18],[75,21],[78,33],[85,33],[88,35],[90,38],[97,37],[102,38],[104,41],[106,46],[108,60]],[[106,66],[106,74],[103,89],[104,90]],[[93,72],[93,53],[91,41],[90,40]],[[90,39],[84,44],[79,45],[78,44],[78,38]],[[78,34],[78,36],[74,38],[66,48],[62,50]],[[76,56],[78,57],[78,61],[74,80],[70,94],[64,112],[58,124],[56,127],[52,128],[51,128],[51,123],[52,112],[57,94],[63,77],[72,58],[76,56],[78,54],[78,46]],[[124,68],[122,64],[118,60],[110,60],[107,62],[105,66],[101,67],[97,71],[92,74],[78,110],[68,130],[68,140],[70,142],[74,140],[84,128],[90,126],[92,116],[104,92],[108,88],[118,74],[123,72],[123,69],[124,68],[131,68],[134,70],[135,74],[135,82],[130,96],[132,98],[134,97],[140,92],[144,90]],[[144,91],[143,99],[138,108],[136,113],[137,134],[136,138]],[[112,126],[124,110],[132,98]],[[123,73],[123,82],[122,89],[116,102],[105,118],[99,124],[95,126],[92,127],[90,130]],[[67,132],[64,134],[59,137],[54,138],[52,137]],[[52,129],[51,137],[47,138],[42,143],[38,144],[36,142],[36,130],[40,115],[41,108]]], MARK_W = 5.2;
         var i, t;
 
-        // the line from the right edge, and the spiral it winds into; each point of the spiral also has a place on a straight line, for the untangling
-        var A = [[W + 70, cy - 120], [W - 120, cy - 150], [hx + 190, cy - 40], [hx + 22, cy]], entry = [];
-        for (i = 0; i <= 40; i++) entry.push(bez(A, i / 40));
+        // the line from the right edge (rippling), and the spiral it winds into; each point of the spiral also has a place on a wavy line, for the untangling
+        var A = [[W + 70, cy - 120], [W - 120, cy - 150], [hx + 190, cy - 40], [hx + 22, cy]], entry = wavy(A, 40, 24, 2.5, "mid");
         var loops = 7, n = 420, tilt = -0.2, ct = Math.cos(tilt), st = Math.sin(tilt), LINE = R.width * 0.55;
         var coilAt = function (t) { var a = t * loops * 2 * Math.PI, r = 7 + 56 * Math.pow(1 - t, 0.85), ex = r * 0.52 * Math.cos(a), ey = r * Math.sin(a); return [hx - t * L + ex * ct - ey * st, cy + ex * st + ey * ct]; };
-        var lineAt = function (t) { return [hx + 22 - t * LINE, cy]; };
+        var lineAt = function (t) { return [hx + 22 - t * LINE, cy + 20 * Math.sin(t * 2 * Math.PI * 2.2)]; };
         var shape = function (u) { var out = entry.slice(), k; for (k = 1; k <= n; k++) { var tt = k / n, c = coilAt(tt), l = lineAt(tt); out.push([lerp(c[0], l[0], u), lerp(c[1], l[1], u)]); } return out; };
-        var toD = function (pts) { var d = "", k; for (k = 0; k < pts.length; k++) d += (k ? "L" : "M") + pts[k][0].toFixed(1) + " " + pts[k][1].toFixed(1); return d; };
 
         var svg = mk("svg", { id: "introSvg", "aria-hidden": "true" }), defs = mk("defs", {}), blur = mk("filter", { id: "introSmoke", x: "-50%", y: "-50%", width: "200%", height: "200%" }), dust = mk("g", { filter: "url(#introSmoke)" });
-        var path = mk("path", { d: toD(shape(0)), pathLength: "1", fill: "none", stroke: "#3f3f46", "stroke-width": "2.6", "stroke-linecap": "round", "stroke-linejoin": "round" });
-        path.style.strokeDasharray = "0 3";
-        blur.appendChild(mk("feGaussianBlur", { stdDeviation: "5" })); defs.appendChild(blur); svg.appendChild(defs); svg.appendChild(dust); svg.appendChild(path); document.body.appendChild(svg);
-        var total = path.getTotalLength();
-        var T1 = 1300, HOLD = 200, T2 = 750, T3 = 850, T4 = 1150;
+        var ribbon = mk("path", { fill: "#2b2b2b" });
+        blur.appendChild(mk("feGaussianBlur", { stdDeviation: "5" })); defs.appendChild(blur); svg.appendChild(defs); svg.appendChild(dust); svg.appendChild(ribbon); document.body.appendChild(svg);
+        var T1 = 1300, HOLD = 200, T2 = 750, T3 = 900, T4 = 1150;
 
-        // 1) drawn in, to the tip of the spiral
-        path.animate([{ strokeDasharray: "0 3" }, { strokeDasharray: "0.25 3", offset: 0.25 }, { strokeDasharray: "0.6 3", offset: 0.5 }, { strokeDasharray: "0.9 3", offset: 0.75 }, { strokeDasharray: "1 3" }], { duration: T1, easing: "cubic-bezier(.3,.3,.3,1)", fill: "forwards" });
+        // the ribbon: the part of a polyline between two lengths, drawn as a thin shape that is full width at the head and runs out to nothing at the tail
+        var cumOf = function (pts) { var c = [0], k; for (k = 1; k < pts.length; k++) c.push(c[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1])); return c; };
+        var draw = function (pts, cum, a, b) {
+            if (b - a < 1) { ribbon.setAttribute("d", ""); return; }
+            var at = function (Ls) { var lo = 0, hi = cum.length - 1; while (hi - lo > 1) { var m = (lo + hi) >> 1; if (cum[m] <= Ls) lo = m; else hi = m; } var f = (Ls - cum[lo]) / ((cum[hi] - cum[lo]) || 1); return [lerp(pts[lo][0], pts[hi][0], f), lerp(pts[lo][1], pts[hi][1], f)]; };
+            var seg = [[at(a), a]], k; for (k = 0; k < cum.length; k++) if (cum[k] > a && cum[k] < b) seg.push([pts[k], cum[k]]); seg.push([at(b), b]);
+            var Lp = [], Rp = [], tail = Math.min(260, (b - a) * 0.8);
+            for (k = 0; k < seg.length; k++) {
+                var p0 = seg[Math.max(0, k - 1)][0], p1 = seg[Math.min(seg.length - 1, k + 1)][0], nx = -(p1[1] - p0[1]), ny = p1[0] - p0[0], ln = Math.hypot(nx, ny) || 1, dd = seg[k][1] - a, w = 2.7 * Math.pow(Math.min(1, dd / tail), 1.3) / 2;
+                Lp.push([seg[k][0][0] + nx / ln * w, seg[k][0][1] + ny / ln * w]); Rp.push([seg[k][0][0] - nx / ln * w, seg[k][0][1] - ny / ln * w]);
+            }
+            var d = "M" + Lp[0][0].toFixed(1) + " " + Lp[0][1].toFixed(1); for (k = 1; k < Lp.length; k++) d += "L" + Lp[k][0].toFixed(1) + " " + Lp[k][1].toFixed(1);
+            for (k = Rp.length - 1; k >= 0; k--) d += "L" + Rp[k][0].toFixed(1) + " " + Rp[k][1].toFixed(1);
+            ribbon.setAttribute("d", d + "Z");
+        };
 
         // the smoke: soft grey puffs that come off the line as it is drawn, swell, and drift away up and to the right
         var puff = function (x, y, delay) {
@@ -215,32 +233,25 @@
             c.animate([{ opacity: 0, transform: "translate(0,0) scale(.6)" }, { opacity: 0.34, offset: 0.25 }, { opacity: 0, transform: "translate(" + (30 + Math.random() * 110) + "px," + (-8 - Math.random() * 58) + "px) scale(" + (2 + Math.random() * 1.6) + ")" }], { duration: 1300 + Math.random() * 1200, delay: Math.max(0, delay), easing: "ease-out", fill: "backwards" });
         };
         var p0 = shape(0);
-        for (i = 0; i < 70; i++) { var k = 41 + Math.floor(Math.random() * n), pt = p0[Math.min(k, p0.length - 1)]; puff(pt[0], pt[1], T1 * (k - 41) / n - 60); }
+        for (i = 0; i < 70; i++) { var k0 = 41 + Math.floor(Math.random() * n), pt = p0[Math.min(k0, p0.length - 1)]; puff(pt[0], pt[1], T1 * (k0 - 41) / n - 60); }
 
-        // 2) the spiral untangles into a line (the path is redrawn as it goes), 3) the line flows to the logo, 4) and winds into the mark
-        var ix = B.left + iconW / 2, iy = B.top + B.height / 2, ms = B.height / 152, mx = function (p) { return B.left + p[0] * ms; }, my = function (p) { return B.top + p[1] * ms; }, first = MARK[0][0];
-        setTimeout(function () {
-            var t0 = performance.now();
-            (function step(now) {
-                var u = Math.min(1, (now - t0) / T2); path.setAttribute("d", toD(shape(easeIO(u))));
-                if (u < 1) return requestAnimationFrame(step);
-                flow();
-            })(t0);
-        }, T1 + HOLD);
-
-        function flow() {
-            // the line, now straight, goes on from its left end in a curve up to the left edge of the mark
-            var base = shape(1), end = base[base.length - 1], C = [end, [end[0] - 120, end[1] - 20], [mx(first) + 110, my(first) + 90], [mx(first), my(first)]], full = base.slice();
-            for (var k = 1; k <= 70; k++) full.push(bez(C, k / 70));
-            path.setAttribute("d", toD(full));
-            var tot = path.getTotalLength(), straightEnd = 0, j;
-            for (j = 1; j < base.length; j++) straightEnd += Math.hypot(base[j][0] - base[j - 1][0], base[j][1] - base[j - 1][1]);
-            var hS = straightEnd / tot, kf = [{ offset: 0, strokeDasharray: "1 3", strokeDashoffset: "0" }];
-            for (var q = 1; q <= 10; q++) { var s2 = easeIO(q / 10), h = hS + (1 - hS) * s2, tau = Math.pow(s2, 1.4); kf.push({ offset: q / 10, strokeDasharray: Math.max(h - tau, 0) + " 3", strokeDashoffset: String(-tau) }); }
-            // (the head runs on to the mark while the tail catches up with it: it ends as a point at the mark)
-            path.animate(kf, { duration: T3, easing: "linear", fill: "forwards" });
-            setTimeout(form, T3 - 40);
-        }
+        // the timeline of the line (1 to 3), one frame at a time
+        var iconW = B.height * (150 / 152), ix = B.left + iconW / 2, iy = B.top + B.height / 2, ms = B.height / 152, mx = function (p) { return B.left + p[0] * ms; }, my = function (p) { return B.top + p[1] * ms; }, first = MARK[0][0];
+        var pts0 = p0, cum0 = cumOf(pts0), tot0 = cum0[cum0.length - 1], t0 = performance.now(), flowPts = null, flowCum = null, hS = 0;
+        (function frame(now) {
+            var ts = now - t0;
+            if (ts < T1) { draw(pts0, cum0, 0, tot0 * easeOut(ts / T1)); return requestAnimationFrame(frame); }
+            if (ts < T1 + HOLD) { draw(pts0, cum0, 0, tot0); return requestAnimationFrame(frame); }
+            if (ts < T1 + HOLD + T2) { var u = easeIO((ts - T1 - HOLD) / T2), ps = shape(u), cs = cumOf(ps); draw(ps, cs, 0, cs[cs.length - 1]); return requestAnimationFrame(frame); }
+            if (!flowPts) {
+                // the line, now a wavy line, goes on from its left end in a rippling curve up to the start of the mark's first stroke
+                var base = shape(1), end = base[base.length - 1], C = [end, [end[0] - 140, end[1] - 30], [mx(first) + 120, my(first) + 100], [mx(first), my(first)]], fl = wavy(C, 80, 30, 3, "end");
+                flowPts = base.concat(fl.slice(1)); flowCum = cumOf(flowPts); hS = cumOf(base)[base.length - 1] / flowCum[flowCum.length - 1];
+            }
+            var q = (ts - T1 - HOLD - T2) / T3, tot = flowCum[flowCum.length - 1];
+            if (q < 1) { var s2 = easeIO(q), h = hS + (1 - hS) * s2, tau = Math.pow(s2, 1.35); draw(flowPts, flowCum, tau * tot, Math.max(h, tau + 0.0001) * tot); return requestAnimationFrame(frame); }
+            ribbon.setAttribute("d", ""); form();
+        })(t0);
 
         function form() {
             // the line draws the mark, stroke after stroke, along the centre lines of the real drawing; then the real logo takes over from it
