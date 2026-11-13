@@ -267,7 +267,7 @@
         }
 
         // ---- times (ms from the start)
-        var T_CARDS = 600, T_CONV = 2000, D_CONV = 1000, T_IN = 1750, T_OUT = 1250, T_DRAW = T_IN + T_OUT, D_DRAW = 1900;
+        var T_CARDS = 600, T_CONV = 2000, D_CONV = 1000, T_IN = 1750, T_OUT = 1250, T_DRAW = T_IN + T_OUT, D_DRAW = 2800;
         var cinfo = [].slice.call(sp.querySelectorAll(".spread-card")).map(function (c, i, all2) {
             var rc = c.getBoundingClientRect(), rr = function (a, b) { return a + Math.random() * (b - a); };
             c.style.transition = "none"; c.style.opacity = "0";
