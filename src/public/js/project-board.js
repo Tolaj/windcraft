@@ -428,9 +428,9 @@ function renderOutline() {
 function switchRow(attr, title, text, on) {
     return `<label class="switch-row"><span class="min-w-0"><b>${title}</b><span>${text}</span></span><span class="switch"><input ${attr} type="checkbox" ${on ? "checked" : ""}><i></i></span></label>`;
 }
-/** The "Auto-create parts" switch: in the Parts tab and in the project's details (any switch with data-parts-toggle changes the setting). */
-function partsToggleHtml(box = "") {
-    return `<div class="${box}">${switchRow("data-parts-toggle", "Auto-create parts", "Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.", project.autoParts !== false)}</div>`;
+/** The "Auto-create parts" switch, in the project's details (any switch with data-parts-toggle changes the setting). */
+function partsToggleHtml() {
+    return `<div>${switchRow("data-parts-toggle", "Auto-create parts", "Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.", project.autoParts !== false)}</div>`;
 }
 /** The "Publish" switch: every frame of the project in the gallery. It reads off the frames, so making one private turns it off. */
 const framesList = () => items.filter((i) => i.kind !== "section");
@@ -445,14 +445,13 @@ function renderComponents(saved, found) {
     const mine = filter.kind ? [] : saved.filter((c) => match(`${c.title} ${c.description || ""} ${(c.tags || []).join(" ")}`));
     const row = (id, tag, name, from) => `<div class="layer-row cursor-pointer gap-1 px-1 ${id === selectedId ? "is-selected" : ""}" style="padding-left:6px" data-pick="${esc(id)}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${tag}</span><span class="truncate" title="${esc(name)}">${esc(name)}</span>${from ? `<span class="ml-auto max-w-[70px] shrink-0 truncate pl-2 text-[10px] text-neutral-400" title="from ${esc(from)}">${esc(from)}</span>` : ""}</div>`;
     const on = project.autoParts !== false;
-    const toggle = partsToggleHtml("m-2 rounded-lg border border-neutral-200 bg-white p-3");
     let html = mine.length ? `<div class="group-head">Saved parts</div>${mine.map((c) => row(c.id, "part", c.title, "")).join("")}` : "";
     KINDS.forEach(([k, name]) => {
         if (filter.kind && filter.kind !== k) return;
         const list = found.filter((x) => x.kind === k && match(`${x.name} ${x.pageTitle} ${k}`));
         if (list.length) html += `<div class="group-head">${name} · ${list.length}</div>${list.map((x) => row(x.id, k, x.kind === "button" ? x.name.replace(/^Button: /, "") : x.name, x.pageTitle)).join("")}`;
     });
-    $("outline").innerHTML = toggle + (html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : on ? "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your frames." : "Parts are off for this project, so none are made or listed. Turn on Auto-create parts above to make them."}</div>`);
+    $("outline").innerHTML = (html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : on ? "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your frames." : "Parts are off for this project, so none are made or listed. Turn on Auto-create parts in the project settings (click the empty board) to make them."}</div>`);
 }
 $("tabPages").addEventListener("click", () => { tab = "page"; renderFilters(); renderOutline(); });
 $("tabComponents").addEventListener("click", () => { tab = "component"; renderFilters(); renderOutline(); });
