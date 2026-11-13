@@ -36,6 +36,7 @@ test("Publish all frames: on publishes every frame, off makes them private, one 
     const box = page.locator("#details [data-publish-toggle]");
     await box.waitFor({ timeout: 30000 });
     assert.equal(await box.isChecked(), true, "the project page shows it on");
+    assert.ok((await page.locator("#fCat option").count()) > 1, "the category filter lists the categories the frames are in");
     await box.click();
     await page.waitForFunction(() => !document.querySelector("#details [data-publish-toggle]").checked, null, { timeout: 10000 });
     assert.ok(frames(await projectData(ctx)).every((f) => !f.isPublished), "off from the project page: all private");
@@ -54,7 +55,7 @@ test("Publish all frames: on publishes every frame, off makes them private, one 
     await sw.waitFor({ timeout: 20000 });
     assert.equal(await sw.isChecked(), false, "one private frame: the switch is off");
     await sw.click();
-    await page.waitForFunction(() => document.querySelector("#inspector input[type=checkbox]") && [...document.querySelectorAll("#inspector label")].find((l) => l.textContent.includes("Publish all frames")).querySelector("input").checked, null, { timeout: 10000 });
+    await page.waitForFunction(() => { const l = [...document.querySelectorAll("#inspector label")].find((x) => x.textContent.includes("Publish all frames")), i = l && l.querySelector("input"); return Boolean(i && i.checked); }, null, { timeout: 10000 }); // (a spinner stands in for the checkbox while it saves)
     assert.ok(frames(await projectData(ctx)).every((f) => f.isPublished), "on in the editor: every frame is public");
     await ctx.close();
 });

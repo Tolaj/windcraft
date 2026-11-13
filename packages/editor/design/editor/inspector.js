@@ -80,17 +80,17 @@ const panelActions = {
     toggleDots: () => setCanvasLook({ dots: !canvasLook().dots }),
     // the project's "Auto-create parts" switch (in the canvas panel, only where the app can save it)
     setAutoParts: async (on) => {
-        partsMsg = "";
+        partsMsg = ""; partsBusy = true; renderInspector();
         try {
             const kept = await host.saveProjectSettings(data.project.id, { autoParts: on });
             data.project.autoParts = kept && typeof kept.autoParts === "boolean" ? kept.autoParts : on;
             partsMsg = on ? "On: parts are made when a frame is saved." : "Off: no parts are made.";
         } catch (err) { partsMsg = (err && err.message) || "Could not save it."; }
-        renderInspector();
+        partsBusy = false; renderInspector();
     },
     // the project's "Publish" switch: every frame in the gallery, or none (the frames here follow what the server did)
     setPublished: async (on) => {
-        publishMsg = "";
+        publishMsg = ""; publishBusy = true; renderInspector();
         try {
             const kept = await host.saveProjectSettings(data.project.id, { published: on });
             const now = kept && typeof kept.published === "boolean" ? kept.published : on;
@@ -99,7 +99,7 @@ const panelActions = {
             if (data.id) data.isPublished = on;
             publishMsg = on ? "Every frame is in the gallery." : "No frame is in the gallery.";
         } catch (err) { publishMsg = (err && err.message) || "Could not save it."; }
-        renderInspector();
+        publishBusy = false; renderInspector();
     },
     fitAll: () => { S.viewTouched = true; fitTo([...docs.keys()]); },
     details: () => $("detailsBtn").click(),
@@ -336,6 +336,7 @@ function idsFor(paths) {
 function ensureInteractScript() {
     if (S.parsed && !hasInteractScript(S.parsed.scripts)) S.parsed.scripts.push({ src: "", type: "", defer: false, text: INTERACT_SCRIPT });
 }
+let partsBusy = false, publishBusy = false; // a switch of the canvas panel is being saved: a spinner stands in for it
 let publishMsg = ""; // what the canvas panel says about the Publish switch after it is used
 let partsMsg = ""; // what the canvas panel says about the Auto-create parts switch after it is used
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
@@ -345,7 +346,7 @@ export function renderInspector() {
     const elementCode = sel && ui.tab === "classes" ? sourceOf(sel.path) : null;
     const top = insp.scrollTop;
     if (S.canvasOnly) { // nothing selected: the canvas's own panel
-        renderPanel(insp, { canvas: { ...canvasLook(), frames: docs.size, picked: S.framesSel.length, project: data.project && data.project.name, partsOn: data.project && host.saveProjectSettings ? data.project.autoParts !== false : null, partsMsg, publishOn: data.project && host.saveProjectSettings && typeof data.project.published === "boolean" ? data.project.published : null, publishMsg } }, panelActions, ui);
+        renderPanel(insp, { canvas: { ...canvasLook(), frames: docs.size, picked: S.framesSel.length, project: data.project && data.project.name, partsOn: data.project && host.saveProjectSettings ? data.project.autoParts !== false : null, partsMsg, partsBusy, publishBusy, publishOn: data.project && host.saveProjectSettings && typeof data.project.published === "boolean" ? data.project.published : null, publishMsg } }, panelActions, ui);
         insp.scrollTop = top;
         return;
     }

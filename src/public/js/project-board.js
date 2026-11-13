@@ -424,15 +424,20 @@ function renderOutline() {
     }).join("") || `<div class="p-3 text-neutral-500">${filterOn() ? "Nothing matches." : "No frames yet."}</div>`;
     dimBoard();
 }
-/** The "Auto-create parts" switch: in the Parts tab and in the project's details (any switch with data-parts-toggle changes the setting). */
-function partsToggleHtml(margin = "") {
-    return `<label class="${margin} flex cursor-pointer items-start gap-2 rounded-md border border-neutral-200 bg-white p-2 text-[11px] leading-4 text-neutral-600"><input data-parts-toggle type="checkbox" ${project.autoParts !== false ? "checked" : ""} class="mt-0.5 h-3.5 w-3.5 shrink-0 accent-black"><span><b class="text-neutral-900">Auto-create parts</b><br>Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.</span></label>`;
+/** One setting as a row: its name and a sentence on the left, a switch on the right. `attr` is the data attribute the change handler looks for. */
+function switchRow(attr, title, text, on) {
+    return `<label class="switch-row"><span class="min-w-0"><b>${title}</b><span>${text}</span></span><span class="switch"><input ${attr} type="checkbox" ${on ? "checked" : ""}><i></i></span></label>`;
+}
+/** The "Auto-create parts" switch, in the project's details (any switch with data-parts-toggle changes the setting). */
+function partsToggleHtml() {
+    return `<div>${switchRow("data-parts-toggle", "Auto-create parts", "Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.", project.autoParts !== false)}</div>`;
 }
 /** The "Publish" switch: every frame of the project in the gallery. It reads off the frames, so making one private turns it off. */
 const framesList = () => items.filter((i) => i.kind !== "section");
 const allPublished = () => { const f = framesList(); return f.length > 0 && f.every((i) => i.isPublished); };
 function publishToggleHtml() {
-    return `<label class="flex cursor-pointer items-start gap-2 rounded-md border border-neutral-200 bg-white p-2 text-[11px] leading-4 text-neutral-600"><input data-publish-toggle type="checkbox" ${allPublished() ? "checked" : ""} class="mt-0.5 h-3.5 w-3.5 shrink-0 accent-black"><span><b class="text-neutral-900">Publish all frames</b><br>Show every frame in the gallery. Making one frame private turns this off, and turning this off makes all of them private.</span></label>`;
+    const f = framesList(), open = f.filter((i) => i.isPublished).length;
+    return switchRow("data-publish-toggle", "Publish all frames", `Show every frame in the gallery (${open} of ${f.length} are public now). Making one private turns this off; turning this off makes all of them private.`, allPublished());
 }
 function renderComponents(saved, found) {
     const words = filter.q ? filter.q.split(/\s+/) : [];
@@ -440,14 +445,13 @@ function renderComponents(saved, found) {
     const mine = filter.kind ? [] : saved.filter((c) => match(`${c.title} ${c.description || ""} ${(c.tags || []).join(" ")}`));
     const row = (id, tag, name, from) => `<div class="layer-row cursor-pointer gap-1 px-1 ${id === selectedId ? "is-selected" : ""}" style="padding-left:6px" data-pick="${esc(id)}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${tag}</span><span class="truncate" title="${esc(name)}">${esc(name)}</span>${from ? `<span class="ml-auto max-w-[70px] shrink-0 truncate pl-2 text-[10px] text-neutral-400" title="from ${esc(from)}">${esc(from)}</span>` : ""}</div>`;
     const on = project.autoParts !== false;
-    const toggle = partsToggleHtml("m-2");
     let html = mine.length ? `<div class="group-head">Saved parts</div>${mine.map((c) => row(c.id, "part", c.title, "")).join("")}` : "";
     KINDS.forEach(([k, name]) => {
         if (filter.kind && filter.kind !== k) return;
         const list = found.filter((x) => x.kind === k && match(`${x.name} ${x.pageTitle} ${k}`));
         if (list.length) html += `<div class="group-head">${name} · ${list.length}</div>${list.map((x) => row(x.id, k, x.kind === "button" ? x.name.replace(/^Button: /, "") : x.name, x.pageTitle)).join("")}`;
     });
-    $("outline").innerHTML = toggle + (html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : on ? "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your frames." : "Parts are off for this project, so none are made or listed. Turn on Auto-create parts above to make them."}</div>`);
+    $("outline").innerHTML = (html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : on ? "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your frames." : "Parts are off for this project, so none are made or listed. Turn on Auto-create parts in the project settings (click the empty board) to make them."}</div>`);
 }
 $("tabPages").addEventListener("click", () => { tab = "page"; renderFilters(); renderOutline(); });
 $("tabComponents").addEventListener("click", () => { tab = "component"; renderFilters(); renderOutline(); });
@@ -455,7 +459,8 @@ $("tabTheme").addEventListener("click", () => { tab = "theme"; renderOutline(); 
 // Auto-create parts: on, the parts of every frame are made and listed; off, none are (nothing already made is deleted)
 document.addEventListener("change", async (e) => {
     if (!e.target.matches || !e.target.matches("[data-parts-toggle]")) return;
-    const on = e.target.checked;
+    const on = e.target.checked, sw = e.target.closest(".switch");
+    if (sw) sw.classList.add("busy"); // a spinner stands in for the switch until it is saved
     try {
         const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ autoParts: on }) });
         if (!res.ok) throw new Error("not saved");
@@ -465,6 +470,7 @@ document.addEventListener("change", async (e) => {
         if (tab === "component") { buildFrames(); fitAll(); }
     } catch {
         e.target.checked = !on;
+        if (sw) sw.classList.remove("busy");
         alert("Could not change the setting. Try again.");
     }
 });
@@ -472,7 +478,8 @@ document.addEventListener("change", async (e) => {
 // Publish: every frame in the gallery, or none
 document.addEventListener("change", async (e) => {
     if (!e.target.matches || !e.target.matches("[data-publish-toggle]")) return;
-    const on = e.target.checked;
+    const on = e.target.checked, sw = e.target.closest(".switch");
+    if (sw) sw.classList.add("busy");
     try {
         const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ published: on }) });
         const json = await res.json().catch(() => ({}));
@@ -481,6 +488,7 @@ document.addEventListener("change", async (e) => {
         renderDetails();
     } catch {
         e.target.checked = !on;
+        if (sw) sw.classList.remove("busy");
         alert("Could not change it. Try again.");
     }
 });
@@ -576,16 +584,22 @@ function renderDetails() {
     if (part) return renderPartDetails(part);
     const it = selectedId && byId(selectedId);
     if (!it) {
-        el.innerHTML = `<label class="block text-neutral-500">Name</label>
-            <input id="nameInput" type="text" maxlength="80" class="fi" value="${esc(project.name)}" placeholder="Project name">
-            <label class="mt-3 block text-neutral-500">Description</label>
-            <textarea id="descInput" rows="2" class="fi area" placeholder="What is this project?">${esc(project.description)}</textarea>
-            <label class="mt-3 block text-neutral-500">Brief for Claude and designers</label>
-            <textarea id="briefInput" rows="7" class="fi area" placeholder="Brand, audience, tone, colors, navigation, rules. Claude reads this automatically when this is the active project.">${esc(project.brief || "")}</textarea>
-            <button type="button" id="saveDesc" class="mt-2 h-7 w-full rounded-md border border-neutral-200 hover:bg-neutral-50">Save</button>
-            <div class="mt-3">${partsToggleHtml()}</div>
-            <div class="mt-2">${publishToggleHtml()}</div>
-            <p class="mt-4 text-neutral-500">Click a frame to see its details. Drag frames to arrange them. Double-click a frame to open it in the editor.</p>`;
+        const real = framesList().length, parts = items.length - real;
+        el.innerHTML = `<div class="-m-3">
+            <section class="border-b border-neutral-200 p-4">
+                <p class="sec-h">Project</p>
+                <p class="mb-3 text-neutral-500">${real} ${real === 1 ? "frame" : "frames"} · ${parts} ${parts === 1 ? "part" : "parts"}</p>
+                <label class="field"><span>Name</span><input id="nameInput" type="text" maxlength="80" class="fi" value="${esc(project.name)}" placeholder="Project name"></label>
+                <label class="field"><span>Description</span><textarea id="descInput" rows="3" class="fi area" placeholder="What is this project?">${esc(project.description)}</textarea></label>
+                <label class="field"><span>Brief</span><textarea id="briefInput" rows="6" class="fi area" placeholder="Brand, audience, tone, colors, navigation, rules.">${esc(project.brief || "")}</textarea><small>Claude and designers read this automatically while this is the active project.</small></label>
+                <div class="mt-4 flex justify-end"><button type="button" id="saveDesc" class="h-8 rounded-md bg-black px-4 font-semibold text-white hover:bg-neutral-800">Save changes</button></div>
+            </section>
+            <section class="border-b border-neutral-200 p-4">
+                <p class="sec-h">Settings</p>
+                <div class="divide-y divide-neutral-100">${partsToggleHtml()}${publishToggleHtml()}</div>
+            </section>
+            <p class="p-4 leading-4 text-neutral-400">Click a frame to see its details. Drag frames to arrange them. Double-click a frame to open it in the editor.</p>
+        </div>`;
         return;
     }
     el.innerHTML = `<div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${it.kind}</span><span class="font-mono text-[10px] text-neutral-400">v${it.version}</span></div>
@@ -691,7 +705,7 @@ document.addEventListener("click", async (e) => {
         const description = $("descInput").value;
         const brief = $("briefInput").value;
         const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, description, brief }) });
-        if ((await res.json()).success) { project.name = name; project.description = description; project.brief = brief; renderHeader(); e.target.textContent = "Saved"; setTimeout(() => (e.target.textContent = "Save"), 1200); }
+        if ((await res.json()).success) { project.name = name; project.description = description; project.brief = brief; renderHeader(); e.target.textContent = "Saved"; setTimeout(() => (e.target.textContent = "Save changes"), 1200); }
     }
 });
 

@@ -257,6 +257,8 @@ textarea.field { height: auto; padding: 6px 8px; font-family: ui-monospace, mono
 .wftip-never:hover { color: #fff; }
 body[data-wf-hint] .wfbtn { border-style: solid; border-color: #111; background: #fff; animation: wfpulse 1.6s ease-out infinite; }
 body[data-wf-hint] .wfbtn .wfico, body[data-wf-hint] .wfbtn .wfarr { color: #111; }
+.spin { display: inline-block; width: 13px; height: 13px; box-sizing: border-box; border: 2px solid #d4d4d4; border-top-color: #111; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 @keyframes wfpulse { 0% { box-shadow: 0 0 0 0 rgba(17, 17, 17, .35); } 100% { box-shadow: 0 0 0 10px rgba(17, 17, 17, 0); } }
 .sech { display: flex; align-items: center; gap: 6px; width: 100%; padding: 9px 10px; font-weight: 600; font-size: 11px; text-align: left; }
 .sech:hover { background: #fafafa; }

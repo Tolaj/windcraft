@@ -57,7 +57,7 @@ projectPages.get("/:id", async (req, res) => {
         if (!project) throw new Error("missing");
         const active = await getActiveProject(req.session.user.id);
         const items = await Component.find({ createdBy: req.session.user.id, project: project._id })
-            .select("title description kind parent order group tags version htmlCode board useAsReference twConfig isPublished updatedAt")
+            .select("title description kind parent order group tags version htmlCode board category useAsReference twConfig isPublished updatedAt")
             .sort("order createdAt")
             .lean();
         const data = {
@@ -66,7 +66,7 @@ projectPages.get("/:id", async (req, res) => {
             projects: (await Project.find({ owner: req.session.user.id }).select("name").sort("name").lean()).map((x) => ({ id: String(x._id), name: x.name })), // for "Move to project"
             items: items.map((c) => ({
                 id: String(c._id), title: c.title, useAsReference: c.useAsReference !== false, twConfig: c.twConfig || null, group: c.group || "", description: c.description, kind: c.kind, parent: c.parent ? String(c.parent) : null,
-                version: c.version || 1, tags: c.tags || [], isPublished: c.isPublished === true, htmlCode: c.htmlCode, frameW: c.frameW || null, board: c.board && Number.isFinite(c.board.x) ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) } : null, updatedAt: c.updatedAt,
+                version: c.version || 1, tags: c.tags || [], category: c.category || "", isPublished: c.isPublished === true, htmlCode: c.htmlCode, frameW: c.frameW || null, board: c.board && Number.isFinite(c.board.x) ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) } : null, updatedAt: c.updatedAt,
             })),
         };
         res.render("main/project", {
