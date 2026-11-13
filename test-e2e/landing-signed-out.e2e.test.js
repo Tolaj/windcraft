@@ -38,3 +38,19 @@ test("signed out: sidebar closed, New design goes to sign in, hero shows Get sta
     assert.ok(await p2.getByRole("link", { name: "Open your projects" }).isVisible(), "signed in: the hero keeps Open your projects");
     await inn.close();
 });
+
+test("the categories on the landing page are in A to Z order", { skip: skip || false, timeout: 120000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    for (const c of ["marketing-team", "forms-authentication", "marketing-hero", "apps-tables"]) {
+        const r = await ctx.request.post(`${stack.base}/api/components`, { data: { title: `Sample ${c}`, category: c, description: "x", htmlCode: "<div class='p-6'>x</div>", tags: "t", isPublished: true, project: ids.project, kind: "page" } });
+        assert.equal(r.status(), 201);
+    }
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/`);
+    await page.locator("#contentGrid .component-card h4").first().waitFor({ state: "attached", timeout: 30000 });
+    const names = (await page.locator("#contentGrid .component-card h4").allTextContents()).map((t) => t.trim());
+    assert.ok(names.length >= 4, `the cards are there (${names})`);
+    assert.deepEqual(names, [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true })), `the cards are A to Z (${names})`);
+    await ctx.close();
+});
