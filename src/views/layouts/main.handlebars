@@ -13,10 +13,10 @@
     <link rel="stylesheet" href="/public/css/style.css" />
     <script src="/public/js/tailwind.config.js"></script>
     <script>
-        // The landing page opens with a short animation that ends at the logo: the logo waits (hidden) for it. Once per visit; not for reduced motion; not on a narrow screen.
+        // The landing page opens with a short animation that ends at the logo: the mark of the logo waits (hidden) for it. Once per visit; not for reduced motion; not on a narrow screen.
         try { if (location.pathname === "/" && sessionStorage.getItem("wc:hero-played") !== "1" && !matchMedia("(prefers-reduced-motion: reduce)").matches && innerWidth >= 1100) { document.documentElement.classList.add("intro"); setTimeout(function () { document.documentElement.classList.remove("intro"); }, 7000); } } catch (e) { /* no storage: no intro */ }
     </script>
-    <style>html.intro [data-brand] { opacity: 0; } [data-brand] { transition: opacity .4s ease; }</style>
+    <style>/* during the opening the wordmark is there and the mark (the spiral, the left fifth of the image) is not yet: the spiral arrives and takes its place */ [data-brand] { clip-path: inset(0 0 0 0); transition: clip-path .5s ease; } html.intro [data-brand] { clip-path: inset(0 0 0 21%); }</style>
 
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-alpine.css" />

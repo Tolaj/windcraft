@@ -165,8 +165,9 @@
 {{> component-playground/index}}
 
 <script>
-    // The hero's opening, once per visit (the page head decides: it hides the logo with html.intro). A line comes in from the right edge and winds into a spiral lying on its side, with dust
-    // blowing off it; then the line flows on, along its own path, up to the logo in the top left corner and into it (the real logo fades in), and the designs fly out of the logo into the fan.
+    // The hero's opening, once per visit (the page head decides: it hides the mark of the logo with html.intro, the wordmark stays). A line comes in from the right edge and winds into a spiral
+    // lying on its side, with smoke coming off it; the line that came in is wound into the spiral, and the spiral flies to the top left corner, turns and shrinks into the exact place and shape
+    // of the logo's mark, which takes over from it. Then the designs fly out of the logo into the fan.
     (function () {
         var root = document.documentElement, sp = document.querySelector("#hero .spread"), brand = document.querySelector("[data-brand]");
         var done = function () { root.classList.remove("intro"); if (sp) sp.classList.remove("pre"); };
@@ -178,54 +179,67 @@
         var NS = "http://www.w3.org/2000/svg", mk = function (n, a) { var e = document.createElementNS(NS, n); for (var k in a) e.setAttribute(k, a[k]); return e; };
         var bez = function (P, t) { var u = 1 - t; return [u * u * u * P[0][0] + 3 * u * u * t * P[1][0] + 3 * u * t * t * P[2][0] + t * t * t * P[3][0], u * u * u * P[0][1] + 3 * u * u * t * P[1][1] + 3 * u * t * t * P[2][1] + t * t * t * P[3][1]]; };
         var R = sp.getBoundingClientRect(), B = brand.getBoundingClientRect(), W = window.innerWidth;
-        var cy = R.top + R.height * 0.52, hx = R.left + R.width * 0.74, L = R.width * 0.3, tx = B.left + 17, ty = B.top + B.height / 2;
+        var cy = R.top + R.height * 0.52, hx = R.left + R.width * 0.74, L = R.width * 0.3;
+        // where the mark of the logo is: the left fifth of the image (150 of 828 px wide, as high as the image)
+        var iconW = B.height * (150 / 152), iconH = B.height, ix = B.left + iconW / 2, iy = B.top + B.height / 2;
         var i, t, pts = [];
         // 1) in from the right edge, down to the wide end of the spiral
         var A = [[W + 70, cy - 120], [W - 120, cy - 150], [hx + 190, cy - 40], [hx + 22, cy]];
         for (i = 0; i <= 40; i++) pts.push(bez(A, i / 40));
         var enterEnd = pts.length - 1;
-        // 2) the spiral: it lies on its side, wide at the right and narrowing to its tip on the left; each loop is a flat ellipse
-        var loops = 7, n = 420, a, r, tilt = -0.2, ct = Math.cos(tilt), st = Math.sin(tilt);
-        for (i = 1; i <= n; i++) { t = i / n; a = t * loops * 2 * Math.PI; r = 7 + 56 * Math.pow(1 - t, 0.85); var ex = r * 0.52 * Math.cos(a), ey = r * Math.sin(a); pts.push([hx - t * L + ex * ct - ey * st, cy + ex * st + ey * ct]); }
-        var tipEnd = pts.length - 1, tip = pts[tipEnd];
-        // 3) on from the tip, in a curve up to the logo
-        var C = [tip, [tip[0] - 70, tip[1] - 110], [tx + 150, ty + 120], [tx, ty]];
-        for (i = 1; i <= 70; i++) pts.push(bez(C, i / 70));
+        // 2) the spiral: it lies on its side, wide at the right and narrowing to its tip on the left; each loop is a flat ellipse, the whole a little tilted
+        var loops = 7, n = 420, a, r, tilt = -0.2, ct = Math.cos(tilt), st = Math.sin(tilt), x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+        for (i = 1; i <= n; i++) {
+            t = i / n; a = t * loops * 2 * Math.PI; r = 7 + 56 * Math.pow(1 - t, 0.85);
+            var ex = r * 0.52 * Math.cos(a), ey = r * Math.sin(a), q = [hx - t * L + ex * ct - ey * st, cy + ex * st + ey * ct];
+            pts.push(q); x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]);
+        }
+        var bx = (x0 + x1) / 2, by = (y0 + y1) / 2, bw = x1 - x0, bh = y1 - y0;
 
         var d = ""; for (i = 0; i < pts.length; i++) d += (i ? "L" : "M") + pts[i][0].toFixed(1) + " " + pts[i][1].toFixed(1);
-        var svg = mk("svg", { id: "introSvg", "aria-hidden": "true" }), defs = mk("defs", {}), blur = mk("filter", { id: "introSmoke", x: "-50%", y: "-50%", width: "200%", height: "200%" }), dust = mk("g", { filter: "url(#introSmoke)" }), path = mk("path", { d: d, pathLength: "1", fill: "none", stroke: "#2b2b2b", "stroke-width": "2.6", "stroke-linecap": "round", "stroke-linejoin": "round" });
+        var svg = mk("svg", { id: "introSvg", "aria-hidden": "true" }), defs = mk("defs", {}), blur = mk("filter", { id: "introSmoke", x: "-50%", y: "-50%", width: "200%", height: "200%" }), dust = mk("g", { filter: "url(#introSmoke)" });
+        var g = mk("g", {}), path = mk("path", { d: d, pathLength: "1", fill: "none", stroke: "#3f3f46", "stroke-width": "2.6", "stroke-linecap": "round", "stroke-linejoin": "round" });
         path.style.strokeDasharray = "0 3";
         blur.appendChild(mk("feGaussianBlur", { stdDeviation: "5" })); defs.appendChild(blur); svg.appendChild(defs);
-        svg.appendChild(dust); svg.appendChild(path); document.body.appendChild(svg);
+        g.appendChild(path); svg.appendChild(dust); svg.appendChild(g); document.body.appendChild(svg);
         var total = path.getTotalLength(), frac = function (idx) { var len = 0; for (var j = 1; j <= idx; j++) len += Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]); return len / total; };
-        var hSpiral = frac(tipEnd);
+        var hEnter = frac(enterEnd);
 
-        // the line: it is drawn up to the tip of the spiral, rests there a moment, then flows on to the logo, its tail catching up until it has all gone into the logo
-        var T1 = 1500, HOLD = 380, T2 = 1150, D = T1 + HOLD + T2, kf = [], ease = function (x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
-        var easeDraw = function (x) { return 1 - Math.pow(1 - x, 2.2); };
+        // the line: drawn in (from the right edge to the tip of the spiral), a moment's rest, then the line that came in is wound up into the spiral (its tail runs along the path)
+        var T1 = 1500, HOLD = 420, T2 = 520, FLY = 1150, D = T1 + HOLD + T2 + FLY, kf = [];
+        var easeDraw = function (x) { return 1 - Math.pow(1 - x, 2.2) }, easeIO = function (x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
         kf.push({ offset: 0, strokeDasharray: "0 3", strokeDashoffset: "0" });
-        for (i = 1; i <= 6; i++) { var q = i / 6, h = hSpiral * easeDraw(q); kf.push({ offset: (T1 * q) / D, strokeDasharray: h + " 3", strokeDashoffset: "0" }); }
-        kf.push({ offset: (T1 + HOLD) / D, strokeDasharray: hSpiral + " 3", strokeDashoffset: "0" });
-        for (i = 1; i <= 12; i++) { var s = ease(i / 12), hh = hSpiral + (1 - hSpiral) * s, tau = Math.pow(s, 1.5); kf.push({ offset: (T1 + HOLD + T2 * (i / 12)) / D, strokeDasharray: Math.max(hh - tau, 0) + " 3", strokeDashoffset: String(-tau) }); }
+        for (i = 1; i <= 6; i++) kf.push({ offset: (T1 * i / 6) / D, strokeDasharray: easeDraw(i / 6) + " 3", strokeDashoffset: "0" });
+        kf.push({ offset: (T1 + HOLD) / D, strokeDasharray: "1 3", strokeDashoffset: "0" });
+        for (i = 1; i <= 8; i++) { var tau = hEnter * easeIO(i / 8); kf.push({ offset: (T1 + HOLD + T2 * i / 8) / D, strokeDasharray: (1 - tau) + " 3", strokeDashoffset: String(-tau) }); }
+        kf.push({ offset: 1, strokeDasharray: (1 - hEnter) + " 3", strokeDashoffset: String(-hEnter) });
         path.animate(kf, { duration: D, easing: "linear", fill: "forwards" });
 
-        // the smoke: soft grey puffs that come off the line as it is drawn, swell, and drift away up and to the right
-        var puff = function (p, delay) {
-            var pt = path.getPointAtLength(p * total), r0 = 4 + Math.random() * 9, c = mk("circle", { cx: pt.x + (Math.random() - 0.5) * 22, cy: pt.y + (Math.random() - 0.5) * 22, r: r0.toFixed(1), fill: Math.random() < 0.5 ? "#9ca3af" : "#cbd5e1" });
-            dust.appendChild(c);
-            c.style.transformBox = "fill-box"; c.style.transformOrigin = "center";
-            c.animate([{ opacity: 0, transform: "translate(0,0) scale(.6)" }, { opacity: 0.38, offset: 0.25 }, { opacity: 0, transform: "translate(" + (30 + Math.random() * 110) + "px," + (-8 - Math.random() * 58) + "px) scale(" + (2 + Math.random() * 1.6) + ")" }], { duration: 1300 + Math.random() * 1200, delay: delay, easing: "ease-out", fill: "backwards" });
-        };
-        for (i = 0; i < 70; i++) { var pp = frac(enterEnd) + Math.random() * (hSpiral - frac(enterEnd)); puff(pp, T1 * easeInv(pp / hSpiral) - 80); }
-        for (i = 0; i < 34; i++) { var p2 = hSpiral + Math.random() * (1 - hSpiral); puff(p2, T1 + HOLD + T2 * Math.min(1, (p2 - hSpiral) / (1 - hSpiral)) * 0.9 - 60); }
-        function easeInv(y) { return 1 - Math.pow(1 - Math.min(Math.max(y, 0), 1), 1 / 2.2); }
+        // the spiral flies to the mark of the logo (an arc, a turn, shrinking to the mark's own width and height)
+        g.style.transformBox = "view-box"; g.style.transformOrigin = bx + "px " + by + "px";
+        var dx = ix - bx, dy = iy - by, sxs = iconW / bw, sys = iconH / bh;
+        g.animate([
+            { transform: "translate(0px,0px) rotate(0deg) scale(1,1)" },
+            { transform: "translate(" + (dx * 0.5) + "px," + (dy * 0.35 - 80) + "px) rotate(95deg) scale(" + (0.5 * sxs + 0.5) + "," + (0.5 * sys + 0.5) + ")", offset: 0.5 },
+            { transform: "translate(" + dx + "px," + dy + "px) rotate(180deg) scale(" + sxs + "," + sys + ")" }
+        ], { duration: FLY, delay: T1 + HOLD + T2, easing: "cubic-bezier(.55,.05,.2,1)", fill: "both" });
 
-        // the arrival: the real logo fades in as the line goes into it, and the designs come out of the logo
+        // the smoke: soft grey puffs that come off the line as it is drawn, swell, and drift away up and to the right
+        var inv = function (y) { return 1 - Math.pow(1 - Math.min(Math.max(y, 0), 1), 1 / 2.2); };
+        var puff = function (x, y, delay) {
+            var r0 = 4 + Math.random() * 9, c = mk("circle", { cx: x + (Math.random() - 0.5) * 22, cy: y + (Math.random() - 0.5) * 22, r: r0.toFixed(1), fill: Math.random() < 0.5 ? "#9ca3af" : "#cbd5e1" });
+            dust.appendChild(c); c.style.transformBox = "fill-box"; c.style.transformOrigin = "center";
+            c.animate([{ opacity: 0, transform: "translate(0,0) scale(.6)" }, { opacity: 0.36, offset: 0.25 }, { opacity: 0, transform: "translate(" + (30 + Math.random() * 110) + "px," + (-8 - Math.random() * 58) + "px) scale(" + (2 + Math.random() * 1.6) + ")" }], { duration: 1300 + Math.random() * 1200, delay: Math.max(0, delay), easing: "ease-out", fill: "backwards" });
+        };
+        for (i = 0; i < 80; i++) { var pp = hEnter + Math.random() * (1 - hEnter), pt = path.getPointAtLength(pp * total); puff(pt.x, pt.y, T1 * inv((pp - hEnter) / (1 - hEnter)) - 80); }
+        for (i = 0; i < 26; i++) { var k2 = Math.random(); puff(bx + (Math.random() - 0.5) * bw, by + (Math.random() - 0.5) * bh, T1 + HOLD + T2 + FLY * k2 * 0.8); }
+
+        // the arrival: the mark of the logo takes over from the spiral (it is revealed where the spiral lands), and the designs come out of the logo
         setTimeout(function () {
             root.classList.remove("intro");
-            svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, delay: 120, fill: "forwards" }).onfinish = function () { svg.remove(); };
-            sp.querySelectorAll(".spread-card").forEach(function (c) { var r = c.getBoundingClientRect(); c.style.setProperty("--dx", (tx - (r.left + r.width / 2)) + "px"); c.style.setProperty("--dy", (ty - (r.top + r.height / 2)) + "px"); });
+            g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, delay: 80, fill: "forwards" }).onfinish = function () { svg.remove(); };
+            sp.querySelectorAll(".spread-card").forEach(function (c) { var rc = c.getBoundingClientRect(); c.style.setProperty("--dx", (ix - (rc.left + rc.width / 2)) + "px"); c.style.setProperty("--dy", (iy - (rc.top + rc.height / 2)) + "px"); });
             sp.classList.remove("pre"); sp.classList.add("fly");
-        }, D - 120);
+        }, D - 60);
     })();
 </script>
