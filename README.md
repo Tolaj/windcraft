@@ -60,8 +60,9 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
 ## Screenshots
 
 <p align="center">
-  <img src="docs/media/editor.png" alt="The Windcraft editor with a heading selected: its Tailwind properties on the right and its code highlighted below" width="760">
+  <a href="https://windcraft.swapniljadhav.com/editor/demo/index.html"><img src="docs/media/editor.png" alt="The Windcraft editor with a heading selected: its Tailwind properties on the right and its code highlighted below. Click to try the editor in your browser." width="760"></a>
   <br><sub><b>Select anything.</b> The Properties panel shows its Tailwind classes, and the code panel highlights the exact element.</sub>
+  <br><sub><a href="https://windcraft.swapniljadhav.com/editor/demo/index.html"><b>Click the screenshot to try the editor in your browser</b></a>, with nothing to install.</sub>
 </p>
 
 <table>
