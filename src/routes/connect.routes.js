@@ -11,6 +11,26 @@ import { TOOLS } from "../mcp/tools.js";
 import { buildClaudeCodeKit, buildDesignPack, mcpJson, cursorJson, claudeMdSnippet, skillMd, TOKEN_ENV } from "../services/kit.service.js";
 
 const router = express.Router();
+
+const TOOL_BLURBS = {
+    get_design_guide: "Reads your design guide: tokens, conventions and an index of your designs. Claude starts here.",
+    get_context: "Shows the active project, its pages and their versions.",
+    search_components: "Searches your library by keyword or tag and returns short cards.",
+    get_component: "Gets a design's code, as HTML, React, Vue or Svelte.",
+    get_design_spec: "Reads a design as structured JSON that is easy to edit precisely.",
+    apply_design_patch: "Changes a saved design with small edits, leaving the rest of the code as it was.",
+    save_component: "Saves a new component to your library.",
+    save_design: "Saves one finished screen, or its next version.",
+    save_pages: "Saves several pages in one project at once.",
+    get_project: "Reads one project: its pages, groups and settings.",
+    set_active_project: "Chooses which project new designs are saved to.",
+    list_projects: "Lists your projects.",
+    list_tags: "Lists the tags used in your library.",
+    create_project: "Creates a project.",
+    update_project: "Changes a project's name, description or settings.",
+};
+const WRITE_TOOLS = new Set(["apply_design_patch", "save_component", "save_design", "save_pages", "create_project", "update_project", "set_active_project"]);
+const firstSentence = (t = "") => (t.split(/(?<=[.!?])\s/)[0] || "").slice(0, 160);
 const baseUrl = publicBase;
 
 const sendZip = (res, name, files) => {
@@ -41,7 +61,7 @@ router.get("/", async (req, res) => {
             tokenCreated: account?.apiTokenCreatedAt || null,
             mcpUrl: `${baseUrl(req)}/mcp`,
             tokenEnv: TOKEN_ENV,
-            toolNames: TOOLS.map((t) => t.name),
+            tools: TOOLS.map((t) => ({ name: t.name, blurb: TOOL_BLURBS[t.name] || firstSentence(t.description), writes: WRITE_TOOLS.has(t.name) })),
             mcpJson: mcpJson(baseUrl(req)),
             cursorJson: cursorJson(baseUrl(req)),
             claudeMd: claudeMdSnippet(),

@@ -21,25 +21,20 @@
                 <ul id="checkList" class="mt-3 hidden space-y-1.5 text-sm"></ul>
             </section>
 
-            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Pick your tool</p>
-            <nav id="toolTabs" class="mb-5 flex flex-wrap gap-2" aria-label="Choose a tool" role="tablist">
-                <button type="button" role="tab" data-tool="claude-web" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
-                    <span class="block font-semibold">Claude (web, Desktop)</span><span class="block text-xs font-normal opacity-70">custom connector · sign in</span></button>
-                <button type="button" role="tab" data-tool="claude-code" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
-                    <span class="block font-semibold">Claude Code</span><span class="block text-xs font-normal opacity-70">terminal command · token</span></button>
-                <button type="button" role="tab" data-tool="cursor" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
-                    <span class="block font-semibold">Cursor</span><span class="block text-xs font-normal opacity-70">mcp.json · token</span></button>
-                <button type="button" role="tab" data-tool="other" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
-                    <span class="block font-semibold">Other clients</span><span class="block text-xs font-normal opacity-70">VS Code, Windsurf… · token</span></button>
-                <button type="button" role="tab" data-tool="figma" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
-                    <span class="block font-semibold">Figma plugin</span><span class="block text-xs font-normal opacity-70">send designs in</span></button>
-                <button type="button" role="tab" data-tool="design-pack" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
-                    <span class="block font-semibold">Claude Design</span><span class="block text-xs font-normal opacity-70">download a pack</span></button>
+            <div class="rounded-xl border border-gray-200 bg-white">
+            <nav id="toolTabs" class="flex gap-5 overflow-x-auto border-b border-gray-200 px-6" aria-label="Choose a tool" role="tablist">
+                <button type="button" role="tab" data-tool="claude-web" class="tool-tab shrink-0">Claude</button>
+                <button type="button" role="tab" data-tool="claude-code" class="tool-tab shrink-0">Claude Code</button>
+                <button type="button" role="tab" data-tool="cursor" class="tool-tab shrink-0">Cursor</button>
+                <button type="button" role="tab" data-tool="other" class="tool-tab shrink-0">Others</button>
+                <button type="button" role="tab" data-tool="figma" class="tool-tab shrink-0">Figma</button>
+                <button type="button" role="tab" data-tool="design-pack" class="tool-tab shrink-0">Design pack</button>
+                <button type="button" role="tab" data-tool="tools" class="tool-tab shrink-0">Tools</button>
             </nav>
 
             {{!-- Claude on the web and Desktop --}}
-            <section data-panel="claude-web" class="rounded-xl border border-gray-200 bg-white p-6">
-                <div class="flex items-center gap-2"><h2 class="text-xl font-semibold text-gray-900">Claude on the web and Desktop</h2><span class="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">No token</span></div>
+            <section data-panel="claude-web" class="p-6">
+                <div class="flex items-center gap-2"><h2 class="text-lg font-semibold text-gray-900">Claude on the web and Desktop</h2><span class="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">No token</span></div>
                 <p class="mt-1 text-sm text-gray-600">Add Windcraft as a <strong>custom connector</strong>. You sign in to Windcraft and approve access once. Once added, it also works in the Claude apps on your other devices.</p>
                 <ol class="mt-5 space-y-5">
                     <li class="flex gap-3"><span class="step">1</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Open Connectors in Claude</p><p class="mt-0.5 text-sm text-gray-600">On claude.ai: <em>Settings, Connectors, Add custom connector</em>. (Menu names can differ between versions.)</p></div></li>
@@ -50,8 +45,8 @@
             </section>
 
             {{!-- Claude Code --}}
-            <section data-panel="claude-code" class="hidden rounded-xl border border-gray-200 bg-white p-6">
-                <h2 class="text-xl font-semibold text-gray-900">Claude Code</h2>
+            <section data-panel="claude-code" class="hidden p-6">
+                <div class="flex items-center gap-2"><h2 class="text-lg font-semibold text-gray-900">Claude Code</h2><span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">Needs a token</span></div>
                 <p class="mt-1 text-sm text-gray-600">Claude Code reaches your projects over MCP. It signs in with an <a href="#token" class="font-medium underline">access token</a>.</p>
                 <ol class="mt-5 space-y-5">
                     <li class="flex gap-3"><span class="step">1</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Create an access token</p><p class="mt-0.5 text-sm text-gray-600">Use the <a href="#token" class="font-medium underline">Access token</a> box on this page. It is shown once, so copy it.</p></div></li>
@@ -72,8 +67,8 @@ claude mcp add --transport http tailwind-library {{mcpUrl}} --header "Authorizat
             </section>
 
             {{!-- Cursor --}}
-            <section data-panel="cursor" class="hidden rounded-xl border border-gray-200 bg-white p-6">
-                <h2 class="text-xl font-semibold text-gray-900">Cursor</h2>
+            <section data-panel="cursor" class="hidden p-6">
+                <div class="flex items-center gap-2"><h2 class="text-lg font-semibold text-gray-900">Cursor</h2><span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">Needs a token</span></div>
                 <p class="mt-1 text-sm text-gray-600">Cursor reads MCP servers from an <code class="font-mono">mcp.json</code> file. It signs in with an <a href="#token" class="font-medium underline">access token</a> kept in an environment variable.</p>
                 <ol class="mt-5 space-y-5">
                     <li class="flex gap-3"><span class="step">1</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Create a token and set it</p><p class="mt-0.5 text-sm text-gray-600">Use the <a href="#token" class="font-medium underline">Access token</a> box, then set <code class="font-mono">{{tokenEnv}}</code> in the environment you start Cursor from.</p></div></li>
@@ -84,8 +79,8 @@ claude mcp add --transport http tailwind-library {{mcpUrl}} --header "Authorizat
             </section>
 
             {{!-- Other MCP clients --}}
-            <section data-panel="other" class="hidden rounded-xl border border-gray-200 bg-white p-6">
-                <h2 class="text-xl font-semibold text-gray-900">Other MCP clients</h2>
+            <section data-panel="other" class="hidden p-6">
+                <div class="flex items-center gap-2"><h2 class="text-lg font-semibold text-gray-900">Other MCP clients</h2><span class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">Needs a token</span></div>
                 <p class="mt-1 text-sm text-gray-600">VS Code, Windsurf, Zed and anything else that speaks MCP over HTTP can use the same server. It signs in with an <a href="#token" class="font-medium underline">access token</a>.</p>
                 <dl class="mt-5 divide-y divide-gray-200 rounded-lg border border-gray-200 text-sm">
                     <div class="grid gap-1 p-3 sm:grid-cols-[130px_1fr]"><dt class="font-medium text-gray-900">Server URL</dt><dd class="flex items-center gap-2"><code id="otherUrl" class="min-w-0 flex-1 truncate font-mono text-[13px]">{{mcpUrl}}</code><button type="button" data-copy-target="otherUrl" class="text-xs font-medium text-gray-600 underline">Copy</button></dd></div>
@@ -93,13 +88,11 @@ claude mcp add --transport http tailwind-library {{mcpUrl}} --header "Authorizat
                     <div class="grid gap-1 p-3 sm:grid-cols-[130px_1fr]"><dt class="font-medium text-gray-900">Header</dt><dd class="flex items-center gap-2"><code id="otherAuth" class="min-w-0 flex-1 truncate font-mono text-[13px]">Authorization: Bearer &lt;your token&gt;</code><button type="button" data-copy-target="otherAuth" class="text-xs font-medium text-gray-600 underline">Copy</button></dd></div>
                 </dl>
                 <p class="mt-4 text-sm text-gray-600">Keep the token in your client's secret or environment settings, not in a file that is shared.</p>
-                <div class="mt-5"><p class="text-sm font-medium text-gray-900">Tools the server offers</p>
-                    <p class="mt-1.5 flex flex-wrap gap-1.5">{{#each toolNames}}<code class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[12px] text-gray-800">{{this}}</code>{{/each}}</p></div>
             </section>
 
             {{!-- Figma plugin --}}
-            <section data-panel="figma" class="hidden rounded-xl border border-gray-200 bg-white p-6">
-                <h2 class="text-xl font-semibold text-gray-900">Figma plugin</h2>
+            <section data-panel="figma" class="hidden p-6">
+                <h2 class="text-lg font-semibold text-gray-900">Figma plugin</h2>
                 <p class="mt-1 text-sm text-gray-600">Send a Figma design in and get editable Tailwind code, saved into one of your projects. No token: the plugin signs in with your Windcraft account.</p>
                 <ol class="mt-5 space-y-5">
                     <li class="flex gap-3"><span class="step">1</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Install and open the plugin in Figma</p><p class="mt-0.5 text-sm text-gray-600"><a href="https://www.figma.com/community/plugin/1697363010304569719" target="_blank" rel="noopener" class="font-medium underline">Windcraft: Figma to Tailwind</a> on the Figma Community. Select frames, then run it.</p></div></li>
@@ -109,8 +102,8 @@ claude mcp add --transport http tailwind-library {{mcpUrl}} --header "Authorizat
             </section>
 
             {{!-- Claude Design (the design pack) --}}
-            <section data-panel="design-pack" class="hidden rounded-xl border border-gray-200 bg-white p-6">
-                <h2 class="text-xl font-semibold text-gray-900">Claude Design</h2>
+            <section data-panel="design-pack" class="hidden p-6">
+                <h2 class="text-lg font-semibold text-gray-900">Claude Design</h2>
                 <p class="mt-1 text-sm text-gray-600">Claude Design works from files you attach, so this is a download, not a live connection. The pack holds your design guide, the designs you marked <em>Use as AI reference</em> with their specs, and a brief with the rules.</p>
                 <ol class="mt-5 space-y-5">
                     <li class="flex gap-3"><span class="step">1</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Download the pack</p>
@@ -120,10 +113,26 @@ claude mcp add --transport http tailwind-library {{mcpUrl}} --header "Authorizat
                     <li class="flex gap-3"><span class="step">4</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Bring the result back</p><p class="mt-0.5 text-sm text-gray-600">Paste anything new into <strong>New design</strong>, or import the HTML files on a project page. If Claude is connected on the web, it can save the design itself.</p></div></li>
                 </ol>
             </section>
+
+            {{!-- Tools the server offers --}}
+            <section data-panel="tools" class="hidden p-6">
+                <h2 class="text-lg font-semibold text-gray-900">Tools</h2>
+                <p class="mt-1 text-sm text-gray-600">What a connected AI can do with your Windcraft account. The same list for every client.</p>
+                <ul class="mt-5 divide-y divide-gray-100 rounded-lg border border-gray-200">
+                    {{#each tools}}
+                    <li class="flex flex-wrap items-start gap-x-4 gap-y-1 p-3 sm:flex-nowrap">
+                        <code class="w-44 shrink-0 font-mono text-[13px] font-medium text-gray-900">{{this.name}}</code>
+                        <p class="min-w-0 flex-1 text-sm text-gray-600">{{this.blurb}}</p>
+                        {{#if this.writes}}<span class="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">Changes data</span>{{else}}<span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">Read only</span>{{/if}}
+                    </li>
+                    {{/each}}
+                </ul>
+            </section>
+            </div>
         </div>
 
         {{!-- ── Access and status ───────────────────────────────────────────────────────────────────────────── --}}
-        <aside class="space-y-5">
+        <aside class="space-y-5 lg:sticky lg:top-24 lg:self-start">
             <section id="token" class="rounded-xl border border-gray-200 bg-white p-5">
                 <div class="flex items-start justify-between gap-3">
                     <div><h2 class="text-base font-semibold text-gray-900">Access token</h2>
@@ -166,8 +175,8 @@ claude mcp add --transport http tailwind-library {{mcpUrl}} --header "Authorizat
 </main>
 <style>
     .step { display: flex; height: 1.5rem; width: 1.5rem; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 9999px; background: #111827; color: #fff; font-size: 12px; font-weight: 600; margin-top: 1px; }
-    .tool-tab { background: #fff; border-color: #e5e7eb; color: #374151; transition: border-color .12s, background .12s; }
-    .tool-tab:hover { border-color: #9ca3af; }
-    .tool-tab.is-on { background: #111827; border-color: #111827; color: #fff; }
+    .tool-tab { border-bottom: 2px solid transparent; padding: 14px 0 12px; font-size: 14px; font-weight: 500; color: #6b7280; margin-bottom: -1px; transition: color .12s, border-color .12s; }
+    .tool-tab:hover { color: #111827; }
+    .tool-tab.is-on { color: #111827; border-bottom-color: #111827; }
 </style>
 <script type="module" src="/public/js/connect.js"></script>
