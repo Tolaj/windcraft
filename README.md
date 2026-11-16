@@ -22,27 +22,15 @@
 
 </div>
 
-<div align="center">
-
-## Contents
-
-[What it is](#what-it-is) · [Documentation](#documentation) · [Screenshots](#screenshots) · [What you can do](#what-you-can-do) · [Get started](#get-started) · [How it is built](#how-it-is-built) · [Status](#status) · [Roadmap](#roadmap) · [Contributing](#contributing) · [License](#license)
-
-</div>
-
 ## What it is
 
-Windcraft is an editor for web pages where the page is plain HTML with Tailwind classes, and every control reads and writes those classes. Make the padding bigger and `p-4` becomes `p-6`. Pick a colour and `bg-rose-500` changes. Edit the code and the design follows; edit the design and the code follows.
+Windcraft edits web pages that are plain HTML with Tailwind classes. Make the padding bigger and `p-4` becomes `p-6`. Pick a colour and `bg-rose-500` changes. Edit the code and the design follows, and the other way round. There is no export step and no Windcraft-only format: what you see is the HTML you ship.
 
-There is no export step and no Windcraft-only format. What you see in the editor is the HTML you ship, so you can paste it into a codebase or hand it to a coding agent as it is.
-
-Windcraft also comes with a **library of 360 Tailwind designs**: 350 components and 10 full pages, in categories such as pricing, hero sections, authentication, tables, charts, forms and footers. Every one is plain HTML with Tailwind classes. Copy it as it is, or open it in the editor and change it. Through the [MCP server](#mcp-claude-claude-code-cursor), Claude, Claude Code and Cursor can search the library, use a design in your project, and save a new one back ("save to library").
-
-You can start from a blank page, from a Figma design (with a plugin that runs on your computer), or from a description (with Claude or a local model).
+It also comes with a **library of 360 Tailwind components and pages** (pricing, hero, auth, tables, charts, forms and more). Copy one, or open it in the editor. Through the [MCP server](#mcp-claude-claude-code-cursor), Claude, Claude Code and Cursor can search it and save new designs back.
 
 ## Documentation
 
-The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides:
+Guides live in the **[wiki](https://github.com/Tolaj/windcraft/wiki)**:
 
 | Page | What is in it |
 |---|---|
@@ -61,43 +49,44 @@ The **[Windcraft wiki](https://github.com/Tolaj/windcraft/wiki)** has the guides
 
 <p align="center">
   <a href="https://windcraft.swapniljadhav.com/editor/demo/index.html"><img src="docs/media/editor.png" alt="The Windcraft editor with a heading selected: its Tailwind properties on the right and its code highlighted below. Click to try the editor in your browser." width="760"></a>
-  <br><sub><b>Select anything.</b> The Properties panel shows its Tailwind classes, and the code panel highlights the exact element.</sub>
-  <br><sub><a href="https://windcraft.swapniljadhav.com/editor/demo/index.html"><b>Click the screenshot to try the editor in your browser</b></a>, with nothing to install.</sub>
+  <br><sub><a href="https://windcraft.swapniljadhav.com/editor/demo/index.html"><b>Click to try the editor in your browser</b></a>, nothing to install.</sub>
 </p>
 
 <table>
   <tr>
     <td valign="top" width="50%">
       <img src="docs/media/interactions.png" alt="A mobile frame with the menu button selected and an arrow to the navigation it controls" width="420">
-      <br><b>Interactions.</b> Pick a button and say what it does: show or hide something, change classes, scroll, go to another frame. The arrow shows what it acts on.
+      <br><b>Interactions.</b> Say what a button does: show, hide, scroll, change classes.
     </td>
     <td valign="top" width="50%">
       <img src="docs/media/animations.png" alt="The animation library: a grid of presets with a live preview and settings" width="420">
-      <br><b>Animations.</b> A preset library, a keyframe editor and scroll effects. The keyframes go into your Tailwind config.
+      <br><b>Animations.</b> Presets, a keyframe editor and scroll effects.
     </td>
   </tr>
   <tr>
     <td valign="top" width="50%">
       <img src="docs/media/config.png" alt="The Config tab of the code panel showing the project's Tailwind config" width="420">
-      <br><b>Your Tailwind config.</b> Edit <code>tailwind.config.js</code> (Tailwind 3) or <code>global.css</code> (Tailwind 4), with plugins. It applies as you type.
+      <br><b>Your Tailwind config.</b> Edit it live, Tailwind 3 or 4.
     </td>
     <td valign="top" width="50%">
       <img src="docs/media/gallery.png" alt="The Windcraft gallery: 360 Tailwind components and pages in categories, each with a preview" width="420">
-      <br><b>A library of 360 Tailwind components and pages.</b> Browse by category, copy the HTML, or open any design in the editor.
+      <br><b>The library.</b> Browse, copy the HTML, or open in the editor.
     </td>
   </tr>
 </table>
 
-## What you can do
+## Features
 
-- **Start from a library.** 360 Tailwind components and pages (350 components, 10 pages), all plain HTML. Copy one, or open it in the editor. With the MCP server, Claude or Cursor can search it, use a design in your project, and save new ones to it.
-- **Edit visually.** Select, move, resize, align, group, copy and paste. Draw frames, shapes, text, images and buttons. Drag to rearrange. Edits are written for the device you are editing (Mobile plain, Tablet `md:`, Desktop `lg:`).
-- **Work with the code.** A Properties panel where every field is a Tailwind class, edited at its source, with breakpoints and states. A code panel with HTML, CSS, JS and Config tabs. Paste HTML from anywhere.
-- **Make it respond.** Interactions (click or hover to show, hide, change classes, scroll, copy, go to another frame), one-click Tabs and Modal, animations, scroll-linked effects, text effects, SVG drawing.
-- **Bring things in.** A free Figma plugin (no LLM, no network). Or describe a page and let Claude or a local model draft it.
-- **Connect and share.** An MCP server for Claude, Claude Code and Cursor. Projects with their own look, share links, a full-screen prototype, export to HTML, React, Vue or Svelte, version history.
+- **Library:** 360 Tailwind components and pages as plain HTML.
+- **Visual editing:** select, move, resize, align, group. Edits are written for the screen size you are on (Mobile plain, Tablet `md:`, Desktop `lg:`).
+- **Properties and code:** every field is a Tailwind class. HTML, CSS, JS and Config tabs.
+- **Interactions and animations:** show, hide, scroll, change classes, presets, scroll effects.
+- **Figma plugin:** free, runs on your computer, no LLM, no network.
+- **AI:** describe a page and let Claude or a local model draft it.
+- **MCP server** for Claude, Claude Code and Cursor.
+- **Share and export:** share links, version history, export to HTML, React, Vue or Svelte.
 
-## Get started
+## Installation and usage
 
 | I want to... | Use |
 |---|---|
@@ -118,7 +107,7 @@ Open **<https://windcraft.swapniljadhav.com/>**. Nothing to install.
 npm install windcraft-editor
 ```
 
-Serve `node_modules/windcraft-editor` as static files and import from it. No bundler or backend is needed.
+Serve `node_modules/windcraft-editor` as static files. No bundler or backend.
 
 ```js
 import { startEditor } from "/windcraft/editor/index.js";
@@ -131,11 +120,11 @@ startEditor(document.getElementById("root"), { html: "<h1>Hello</h1>" });
 | `mountEditor(root, options)` | You load and save on your own server (give it a few host functions). |
 | `embedEditor(root, options)` | The editor lives in one box of a page, in an iframe. |
 
-Options, host functions and `onChange` are in the [full guide](packages/editor/README.md).
+Options are in the [full guide](packages/editor/README.md).
 
 ### MCP: Claude, Claude Code, Cursor
 
-Windcraft runs an [MCP](https://modelcontextprotocol.io) server at your address plus `/mcp` (for the live site: `https://windcraft.swapniljadhav.com/mcp`).
+The app serves an [MCP](https://modelcontextprotocol.io) server at `/mcp` (live: `https://windcraft.swapniljadhav.com/mcp`).
 
 | Client | How to connect |
 |---|---|
@@ -143,11 +132,11 @@ Windcraft runs an [MCP](https://modelcontextprotocol.io) server at your address 
 | **Claude Code** | Create a token on the Connect page (`/connect`), then `claude mcp add --transport http tailwind-library <address> --header "Authorization: Bearer <token>"` |
 | **Cursor** and others | Add an HTTP server with the address and the header `Authorization: Bearer <token>`. |
 
-Then ask: *"Read my design guide, then build a settings page that matches"*, *"Search my library for a pricing table and use it"*, or *"Save this page to my Windcraft library."* The [MCP guide](https://github.com/Tolaj/windcraft/wiki/MCP-Server) has the tool list.
+Then ask: *"Search my library for a pricing table and use it."* The [MCP guide](https://github.com/Tolaj/windcraft/wiki/MCP-Server) has the tool list.
 
 ### Figma plugin
 
-Install it from the [Figma Community](https://www.figma.com/community/plugin/1697363010304569719). It converts a selection to HTML and Tailwind on your computer, with no LLM and no network. To build it from source, see [packages/figma](packages/figma/README.md).
+Install it from the [Figma Community](https://www.figma.com/community/plugin/1697363010304569719), select a frame and convert. To build it from source, see [packages/figma](packages/figma/README.md).
 
 ### Self-host the full app
 
@@ -161,7 +150,7 @@ cp .env.example .env     # fill in MONGO_URI and SESSION_SECRET at least
 npm run dev              # http://localhost:3000
 ```
 
-`MONGO_URI` and `SESSION_SECRET` are required. `ANTHROPIC_API_KEY` or `LLM_URL` turns on AI, and `PUBLIC_URL` lets Claude on the web reach your MCP server. `.env.example` lists the rest. For production use `npm start`; a `vercel.json` is included.
+`ANTHROPIC_API_KEY` or `LLM_URL` turns on AI, and `PUBLIC_URL` lets Claude on the web reach your MCP server. `.env.example` lists the rest. Use `npm start` for production; `vercel.json` is included.
 
 ### Run the editor locally (no database)
 
@@ -172,9 +161,7 @@ npm install
 npm run demo             # http://localhost:4000/editor/demo/
 ```
 
-## How it is built
-
-A monorepo of small packages around a Node app.
+## Project structure
 
 | Package | What it does |
 |---|---|
@@ -185,21 +172,16 @@ A monorepo of small packages around a Node app.
 | [`@windcraft/ai`](packages/ai) | Provider-neutral AI generation (Anthropic and OpenAI-compatible). |
 | `src/` | The app: Express 5, Handlebars, MongoDB. |
 
-**Stack:** Node.js · Express 5 · Handlebars · MongoDB · Tailwind CSS · CodeMirror 6 · Anthropic SDK.
+**Dependencies:** Node.js 18+ (`.nvmrc` pins 20), MongoDB for the full app, Express 5, Handlebars, CodeMirror 6, and optionally the Anthropic SDK for AI. `npm install` pulls everything.
 
-`npm test` runs the unit tests, `npm run e2e` the browser tests (they need MongoDB and Chrome), `npm run typecheck` the types. [CONTRIBUTING.md](CONTRIBUTING.md) has the repo map.
-
-## Status
-
-Windcraft is under active development.
-
-- **Solid:** the Properties panel, the code panel, selection and layers, the Figma converter's basic rules, projects and sharing.
-- **Newer:** Interactions, animations, the Tailwind config tab, and dragging to rearrange. They are tried in Chrome only. Safari, Firefox and touch are untried, and big pages have not been timed.
+`npm test` runs the unit tests, `npm run e2e` the browser tests (they need MongoDB and Chrome), `npm run typecheck` the types.
 
 ## Roadmap
 
-- Figma converter: constraints, lists, image crop, and responsive output.
-- Components and variants as first-class Windcraft components.
+Windcraft is under active development. Solid today: the Properties and code panels, selection, the Figma basics, projects and sharing. Newer features (interactions, animations, config tab, dragging) are tried in Chrome only.
+
+- Figma converter: constraints, lists, image crop, responsive output.
+- Components and variants as first-class pieces.
 - A steadier drag in more browsers and on large pages.
 
 ## Contributing
@@ -212,6 +194,10 @@ Windcraft is MIT licensed and open to everyone. You do not need to ask first.
 4. **Open a pull request** into `main` and say what you changed and how you checked it.
 
 [CONTRIBUTING.md](CONTRIBUTING.md) and the wiki's [Contributing and Reviews](https://github.com/Tolaj/windcraft/wiki/Contributing-and-Reviews) explain how reviews work. For questions, bugs and ideas, [open an issue](https://github.com/Tolaj/windcraft/issues/new) with the steps, what you expected, what happened and your browser.
+
+## Contact
+
+Questions, bugs and ideas: [open an issue](https://github.com/Tolaj/windcraft/issues/new), start a [discussion](https://github.com/Tolaj/windcraft/discussions), or use the [Support page](https://windcraft.swapniljadhav.com/support).
 
 ## License
 
