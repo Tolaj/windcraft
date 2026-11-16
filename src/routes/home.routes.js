@@ -1,6 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import Component from "../models/component.model.js";
+import { galleryCache } from "../utils/galleryCache.js";
 
 const router = express.Router();
 
@@ -53,24 +54,21 @@ const categories = {
     'footer-footers': { name: 'Footers', group: 'Footer' }
 };
 
+// How many published designs each category has (and how many are new): the landing page and every category's sidebar use it.
+const categoryCountRows = () =>
+    galleryCache("counts", () => {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        return Component.aggregate([
+            { $match: { isPublished: true } },
+            { $group: { _id: "$category", count: { $sum: 1 }, newCount: { $sum: { $cond: [{ $gte: ["$createdAt", oneMonthAgo] }, 1, 0] } } } }
+        ]);
+    });
+
 // Home page - Shows only categories that have components
 router.get("/", async (req, res) => {
     try {
-        const oneMonthAgo = new Date();
-        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-        const results = await Component.aggregate([
-            { $match: { isPublished: true } },
-            {
-                $group: {
-                    _id: "$category",
-                    count: { $sum: 1 },
-                    newCount: {
-                        $sum: { $cond: [{ $gte: ["$createdAt", oneMonthAgo] }, 1, 0] }
-                    }
-                }
-            }
-        ]);
+        const results = await categoryCountRows(); // kept for 30 s, cleared when a design is written (utils/galleryCache.js)
 
         let totalComponents = 0;
         const categoryCards = results
@@ -114,10 +112,25 @@ router.get("/category/:category", async (req, res) => {
     try {
         const { category } = req.params;
 
-        // Get category counts for sidebar via aggregation
-        const countResults = await Component.aggregate([
-            { $match: { isPublished: true } },
-            { $group: { _id: "$category", count: { $sum: 1 } } }
+        const categoryInfo = categories[category];
+        if (!categoryInfo) {
+            return res.status(404).render("error", {
+                layout: "main",
+                title: "Category Not Found",
+                message: "The category you're looking for doesn't exist.",
+            });
+        }
+
+        // The sidebar's counts and this category's designs are asked for together (not one after the other), and both are kept for a short
+        // while (utils/galleryCache.js). The designs come without their version history, and without a lookup of their author: the page uses neither.
+        const [countResults, designs] = await Promise.all([
+            categoryCountRows(),
+            galleryCache(`category:${category}`, () =>
+                Component.find({ category, isPublished: true })
+                    .select("-versions")
+                    .sort({ likes: -1, createdAt: -1 }) // the most liked first; the newest first among equals
+                    .lean()
+            ),
         ]);
 
         const allCategories = countResults
@@ -129,38 +142,19 @@ router.get("/category/:category", async (req, res) => {
                 isActive: r._id === category
             }));
 
-        // Get components for current category
-        const components = await Component.find({
-            category: category,
-            isPublished: true
-        })
-            .populate('createdBy', 'name email')
-            .sort({ likes: -1, createdAt: -1 }) // the most liked first; the newest first among equals
-            .lean();
-
-        const categoryInfo = categories[category];
-
-        if (!categoryInfo) {
-            return res.status(404).render("error", {
-                layout: "main",
-                title: "Category Not Found",
-                message: "The category you're looking for doesn't exist.",
-            });
-        }
-
-        // Mark which components are new
+        // Mark which components are new, and what is particular to this visitor (the designs themselves are shared, so they are copied)
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
         const me = req.session.user ? req.session.user.id : null;
-        const saved = await savedCopies(me, components.map((c) => c._id));
-        components.forEach(component => {
-            component.savedId = saved.get(String(component._id)) || ""; // your own copy of this design, if you have saved it
-            component.isNew = new Date(component.createdAt) >= oneMonthAgo;
-            component.likes = component.likes || 0;
-            component.liked = Boolean(me) && (component.likedBy || []).some((u) => String(u) === me); // whether this person likes it
-            delete component.likedBy; // who liked it is not sent to the page
-        });
+        const saved = await savedCopies(me, designs.map((c) => c._id));
+        const components = designs.map(({ likedBy, ...component }) => ({ // who liked a design is not sent to the page
+            ...component,
+            savedId: saved.get(String(component._id)) || "", // your own copy of this design, if you have saved it
+            isNew: new Date(component.createdAt) >= oneMonthAgo,
+            likes: component.likes || 0,
+            liked: Boolean(me) && (likedBy || []).some((u) => String(u) === me), // whether this person likes it
+        }));
 
         res.status(200).render("main/category-detail", {
             activePage: 'category',

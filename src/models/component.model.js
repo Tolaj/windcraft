@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { resetGalleryCache } from "../utils/galleryCache.js";
 
 const componentSchema = new mongoose.Schema(
     {
@@ -116,5 +117,8 @@ componentSchema.pre("save", function () {
     let total = (this.htmlCode || "").length + this.versions.reduce((n, v) => n + (v.htmlCode || "").length, 0);
     while (this.versions.length > 1 && total > HISTORY_BUDGET) total -= (this.versions.shift().htmlCode || "").length;
 });
+
+// the gallery pages keep what they ask the database for, for a short while: a design written through the model makes them forget it
+componentSchema.post(["save", "deleteOne", "findOneAndUpdate", "findOneAndDelete", "updateOne", "updateMany", "deleteMany", "insertMany"], () => resetGalleryCache());
 
 export default mongoose.model("Component", componentSchema);

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import crypto from "crypto";
-import { google } from "googleapis";
+import { OAuth2Client } from "google-auth-library";
 import * as userService from "../services/user.service.js";
 import { publicBase } from "../utils/publicUrl.js";
 
@@ -12,7 +12,7 @@ router.get("/sign-in", (req, res) => {
 
 // Sign in with Google (needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
 const googleClient = (req) =>
-    new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, `${publicBase(req)}/auth/google/callback`);
+    new OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, `${publicBase(req)}/auth/google/callback`);
 const googleOn = () => Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 const failBack = (res, msg) => res.redirect(`/auth/sign-in?error=${encodeURIComponent(msg)}`);
 

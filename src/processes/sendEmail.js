@@ -1,5 +1,5 @@
 import * as nodemailer from "nodemailer";
-import { google } from "googleapis";
+import { OAuth2Client } from "google-auth-library";
 
 let transporter;
 
@@ -22,7 +22,7 @@ function getTransporter() {
         );
     }
 
-    const oAuth2 = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET);
+    const oAuth2 = new OAuth2Client(CLIENT_ID, CLIENT_SECRET);
     oAuth2.setCredentials({ refresh_token: REFRESH_TOKEN });
 
     transporter = nodemailer.createTransport({

@@ -34,7 +34,7 @@
     "express": "^5.2.1",
     "express-handlebars": "^8.0.4",
     "express-session": "^1.18.2",
-    "googleapis": "^178.0.0",
+    "google-auth-library": "^10.9.1",
     "mongodb": "^7.0.0",
     "mongoose": "^7.5.0",
     "node-html-parser": "^6.1.13",

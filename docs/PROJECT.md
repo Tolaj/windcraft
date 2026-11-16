@@ -42,7 +42,7 @@ src/
 │   └── user.service.js     # User CRUD wrappers around Mongoose
 ├── processes/
 │   ├── generateOTP.js      # OTP email sender (imports missing validator.js)
-│   └── sendEmail.js        # Gmail OAuth2 email (requires nodemailer + googleapis, NOT in deps)
+│   └── sendEmail.js        # Gmail OAuth2 email (requires nodemailer + google-auth-library)
 ├── utils/
 │   └── handlebars-helpers.js  # formatDate, substring helpers
 ├── views/                  # Handlebars templates
