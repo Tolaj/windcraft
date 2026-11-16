@@ -4,7 +4,8 @@ const userSchema = new mongoose.Schema(
     {
         name: { type: String, required: true },
         email: { type: String, required: true, unique: true },
-        password: { type: String, required: true },
+        password: { type: String, default: "" }, // empty for an account made with Google
+        googleId: { type: String, default: "", index: true },
         activeProject: { type: mongoose.Schema.Types.ObjectId, ref: "Project", default: null },
         apiTokenHash: { type: String, default: "", index: true },
         apiTokenPrefix: { type: String, default: "" },
