@@ -5,7 +5,7 @@
 
 ### Design in Tailwind. Keep it as code.
 
-**A visual design editor where every click writes real Tailwind HTML, with a library of 360 Tailwind components and pages.**
+**A visual design editor where every click writes real Tailwind HTML, with a growing library of Tailwind components and pages.**
 
 [![npm](https://img.shields.io/npm/v/windcraft-editor?color=cb3837&logo=npm&logoColor=white)](https://www.npmjs.com/package/windcraft-editor)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)](https://nodejs.org)
@@ -26,7 +26,7 @@
 
 Windcraft edits web pages that are plain HTML with Tailwind classes. Make the padding bigger and `p-4` becomes `p-6`. Pick a colour and `bg-rose-500` changes. Edit the code and the design follows, and the other way round. There is no export step and no Windcraft-only format: what you see is the HTML you ship.
 
-It also comes with a **library of 360 Tailwind components and pages** (pricing, hero, auth, tables, charts, forms and more). Copy one, or open it in the editor. Through the [MCP server](#mcp-claude-claude-code-cursor), Claude, Claude Code and Cursor can search it and save new designs back.
+It also comes with a **growing library of Tailwind components and pages** (pricing, hero, auth, tables, charts, forms and more). Copy one, or open it in the editor. Through the [MCP server](#mcp-claude-claude-code-cursor), Claude, Claude Code and Cursor can search it and save new designs back.
 
 ## Documentation
 
@@ -69,7 +69,7 @@ Guides live in the **[wiki](https://github.com/Tolaj/windcraft/wiki)**:
       <br><b>Your Tailwind config.</b> Edit it live, Tailwind 3 or 4.
     </td>
     <td valign="top" width="50%">
-      <img src="docs/media/gallery.png" alt="The Windcraft gallery: 360 Tailwind components and pages in categories, each with a preview" width="420">
+      <img src="docs/media/gallery.png" alt="The Windcraft gallery: Tailwind components and pages in categories, each with a preview" width="420">
       <br><b>The library.</b> Browse, copy the HTML, or open in the editor.
     </td>
   </tr>
@@ -77,7 +77,7 @@ Guides live in the **[wiki](https://github.com/Tolaj/windcraft/wiki)**:
 
 ## Features
 
-- **Library:** 360 Tailwind components and pages as plain HTML.
+- **Library:** a growing set of Tailwind components and pages as plain HTML.
 - **Visual editing:** select, move, resize, align, group. Edits are written for the screen size you are on (Mobile plain, Tablet `md:`, Desktop `lg:`).
 - **Properties and code:** every field is a Tailwind class. HTML, CSS, JS and Config tabs.
 - **Interactions and animations:** show, hide, scroll, change classes, presets, scroll effects.

@@ -20,7 +20,7 @@
     "thumbs:categories": "node --env-file=.env scripts/make-category-thumbs.mjs",
     "e2e": "node --test --test-concurrency=1 test-e2e/"
   },
-  "keywords": ["tailwindcss", "tailwind", "visual-editor", "design-tool", "no-code", "website-builder", "drag-and-drop", "html", "figma-plugin", "mcp", "claude", "open-source"],
+  "keywords": ["tailwindcss", "tailwind", "visual-editor", "design-tool", "no-code", "website-builder", "drag-and-drop", "html", "figma-plugin", "mcp", "claude"],
   "homepage": "https://windcraft.swapniljadhav.com/",
   "repository": { "type": "git", "url": "git+https://github.com/Tolaj/windcraft.git" },
   "bugs": { "url": "https://github.com/Tolaj/windcraft/issues" },
