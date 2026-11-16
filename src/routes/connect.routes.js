@@ -8,7 +8,7 @@ import FigmaToken from "../models/figmaToken.model.js";
 import OAuthClient from "../models/oauthClient.model.js";
 import OAuthToken from "../models/oauthToken.model.js";
 import { TOOLS } from "../mcp/tools.js";
-import { buildClaudeCodeKit, buildDesignPack, mcpJson, claudeMdSnippet, skillMd, TOKEN_ENV } from "../services/kit.service.js";
+import { buildClaudeCodeKit, buildDesignPack, mcpJson, cursorJson, claudeMdSnippet, skillMd, TOKEN_ENV } from "../services/kit.service.js";
 
 const router = express.Router();
 const baseUrl = publicBase;
@@ -43,6 +43,7 @@ router.get("/", async (req, res) => {
             tokenEnv: TOKEN_ENV,
             toolNames: TOOLS.map((t) => t.name),
             mcpJson: mcpJson(baseUrl(req)),
+            cursorJson: cursorJson(baseUrl(req)),
             claudeMd: claudeMdSnippet(),
             skillMd: skillMd(),
         });

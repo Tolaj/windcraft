@@ -8,40 +8,45 @@
 
         {{!-- ── The guide for the chosen tool ───────────────────────────────────────────────────────────────── --}}
         <div class="min-w-0">
+            <section class="mb-5 rounded-xl border border-gray-200 bg-white p-5">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div><h2 class="text-base font-semibold text-gray-900">MCP endpoint</h2>
+                        <p class="mt-0.5 text-xs text-gray-500">The one address every MCP client uses. HTTP (streamable) transport.</p></div>
+                    <button type="button" id="checkBtn" class="h-8 shrink-0 rounded-md border border-gray-300 bg-white px-3 text-[13px] font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50">Test connection</button>
+                </div>
+                <div class="mt-3 flex items-stretch gap-2"><code id="mcpUrl" class="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-md border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-[13px] text-gray-900">{{mcpUrl}}</code><button type="button" data-copy-target="mcpUrl" class="rounded-md bg-black px-3.5 text-[13px] font-medium text-white hover:bg-neutral-800">Copy</button></div>
+                {{#if isLocal}}
+                <p class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This server is on <strong>localhost</strong>, so claude.ai can't reach it. Claude Code and Cursor on this computer still can. For Claude on the web, use a public HTTPS address and set <code class="font-mono">PUBLIC_URL</code>.</p>
+                {{/if}}
+                <ul id="checkList" class="mt-3 hidden space-y-1.5 text-sm"></ul>
+            </section>
+
+            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Pick your tool</p>
             <nav id="toolTabs" class="mb-5 flex flex-wrap gap-2" aria-label="Choose a tool" role="tablist">
                 <button type="button" role="tab" data-tool="claude-web" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
-                    <span class="block font-semibold">Claude on the web</span><span class="block text-xs font-normal opacity-70">claude.ai · no token</span></button>
+                    <span class="block font-semibold">Claude (web, Desktop)</span><span class="block text-xs font-normal opacity-70">custom connector · sign in</span></button>
                 <button type="button" role="tab" data-tool="claude-code" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
-                    <span class="block font-semibold">Claude Code</span><span class="block text-xs font-normal opacity-70">terminal · token</span></button>
+                    <span class="block font-semibold">Claude Code</span><span class="block text-xs font-normal opacity-70">terminal command · token</span></button>
+                <button type="button" role="tab" data-tool="cursor" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
+                    <span class="block font-semibold">Cursor</span><span class="block text-xs font-normal opacity-70">mcp.json · token</span></button>
                 <button type="button" role="tab" data-tool="other" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
-                    <span class="block font-semibold">Cursor and others</span><span class="block text-xs font-normal opacity-70">any MCP client · token</span></button>
+                    <span class="block font-semibold">Other clients</span><span class="block text-xs font-normal opacity-70">VS Code, Windsurf… · token</span></button>
                 <button type="button" role="tab" data-tool="figma" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
                     <span class="block font-semibold">Figma plugin</span><span class="block text-xs font-normal opacity-70">send designs in</span></button>
                 <button type="button" role="tab" data-tool="design-pack" class="tool-tab rounded-lg border px-3.5 py-2 text-left text-sm">
                     <span class="block font-semibold">Claude Design</span><span class="block text-xs font-normal opacity-70">download a pack</span></button>
             </nav>
 
-            {{!-- Claude on the web --}}
+            {{!-- Claude on the web and Desktop --}}
             <section data-panel="claude-web" class="rounded-xl border border-gray-200 bg-white p-6">
-                <h2 class="text-xl font-semibold text-gray-900">Claude on the web</h2>
-                <p class="mt-1 text-sm text-gray-600">Connect once from claude.ai. You sign in to Windcraft and approve access, so there is no token to copy.</p>
-                {{#if isLocal}}
-                <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This server is on <strong>localhost</strong>, which claude.ai can't reach. Put it on a public HTTPS address and set <code class="font-mono">PUBLIC_URL</code> to it, then come back here.</p>
-                {{/if}}
+                <div class="flex items-center gap-2"><h2 class="text-xl font-semibold text-gray-900">Claude on the web and Desktop</h2><span class="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">No token</span></div>
+                <p class="mt-1 text-sm text-gray-600">Add Windcraft as a <strong>custom connector</strong>. You sign in to Windcraft and approve access once. Once added, it also works in the Claude apps on your other devices.</p>
                 <ol class="mt-5 space-y-5">
-                    <li class="flex gap-3"><span class="step">1</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Open the connector settings in Claude</p><p class="mt-0.5 text-sm text-gray-600">Settings, then Connectors, then <em>Add custom connector</em>. (Menu names can differ between versions.)</p></div></li>
-                    <li class="flex gap-3"><span class="step">2</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Paste this address</p>
-                        <div class="mt-2 flex items-stretch gap-2"><code id="mcpUrl" class="min-w-0 flex-1 truncate rounded-md border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-[13px] text-gray-900">{{mcpUrl}}</code><button type="button" data-copy-target="mcpUrl" class="h-auto rounded-md border border-gray-300 px-3 text-[13px] font-medium text-gray-800 hover:bg-gray-50">Copy</button></div></div></li>
-                    <li class="flex gap-3"><span class="step">3</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Press Connect and allow access</p><p class="mt-0.5 text-sm text-gray-600">You come to a Windcraft page asking you to <strong>Allow</strong>. Sign in if asked.</p></div></li>
-                    <li class="flex gap-3"><span class="step">4</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Try it</p><p class="mt-0.5 text-sm text-gray-600">In a chat, ask: <em>"Use my Windcraft projects to build a pricing page."</em></p></div></li>
+                    <li class="flex gap-3"><span class="step">1</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Open Connectors in Claude</p><p class="mt-0.5 text-sm text-gray-600">On claude.ai: <em>Settings, Connectors, Add custom connector</em>. (Menu names can differ between versions.)</p></div></li>
+                    <li class="flex gap-3"><span class="step">2</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Name it and paste the endpoint</p><p class="mt-0.5 text-sm text-gray-600">Name: <code class="font-mono">Windcraft</code>. URL: the <a href="#mcpUrl" class="font-medium underline">MCP endpoint</a> above. Leave the advanced fields empty.</p></div></li>
+                    <li class="flex gap-3"><span class="step">3</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Add, then Connect and Allow</p><p class="mt-0.5 text-sm text-gray-600">You come to a Windcraft page asking you to <strong>Allow</strong>. Sign in if asked.</p></div></li>
+                    <li class="flex gap-3"><span class="step">4</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Turn it on in a chat and try it</p><p class="mt-0.5 text-sm text-gray-600">Enable the connector from the chat's tools menu, then ask: <em>"Use my Windcraft projects to build a pricing page."</em></p></div></li>
                 </ol>
-                <div class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <div><p class="text-sm font-medium text-gray-900">Test the connection</p><p class="text-xs text-gray-500">Runs the same steps Claude runs against your address and says what to fix.</p></div>
-                        <button type="button" id="checkBtn" class="h-9 rounded-md border border-gray-300 bg-white px-3.5 text-[13px] font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50">Run test</button>
-                    </div>
-                    <ul id="checkList" class="mt-3 hidden space-y-1.5 text-sm"></ul>
-                </div>
             </section>
 
             {{!-- Claude Code --}}
@@ -49,12 +54,11 @@
                 <h2 class="text-xl font-semibold text-gray-900">Claude Code</h2>
                 <p class="mt-1 text-sm text-gray-600">Claude Code reaches your projects over MCP. It signs in with an <a href="#token" class="font-medium underline">access token</a>.</p>
                 <ol class="mt-5 space-y-5">
-                    <li class="flex gap-3"><span class="step">1</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Create an access token</p><p class="mt-0.5 text-sm text-gray-600">Use the <a href="#token" class="font-medium underline">Access token</a> box on this page. It is shown once, so copy it into a safe place.</p></div></li>
-                    <li class="flex gap-3"><span class="step">2</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Put the token in an environment variable</p><p class="mt-0.5 text-sm text-gray-600">In your shell profile, so it never appears in a command or a file you share:</p>
-                        <div class="mt-2 flex items-stretch gap-2"><code id="envCmd" class="min-w-0 flex-1 overflow-x-auto rounded-md border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-[13px] text-gray-900">export {{tokenEnv}}=&lt;your token&gt;</code><button type="button" data-copy-target="envCmd" class="h-auto rounded-md border border-gray-300 px-3 text-[13px] font-medium text-gray-800 hover:bg-gray-50">Copy</button></div></div></li>
-                    <li class="flex gap-3"><span class="step">3</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Add Windcraft to Claude Code</p>
-                        <div class="mt-2 flex items-stretch gap-2"><code id="addCmd" class="min-w-0 flex-1 overflow-x-auto rounded-md border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-[13px] text-gray-900 whitespace-pre">claude mcp add --transport http tailwind-library {{mcpUrl}} --header "Authorization: Bearer ${{tokenEnv}}"</code><button type="button" data-copy-target="addCmd" class="h-auto rounded-md border border-gray-300 px-3 text-[13px] font-medium text-gray-800 hover:bg-gray-50">Copy</button></div></div></li>
-                    <li class="flex gap-3"><span class="step">4</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Try it</p><p class="mt-0.5 text-sm text-gray-600">Start Claude Code and ask: <em>"Build a landing page with my Windcraft components."</em></p></div></li>
+                    <li class="flex gap-3"><span class="step">1</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Create an access token</p><p class="mt-0.5 text-sm text-gray-600">Use the <a href="#token" class="font-medium underline">Access token</a> box on this page. It is shown once, so copy it.</p></div></li>
+                    <li class="flex gap-3"><span class="step">2</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Run this in your terminal</p><p class="mt-0.5 text-sm text-gray-600">The first line keeps the token out of the command (put it in your shell profile to keep it).</p>
+                        <div class="mt-2 flex items-stretch gap-2"><code id="addCmd" class="min-w-0 flex-1 overflow-x-auto rounded-md border border-gray-200 bg-gray-900 px-3 py-2 font-mono text-[13px] leading-6 text-gray-100 whitespace-pre">export {{tokenEnv}}=&lt;your token&gt;
+claude mcp add --transport http tailwind-library {{mcpUrl}} --header "Authorization: Bearer ${{tokenEnv}}"</code><button type="button" data-copy-target="addCmd" class="h-auto rounded-md border border-gray-300 px-3 text-[13px] font-medium text-gray-800 hover:bg-gray-50">Copy</button></div></div></li>
+                    <li class="flex gap-3"><span class="step">3</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Check and try it</p><p class="mt-0.5 text-sm text-gray-600">Run <code class="font-mono">claude mcp list</code> to see it connected, then ask: <em>"Build a landing page with my Windcraft components."</em></p></div></li>
                 </ol>
                 <details class="mt-6 rounded-lg border border-gray-200">
                     <summary class="cursor-pointer select-none px-4 py-3 text-sm font-medium text-gray-900">Advanced: the project kit and config files</summary>
@@ -67,10 +71,22 @@
                 </details>
             </section>
 
-            {{!-- Cursor and other MCP clients --}}
+            {{!-- Cursor --}}
+            <section data-panel="cursor" class="hidden rounded-xl border border-gray-200 bg-white p-6">
+                <h2 class="text-xl font-semibold text-gray-900">Cursor</h2>
+                <p class="mt-1 text-sm text-gray-600">Cursor reads MCP servers from an <code class="font-mono">mcp.json</code> file. It signs in with an <a href="#token" class="font-medium underline">access token</a> kept in an environment variable.</p>
+                <ol class="mt-5 space-y-5">
+                    <li class="flex gap-3"><span class="step">1</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Create a token and set it</p><p class="mt-0.5 text-sm text-gray-600">Use the <a href="#token" class="font-medium underline">Access token</a> box, then set <code class="font-mono">{{tokenEnv}}</code> in the environment you start Cursor from.</p></div></li>
+                    <li class="flex gap-3"><span class="step">2</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Add this to <code class="font-mono">.cursor/mcp.json</code></p><p class="mt-0.5 text-sm text-gray-600">In the project, or <code class="font-mono">~/.cursor/mcp.json</code> for every project.</p>
+                        <div class="mt-2"><div class="mb-1 text-right"><button type="button" data-copy-target="cursorJson" class="text-xs font-medium text-gray-600 underline">Copy</button></div><pre id="cursorJson" class="overflow-x-auto rounded-md border border-gray-200 bg-gray-900 p-3 font-mono text-[12px] leading-5 text-gray-100">{{cursorJson}}</pre></div></div></li>
+                    <li class="flex gap-3"><span class="step">3</span><div class="min-w-0 flex-1"><p class="font-medium text-gray-900">Turn it on and try it</p><p class="mt-0.5 text-sm text-gray-600">Open Cursor Settings, MCP, and switch <em>tailwind-library</em> on. Then ask the agent to use your Windcraft library.</p></div></li>
+                </ol>
+            </section>
+
+            {{!-- Other MCP clients --}}
             <section data-panel="other" class="hidden rounded-xl border border-gray-200 bg-white p-6">
-                <h2 class="text-xl font-semibold text-gray-900">Cursor and other MCP clients</h2>
-                <p class="mt-1 text-sm text-gray-600">Any tool that speaks MCP over HTTP can use the same server. It signs in with an <a href="#token" class="font-medium underline">access token</a>.</p>
+                <h2 class="text-xl font-semibold text-gray-900">Other MCP clients</h2>
+                <p class="mt-1 text-sm text-gray-600">VS Code, Windsurf, Zed and anything else that speaks MCP over HTTP can use the same server. It signs in with an <a href="#token" class="font-medium underline">access token</a>.</p>
                 <dl class="mt-5 divide-y divide-gray-200 rounded-lg border border-gray-200 text-sm">
                     <div class="grid gap-1 p-3 sm:grid-cols-[130px_1fr]"><dt class="font-medium text-gray-900">Server URL</dt><dd class="flex items-center gap-2"><code id="otherUrl" class="min-w-0 flex-1 truncate font-mono text-[13px]">{{mcpUrl}}</code><button type="button" data-copy-target="otherUrl" class="text-xs font-medium text-gray-600 underline">Copy</button></dd></div>
                     <div class="grid gap-1 p-3 sm:grid-cols-[130px_1fr]"><dt class="font-medium text-gray-900">Transport</dt><dd>HTTP (streamable)</dd></div>

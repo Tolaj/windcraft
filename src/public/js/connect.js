@@ -72,6 +72,6 @@ $("checkBtn").addEventListener("click", async (e) => {
         list.innerHTML = `<li class="text-red-700">The test could not run: ${err.message}</li>`;
     } finally {
         btn.disabled = false;
-        btn.textContent = "Run test";
+        btn.textContent = "Test connection";
     }
 });

@@ -12,6 +12,9 @@ export const mcpJson = (baseUrl) =>
         2
     ) + "\n";
 
+export const cursorJson = (baseUrl) =>
+    JSON.stringify({ mcpServers: { [SERVER_NAME]: { url: `${baseUrl}/mcp`, headers: { Authorization: `Bearer \${env:${TOKEN_ENV}}` } } } }, null, 2) + "\n";
+
 export const claudeMdSnippet = () => `## UI library
 
 This project uses a shared component library through the \`${SERVER_NAME}\` MCP server.
