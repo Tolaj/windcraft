@@ -23,12 +23,28 @@ const __dirname = path.dirname(__filename);
 // middlewares
 // the landing page's first bytes go out before anything else (MongoDB, the session) is waited for: see middlewares/earlyShell.js
 app.use(earlyShell);
-app.use("/public", express.static(path.join(__dirname, "public")));
+// The page's own files (scripts, styles, images, the editor's modules) are served from the function. Without cache headers every one of them
+// cost a function call on every page view (35 on a category page), even when the browser already had it, and the editor's modules load one
+// after another, so every call's delay was added to the last. In production they are kept: by the browser for 5 minutes, by Vercel's CDN for
+// an hour (it answers without waking the function), and re-checked in the background after that; images change rarely, so a day.
+// In development nothing is cached: an edit shows on the next reload.
+const CACHE_STATIC = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+const IMAGE = /\.(png|jpe?g|gif|svg|ico|webp|avif|woff2?)$/i;
+const CACHE_FILES = "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400";
+const CACHE_IMAGES = "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";
+const staticOptions = (extra = {}) => ({
+    ...extra,
+    ...(CACHE_STATIC ? { cacheControl: false, setHeaders: (res, file) => res.setHeader("Cache-Control", IMAGE.test(file) ? CACHE_IMAGES : CACHE_FILES) } : {}),
+});
+app.use("/public", express.static(path.join(__dirname, "public"), staticOptions()));
 // browsers ask for /favicon.ico on their own, whatever the page says
-app.get("/favicon.ico", (req, res) => res.sendFile(path.join(__dirname, "public", "favicon.ico")));
+app.get("/favicon.ico", (req, res) => {
+    if (CACHE_STATIC) res.setHeader("Cache-Control", CACHE_IMAGES);
+    res.sendFile(path.join(__dirname, "public", "favicon.ico"), { cacheControl: !CACHE_STATIC });
+});
 // @windcraft/core as the browser sees it (the layouts map the package name to this path with an import map)
-app.use("/editor", express.static(path.join(__dirname, "..", "packages", "editor"), { index: false }));
-app.use("/core", express.static(path.join(__dirname, "..", "packages", "core"), { index: false }));
+app.use("/editor", express.static(path.join(__dirname, "..", "packages", "editor"), staticOptions({ index: false })));
+app.use("/core", express.static(path.join(__dirname, "..", "packages", "core"), staticOptions({ index: false })));
 // Every request waits for MongoDB (cached after the first), so a cold start never races the connection.
 app.use(async (req, res, next) => {
     try {
