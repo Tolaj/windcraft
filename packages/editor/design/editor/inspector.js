@@ -78,13 +78,13 @@ const panelActions = {
     // the canvas itself (nothing selected): its background, its dot grid, and every frame in view
     setCanvasBg: (bg) => setCanvasLook({ bg }),
     toggleDots: () => setCanvasLook({ dots: !canvasLook().dots }),
-    // the project's "Auto-create parts" switch (in the canvas panel, only where the app can save it)
+    // the project's "Auto-create elements" switch (in the canvas panel, only where the app can save it)
     setAutoParts: async (on) => {
         partsMsg = ""; partsBusy = true; renderInspector();
         try {
             const kept = await host.saveProjectSettings(data.project.id, { autoParts: on });
             data.project.autoParts = kept && typeof kept.autoParts === "boolean" ? kept.autoParts : on;
-            partsMsg = on ? "On: parts are made when a frame is saved." : "Off: no parts are made.";
+            partsMsg = on ? "On: elements are made when a frame is saved." : "Off: no elements are made.";
         } catch (err) { partsMsg = (err && err.message) || "Could not save it."; }
         partsBusy = false; renderInspector();
     },
@@ -338,7 +338,7 @@ function ensureInteractScript() {
 }
 let partsBusy = false, publishBusy = false; // a switch of the canvas panel is being saved: a spinner stands in for it
 let publishMsg = ""; // what the canvas panel says about the Publish switch after it is used
-let partsMsg = ""; // what the canvas panel says about the Auto-create parts switch after it is used
+let partsMsg = ""; // what the canvas panel says about the Auto-create elements switch after it is used
 /** Draws the panel. Every part is a component that keeps its own typed text, so it can be redrawn at any time, whatever has focus. */
 export function renderInspector() {
     const ui = { ...panelStore.get(), frameW: curWidth() }; // the panel's state, and the frame's width (for the Screen chips)

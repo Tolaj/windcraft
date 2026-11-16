@@ -49,18 +49,18 @@ let selectedId = null;
 const wraps = new Map();
 
 const byId = (id) => items.find((i) => i.id === id);
-// what a part of a page is: its last tag when it is one of the extracted kinds (nav, hero, section, footer, form, button)
+// what an element of a frame is: its last tag when it is one of the extracted kinds (nav, hero, section, footer, form, button)
 const PART_KINDS = ["nav", "hero", "section", "footer", "form", "button"];
-// a part's title is "<page>: <name>"; the row already says which page it is from
+// an element's title is "<page>: <name>"; the row already says which frame it is from
 const partName = (it) => { const par = it.kind === "section" && byId(it.parent); return par && it.title.startsWith(`${par.title}: `) ? it.title.slice(par.title.length + 2) : it.title; };
-// ── The Components tab is rule based: every page is run through core/extract-parts.js and what passes is listed ──────────
+// ── The Elements tab is rule based: every page is run through core/extract-parts.js and what passes is listed ──────────
 // (nav, hero, section, footer, form, button; nothing else). It is worked out here, from the pages as they are now, so the list is
-// never behind the pages. Parts the pages' own sections were saved as are in the Pages tab; this list does not repeat them.
+// never behind the pages. Components are frames, so they are in the Frames tab; this list holds only the elements found in frames.
 const KINDS = [["nav", "Navigation"], ["hero", "Hero"], ["section", "Sections"], ["footer", "Footer"], ["form", "Forms"], ["button", "Buttons"]];
 const extractCache = new Map(); // page id -> { key, found }
 function extractedAll() {
     const out = [];
-    if (project.autoParts === false) return out; // parts are made only while the project's "Auto-create parts" is on
+    if (project.autoParts === false) return out; // elements are made only while the project's "Auto-create elements" is on
     pages().forEach((pg) => {
         const key = `${pg.version}|${(pg.htmlCode || "").length}`;
         let hit = extractCache.get(pg.id);
@@ -75,10 +75,10 @@ function extractedAll() {
 }
 const extractedById = (id) => String(id).startsWith("x:") && extractedAll().find((x) => x.id === id);
 const partKind = (it) => { const k = (it.tags || [])[(it.tags || []).length - 1]; return PART_KINDS.includes(k) ? k : "section"; };
-// the parts saved from a page (its sections) are not pages: the Pages tab and the board show pages only; the parts are in the Components tab
+// a frame is a page or a component; the elements cut from a page (its sections) are not frames: the Frames tab and the board show frames, the Elements tab lists the elements
 const pages = () => items.filter((i) => i.kind !== "section");
 const sectionsOf = (id) => items.filter((i) => i.kind === "section" && i.parent === id);
-// ── The Components tab's board: each component is its own frame, centred in it (no pages) ───────────────────────────────
+// ── The Elements tab's board: each element is its own frame, centred in it (no pages) ──────────────────────────────────
 const SIZES = { button: [520, 220], form: [680, 560], nav: [1280, 240], hero: [1280, 720], section: [1280, 560], footer: [1280, 360] };
 let compKey = "", compList = [];
 function compBoard() {
@@ -366,10 +366,9 @@ $("tidyBtn").addEventListener("click", () => {
 function renderHeader() {
     $("projName").textContent = project.name;
     document.title = `${project.name} | Windcraft`;
-    const pg = pages().filter((i) => i.kind !== "component");
-    const comp = items.filter((i) => i.kind === "component").length;
-    const parts = comp + extractedAll().length; // saved components and the parts the rules find in the pages
-    $("projStats").textContent = `${pg.length} frame${pg.length === 1 ? "" : "s"} · ${parts} part${parts === 1 ? "" : "s"}`;
+    const frames = pages().length; // every page and every component is a frame
+    const elements = extractedAll().length; // what the rules find in the frames
+    $("projStats").textContent = `${frames} frame${frames === 1 ? "" : "s"} · ${elements} element${elements === 1 ? "" : "s"}`;
     $("newDesignBtn").href = `/design/new?project=${project.id}&kind=component`; // the same as New project: a blank page, the code below it
     const ab = $("activeBtn");
     ab.textContent = project.active ? "Active project ✓" : "Set as active";
@@ -424,20 +423,20 @@ function renderOutline() {
     $("filters").classList.toggle("hidden", tab === "theme");
     if (tab === "theme") { [["tabPages", "page"], ["tabComponents", "component"]].forEach(([id]) => { $(id).className = "flex-1 whitespace-nowrap border-b-2 border-transparent px-2 py-2.5 text-neutral-500 hover:text-neutral-900"; }); return; }
     $("filters").classList.remove("hidden");
-    const pc = pages().filter((i) => i.kind !== "component").length, saved = items.filter((i) => i.kind === "component"), found = extractedAll();
+    const pc = pages().length, found = extractedAll();
     $("tabPages").title = `${pc} frame${pc === 1 ? "" : "s"}`;
-    $("tabComponents").title = `${found.length + saved.length} part${found.length + saved.length === 1 ? "" : "s"}`;
+    $("tabComponents").title = `${found.length} element${found.length === 1 ? "" : "s"}`;
     [["tabPages", "page"], ["tabComponents", "component"]].forEach(([id, t]) => {
         $(id).className = `flex-1 whitespace-nowrap border-b-2 px-2 py-2.5 ${tab === t ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-500 hover:text-neutral-900"}`;
     });
-    if (tab === "component") { renderFilters(); renderComponents(saved, found); dimBoard(); return; }
-    const list = pages().filter((i) => i.kind !== "component").filter(matchesFilter);
+    if (tab === "component") { renderFilters(); renderComponents(found); dimBoard(); return; }
+    const list = pages().filter(matchesFilter);
     let prev = ""; // a heading where the group changes ("Public site", then "Customer area")
     $("outline").innerHTML = list.map((p) => {
         const g = p.group || "";
         const heading = g !== prev && (g || prev) ? `<div class="group-head">${esc(g || "No group")}</div>` : "";
         prev = g;
-        const row = (it, depth) => `<div class="layer-row cursor-pointer gap-1 px-1 ${it.id === selectedId ? "is-selected" : ""}" style="padding-left:${depth * 14 + 6}px" data-pick="${it.id}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${it.kind === "section" ? partKind(it) : it.kind === "component" ? "part" : "frame"}</span><span class="truncate" title="${esc(it.title)}">${esc(partName(it))}</span></div>`;
+        const row = (it, depth) => `<div class="layer-row cursor-pointer gap-1 px-1 ${it.id === selectedId ? "is-selected" : ""}" style="padding-left:${depth * 14 + 6}px" data-pick="${it.id}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${it.kind === "section" ? partKind(it) : it.kind === "component" ? "comp" : "page"}</span><span class="truncate" title="${esc(it.title)}">${esc(partName(it))}</span></div>`;
         return heading + row(p, 0);
     }).join("") || `<div class="p-3 text-neutral-500">${filterOn() ? "Nothing matches." : "No frames yet."}</div>`;
     dimBoard();
@@ -446,9 +445,9 @@ function renderOutline() {
 function switchRow(attr, title, text, on) {
     return `<label class="switch-row"><span class="min-w-0"><b>${title}</b><span>${text}</span></span><span class="switch"><input ${attr} type="checkbox" ${on ? "checked" : ""}><i></i></span></label>`;
 }
-/** The "Auto-create parts" switch, in the project's details (any switch with data-parts-toggle changes the setting). */
+/** The "Auto-create elements" switch, in the project's details (any switch with data-parts-toggle changes the setting). */
 function partsToggleHtml() {
-    return `<div>${switchRow("data-parts-toggle", "Auto-create parts", "Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.", project.autoParts !== false)}</div>`;
+    return `<div>${switchRow("data-parts-toggle", "Auto-create elements", "Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.", project.autoParts !== false)}</div>`;
 }
 /** The "Publish" switch: every frame of the project in the gallery. It reads off the frames, so making one private turns it off. */
 const framesList = () => items.filter((i) => i.kind !== "section");
@@ -457,24 +456,23 @@ function publishToggleHtml() {
     const f = framesList(), open = f.filter((i) => i.isPublished).length;
     return switchRow("data-publish-toggle", "Publish all frames", `Show every frame in the gallery (${open} of ${f.length} are public now). Making one private turns this off; turning this off makes all of them private.`, allPublished());
 }
-function renderComponents(saved, found) {
+function renderComponents(found) {
     const words = filter.q ? filter.q.split(/\s+/) : [];
     const match = (text) => words.every((w) => text.toLowerCase().includes(w));
-    const mine = filter.kind ? [] : saved.filter((c) => match(`${c.title} ${c.description || ""} ${(c.tags || []).join(" ")}`));
     const row = (id, tag, name, from) => `<div class="layer-row cursor-pointer gap-1 px-1 ${id === selectedId ? "is-selected" : ""}" style="padding-left:6px" data-pick="${esc(id)}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${tag}</span><span class="truncate" title="${esc(name)}">${esc(name)}</span>${from ? `<span class="ml-auto max-w-[70px] shrink-0 truncate pl-2 text-[10px] text-neutral-400" title="from ${esc(from)}">${esc(from)}</span>` : ""}</div>`;
     const on = project.autoParts !== false;
-    let html = mine.length ? `<div class="group-head">Saved parts</div>${mine.map((c) => row(c.id, "part", c.title, "")).join("")}` : "";
+    let html = "";
     KINDS.forEach(([k, name]) => {
         if (filter.kind && filter.kind !== k) return;
         const list = found.filter((x) => x.kind === k && match(`${x.name} ${x.pageTitle} ${k}`));
         if (list.length) html += `<div class="group-head">${name} · ${list.length}</div>${list.map((x) => row(x.id, k, x.kind === "button" ? x.name.replace(/^Button: /, "") : x.name, x.pageTitle)).join("")}`;
     });
-    $("outline").innerHTML = (html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : on ? "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your frames." : "Parts are off for this project, so none are made or listed. Turn on Auto-create parts in the project settings (click the empty board) to make them."}</div>`);
+    $("outline").innerHTML = (html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : on ? "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your frames." : "Elements are off for this project, so none are made or listed. Turn on Auto-create elements in the project settings (click the empty board) to make them."}</div>`);
 }
 $("tabPages").addEventListener("click", () => { tab = "page"; renderFilters(); renderOutline(); });
 $("tabComponents").addEventListener("click", () => { tab = "component"; renderFilters(); renderOutline(); });
 $("tabTheme").addEventListener("click", () => { tab = "theme"; renderOutline(); renderTheme(); });
-// Auto-create parts: on, the parts of every frame are made and listed; off, none are (nothing already made is deleted)
+// Auto-create elements: on, the elements of every frame are made and listed; off, none are (nothing already made is deleted)
 document.addEventListener("change", async (e) => {
     if (!e.target.matches || !e.target.matches("[data-parts-toggle]")) return;
     const on = e.target.checked, sw = e.target.closest(".switch");
@@ -576,12 +574,12 @@ function renderTheme() {
     $("thFont").addEventListener("input", (e) => { theme = normalizeTheme({ ...theme, font: e.target.value }); });
     $("thSave").addEventListener("click", async () => {
         $("thMsg").textContent = "Saving…";
-        try { await saveTheme(normalizeTheme({ ...theme, font: $("thFont").value })); editor.set({ theme }); $("thMsg").textContent = "Applied to every frame and part in this project."; }
+        try { await saveTheme(normalizeTheme({ ...theme, font: $("thFont").value })); editor.set({ theme }); $("thMsg").textContent = "Applied to every frame and element in this project."; }
         catch (err) { $("thMsg").textContent = err.message; }
     });
 }
 
-/** A part the rules found: what it is, which rule passed it, a small preview and its code. */
+/** An element the rules found: what it is, which rule passed it, a small preview and its code. */
 function renderPartDetails(x) {
     const width = { button: 280, form: 520 }[x.kind] || 1200, h = { button: 90, form: 300 }[x.kind] || 320, k = 262 / width;
     const doc = buildPreviewDocument(parseComponentSource(`${x.assets}\n${x.html}`), { width });
@@ -602,11 +600,11 @@ function renderDetails() {
     if (part) return renderPartDetails(part);
     const it = selectedId && byId(selectedId);
     if (!it) {
-        const real = framesList().length, parts = items.length - real;
+        const real = framesList().length, elements = extractedAll().length;
         el.innerHTML = `<div class="-m-3">
             <section class="border-b border-neutral-200 p-4">
                 <p class="sec-h">Project</p>
-                <p class="mb-3 text-neutral-500">${real} ${real === 1 ? "frame" : "frames"} · ${parts} ${parts === 1 ? "part" : "parts"}</p>
+                <p class="mb-3 text-neutral-500">${real} ${real === 1 ? "frame" : "frames"} · ${elements} ${elements === 1 ? "element" : "elements"}</p>
                 <label class="field"><span>Name</span><input id="nameInput" type="text" maxlength="80" class="fi" value="${esc(project.name)}" placeholder="Project name"></label>
                 <label class="field"><span>Description</span><textarea id="descInput" rows="3" class="fi area" placeholder="What is this project?">${esc(project.description)}</textarea></label>
                 <label class="field"><span>Brief</span><textarea id="briefInput" rows="6" class="fi area" placeholder="Brand, audience, tone, colors, navigation, rules.">${esc(project.brief || "")}</textarea><small>Claude and designers read this automatically while this is the active project.</small></label>
@@ -621,14 +619,19 @@ function renderDetails() {
         return;
     }
     el.innerHTML = `<div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${it.kind}</span><span class="font-mono text-[10px] text-neutral-400">v${it.version}</span></div>
-        <p class="mt-2 text-sm font-semibold text-neutral-900">${esc(it.title)}</p>
+        ${it.kind === "section" ? `<p class="mt-2 text-sm font-semibold text-neutral-900">${esc(it.title)}</p>
         <p class="mt-1 text-neutral-500">${esc(it.description || "")}</p>
-        ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}
+        ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}` : `<label class="mt-3 block text-neutral-500">Title</label>
+        <input id="detTitle" class="fi" value="${esc(it.title)}" maxlength="120" placeholder="Gradient hero section" spellcheck="false">
+        <label class="mt-3 block text-neutral-500">Description <span class="text-neutral-400">(optional)</span></label>
+        <textarea id="detDesc" rows="3" class="fi area" placeholder="What it is and when to use it">${esc(it.description || "")}</textarea>`}
         <button type="button" id="focusBtn" class="mt-4 h-8 w-full rounded-md border border-neutral-200 text-xs hover:bg-neutral-50">Zoom to this frame (Shift+2)</button>
         ${it.kind === "section" ? "" : `<p class="mt-3 text-neutral-500">Tailwind config: ${hasTw(it.twConfig) ? `<b class="text-neutral-800">this frame has its own file</b> on top of the project's` : "the project's only"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>`}
         <a href="/design/${it.id}" class="mt-2 flex h-8 items-center justify-center rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Open in editor</a>
-        ${it.kind === "section" ? "" : `<label class="mt-3 block text-neutral-500">Category <span class="text-neutral-400">(a Pricing Page is a frame; every other category is a part)</span></label>
+        ${it.kind === "section" ? "" : `<label class="mt-3 block text-neutral-500">Category</label>
         <select id="detCat" class="fi">${(data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((c) => `<option value="${esc(c.slug)}" ${it.category === c.slug ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>
+        <label class="mt-3 flex cursor-pointer items-center gap-2 text-neutral-700"><input id="detKind" type="checkbox" ${it.kind === "page" ? "checked" : ""} class="h-3.5 w-3.5 accent-black"> This is a page</label>
+        <p class="mt-1 text-neutral-500">${it.kind === "page" ? "A screen of your project: Preview plays it, and its elements (header, hero, footer…) are found automatically." : "A reusable piece you keep to use in other frames."}</p>
         <label class="mt-3 block text-neutral-500">Tags <span class="text-neutral-400">(comma separated)</span></label>
         <input id="detTags" class="fi" value="${esc((it.tags || []).join(", "))}" placeholder="hero, dark, saas" spellcheck="false">`}
         ${it.kind === "section" ? "" : `<label class="mt-3 flex cursor-pointer items-center gap-2 text-neutral-700" title="Public designs appear in the gallery, where anyone can look at them, copy the code and like them"><input id="publicBox" type="checkbox" ${it.isPublished ? "checked" : ""} class="h-3.5 w-3.5 accent-black"> Public in the gallery</label>
@@ -659,6 +662,13 @@ function dropItem(it) {
     renderHeader(); buildFrames(); renderFilters(); renderOutline(); renderDetails();
 }
 
+/** A frame's name changed: the label above it on the board follows (its group and version chip stay). */
+function relabel(it) {
+    const label = wraps.get(it.id) && wraps.get(it.id).wrap.querySelector(".flabel");
+    const text = label && [...label.childNodes].find((n) => n.nodeType === 3);
+    if (text) text.textContent = it.title;
+}
+
 /** Saves one field of the selected item, then refreshes what depends on it (the lists, the tabs, the filters). */
 async function saveField(body, apply) {
     const it = byId(selectedId);
@@ -674,6 +684,24 @@ document.addEventListener("change", async (e) => {
         const category = e.target.value;
         // the category decides page or component: the item moves between the Pages and Components tabs
         await saveField({ category }, (it) => { it.category = category; it.kind = it.kind === "section" ? it.kind : ((data.categories || []).some((g) => g.group === "Pages" && g.items.some((c) => c.slug === category)) ? "page" : "component"); });
+        renderDetails();
+    }
+    if (e.target.id === "detTitle" && selectedId) {
+        const it = byId(selectedId), title = e.target.value.trim();
+        if (!title) { e.target.value = it.title; return; } // a frame always has a name
+        if (title === it.title) return;
+        await saveField({ title }, (x) => { x.title = title; relabel(x); });
+        renderDetails();
+    }
+    if (e.target.id === "detDesc" && selectedId) {
+        const it = byId(selectedId), description = e.target.value.trim() || it.title; // as in the editor: an empty description takes the title
+        if (description === (it.description || "")) return;
+        await saveField({ description }, (x) => { x.description = description; });
+        renderDetails();
+    }
+    if (e.target.id === "detKind" && selectedId) {
+        const kind = e.target.checked ? "page" : "component";
+        await saveField({ kind }, (x) => { x.kind = kind; });
         renderDetails();
     }
     if (e.target.id === "detTags" && selectedId) {
@@ -741,7 +769,7 @@ $("renameBtn").addEventListener("click", async () => {
 });
 $("deleteProjBtn").addEventListener("click", async () => {
     const n = items.filter((i) => i.kind !== "section").length;
-    if (!confirm(`Delete the project "${project.name}" and everything in it (${n} frame${n === 1 ? "" : "s"} and part${n === 1 ? "" : "s"}, with their history)? This can't be undone.`)) return;
+    if (!confirm(`Delete the project "${project.name}" and everything in it (${n} frame${n === 1 ? "" : "s"} and its elements, with their history)? This can't be undone.`)) return;
     const res = await fetch(`/api/projects/${project.id}`, { method: "DELETE" });
     if ((await res.json()).success) location.href = "/projects";
 });

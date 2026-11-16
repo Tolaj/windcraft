@@ -1,4 +1,4 @@
-// End to end: a project's "Auto-create parts" setting. Off, saving a frame makes no parts; turning it on makes the parts of the frames already there; on, a saved frame gets its parts.
+// End to end: a project's "Auto-create elements" setting. Off, saving a frame makes no parts; turning it on makes the parts of the frames already there; on, a saved frame gets its parts.
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
@@ -29,7 +29,7 @@ const importFrame = async (ctx, title) => {
 };
 const setParts = async (ctx, on) => assert.equal((await ctx.request.put(`${stack.base}/api/projects/${ids.project}`, { data: { autoParts: on } })).status(), 200);
 
-test("Auto-create parts: off makes none, turning it on makes the parts of the frames already there, on makes them on save", { skip: skip || false, timeout: 180000 }, async () => {
+test("Auto-create elements: off makes none, turning it on makes the parts of the frames already there, on makes them on save", { skip: skip || false, timeout: 180000 }, async () => {
     const ctx = await browser.newContext();
     await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
 
@@ -50,7 +50,7 @@ test("Auto-create parts: off makes none, turning it on makes the parts of the fr
     await ctx.close();
 });
 
-test("the project's details panel renames the project and has the Auto-create parts switch; the editor has the switch too", { skip: skip || false, timeout: 180000 }, async () => {
+test("the project's details panel renames the project and has the Auto-create elements switch; the editor has the switch too", { skip: skip || false, timeout: 180000 }, async () => {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
     await setParts(ctx, true);
@@ -82,13 +82,13 @@ test("the project's details panel renames the project and has the Auto-create pa
         await page.locator("#inspector", { hasText: "Dot grid" }).waitFor({ timeout: 20000 });
     };
     await openCanvasPanel();
-    const sw = page.locator("#inspector").getByLabel("Auto-create parts");
+    const sw = page.locator("#inspector").getByLabel("Auto-create elements");
     assert.equal(await sw.isChecked(), true, "it shows the project's setting");
     await sw.click();
     await page.waitForFunction(() => /Off/.test(document.getElementById("inspector").textContent), null, { timeout: 10000 });
     assert.equal((await projectData(ctx)).project.autoParts, false, "the editor's switch turns parts off");
     await page.reload();
     await openCanvasPanel();
-    assert.equal(await page.locator("#inspector").getByLabel("Auto-create parts").isChecked(), false, "and it is still off after a reload");
+    assert.equal(await page.locator("#inspector").getByLabel("Auto-create elements").isChecked(), false, "and it is still off after a reload");
     await ctx.close();
 });

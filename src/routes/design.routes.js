@@ -74,7 +74,7 @@ router.get("/:id", async (req, res) => {
         const projects = await optional("the project list", () => projectList(req.session.user.id), []);
         // The frames of the same project share one infinite plane with this design: all of them in a small project, in a larger one the design's own group
         // (the list of groups, with their counts, always comes with it, to switch between them). The parts saved from a page (its sections) are not here: they
-        // are listed in the project's Parts tab, not as frames of their own in the editor (unless one of them is the design being opened).
+        // are listed in the project's Elements tab, not as frames of their own in the editor (unless one of them is the design being opened).
         const pl = c.project ? await retry(() => planeOf(req.session.user.id, c.project, { currentId: c._id, ownGroup: c.group || "" })) : null;
         const plane = pl ? pl.frames : [];
         const proj = c.project ? await optional("the project theme", () => Project.findOne({ _id: c.project, owner: req.session.user.id }).select("theme").lean(), null) : null;

@@ -57,7 +57,7 @@ export async function seed() {
     const project = await Project.create({ owner: user._id, name: "E2E project", shareToken: "a".repeat(32) });
     const html = '<div class="p-6"><button id="a" class="bg-pg text-white p-2">page colour</button> <button id="b" class="bg-proj text-white p-2">project colour</button></div>';
     const page = await Component.create({ title: "Home", htmlCode: html, category: "landing-page", description: "x", createdBy: user._id, project: project._id, kind: "page", version: 1 });
-    // a part saved from the page: it lives in the project's Components tab, not in the editor
+    // a part saved from the page: it lives in the project's Elements tab, not in the editor
     await Component.create({ title: "Home: Header", htmlCode: `<header id="s">header</header>`, category: "landing-page", description: "x", createdBy: user._id, project: project._id, kind: "section", parent: page._id, version: 1 });
     // a logo: an icon beside a brand name, in one link
     const brand = await Component.create({ title: "Brand", htmlCode: `<div class="p-8"><a id="brand" class="flex items-center gap-3 text-2xl font-bold"><span id="ic" class="block h-10 w-10"><svg id="sv" viewBox="0 0 10 10" width="40" height="40"><rect width="10" height="10" fill="black"/></svg></span>[YOUR BRAND]</a></div>`, category: "landing-page", description: "x", createdBy: user._id, project: project._id, kind: "page", version: 1 });

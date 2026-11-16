@@ -104,7 +104,7 @@ export async function syncSections(userId, page, { doc, baseTags = [], project, 
     return { sections, created, removed: gone.length };
 }
 
-/** Whether a project makes parts on its own (its "Auto-create parts" setting; on unless it was turned off). A save outside a project always may. */
+/** Whether a project makes elements on its own (its "Auto-create elements" setting; on unless it was turned off). A save outside a project always may. */
 export async function projectMakesParts(projectId) {
     if (!projectId) return true;
     const p = await Project.findById(projectId).select("autoParts").lean();
