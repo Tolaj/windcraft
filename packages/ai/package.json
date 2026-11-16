@@ -11,6 +11,6 @@
         "./*": "./*"
     },
     "dependencies": {
-        "@anthropic-ai/sdk": "^0.75.0"
+        "@anthropic-ai/sdk": "^1.8.0"
     }
 }
