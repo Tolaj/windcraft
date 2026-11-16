@@ -1,0 +1,26 @@
+<template id="wc-pre-tpl">{{> preloader-markup}}</template>
+    <script>
+        // A click on a link to the landing page from inside the site. The page on screen stays until the new one arrives, so a quick load shows nothing extra;
+        // when it is taking time (400 ms), the preloader covers the page that is still showing.
+        (function () {
+            var t, rm;
+            document.addEventListener("click", function (e) {
+                var a = e.target.closest && e.target.closest("a[href]");
+                if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (a.target && a.target !== "_self") || a.hasAttribute("download")) return;
+                var u; try { u = new URL(a.href, location.href); } catch (x) { return; }
+                if (u.origin !== location.origin || u.pathname !== "/" || location.pathname === "/") return;
+                clearTimeout(t); clearTimeout(rm);
+                t = setTimeout(function () {
+                    var tpl = document.getElementById("wc-pre-tpl");
+                    if (!tpl || document.getElementById("wc-pre")) return;
+                    var el = tpl.content.firstElementChild.cloneNode(true);
+                    document.body.appendChild(el);
+                    void el.offsetWidth; // so the fade-in runs
+                    el.classList.add("on");
+                    rm = setTimeout(function () { el.remove(); }, 15000); // the navigation stalled or was cancelled: the page comes back
+                }, 400);
+            });
+            window.addEventListener("pagehide", function () { clearTimeout(t); }); // the new page arrived in time: nothing to show
+            window.addEventListener("pageshow", function (e) { if (e.persisted) { clearTimeout(t); clearTimeout(rm); var p = document.getElementById("wc-pre"); if (p) p.remove(); } });
+        })();
+    </script>

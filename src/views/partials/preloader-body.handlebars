@@ -1,19 +1,26 @@
-    <div id="wc-pre" role="status" aria-label="Loading Windcraft">
-        <div class="wc-logo" aria-hidden="true"><img class="wc-dim" src="/public/images/logo-light.png" alt="" width="828" height="152"><div class="wc-fill"><div class="wc-liquid"></div></div></div>
-    </div>
+{{> preloader-markup}}
     <script>
         (function () {
-            var h = document.documentElement, p = document.getElementById("wc-pre"), over = false;
-            if (!p || !h.classList.contains("wc-pre")) return;
+            var h = document.documentElement, p = document.getElementById("wc-pre"), over = false, t, shownAt = 0;
+            if (!p) return;
+            // shown only if the server is slow: when the rest of the page has not started to arrive after 400 ms (the layout sets window.__wcBody when it does).
+            // A quick load never sees it, and the browser's own work on an arrived page is no reason to show it. Once shown it stays at least 500 ms, so it never just flashes.
+            t = setTimeout(function () { if (!over && !window.__wcBody) { shownAt = Date.now(); p.classList.add("on"); } }, 400);
             var finish = function () {
                 if (over) return;
                 over = true;
-                h.classList.remove("wc-pre"); // the page's own background is back at once, under the fading screen
-                p.classList.add("done"); // fades out
-                document.dispatchEvent(new Event("wc:ready")); // the landing page's opening animation waits for this
-                setTimeout(function () { p.remove(); }, 500);
+                clearTimeout(t);
+                setTimeout(function () {
+                    h.classList.remove("wc-pre");
+                    p.classList.remove("on"); // fades out (at once, if it was never shown)
+                    document.dispatchEvent(new Event("wc:ready")); // the landing page's opening animation waits for this
+                    setTimeout(function () { p.remove(); }, 500);
+                }, shownAt ? Math.max(0, 500 - (Date.now() - shownAt)) : 0);
             };
-            if (document.readyState === "complete") finish(); else window.addEventListener("load", finish);
+            // ready = the page is built and styled (DOMContentLoaded plus a moment for the styles to settle); images still arriving are no reason to keep the screen up.
+            // A timer, not animation frames: a background tab or an embedded browser paints no frames, and the screen must still leave.
+            var ready = function () { setTimeout(finish, 60); };
+            if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ready); else ready();
             setTimeout(finish, 8000); // never keeps the page from view for long
             window.addEventListener("pageshow", function (e) { if (e.persisted) finish(); });
         })();

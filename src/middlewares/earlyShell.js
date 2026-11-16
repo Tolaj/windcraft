@@ -12,6 +12,8 @@ const send = (res, body) => res.end(body);
 
 export function earlyShell(req, res, next) {
     if (req.method !== "GET" || req.path !== "/" || !req.accepts("html")) return next();
+    // a click on the logo from inside the site: the server is awake and the browser has everything cached, so the page is sent the usual way (no preloader)
+    if (req.get("sec-fetch-site") === "same-origin") return next();
     req.app.render("main/_shell", { layout: false, title: "Windcraft" }, (err, html) => {
         if (err) return next(); // no shell: the page is sent the usual way
         res.status(200);
