@@ -24,6 +24,8 @@ function guessTitle(html) {
 /** A loading message over the editor's place until the editor has painted. */
 function showEditorLoader() {
     const host_ = $("editorHost");
+    const early = $("editorLoader"); // playground.js shows the same message while this code is still loading
+    if (early) return early;
     const el = document.createElement("div");
     el.id = "editorLoader";
     el.setAttribute("role", "status");
