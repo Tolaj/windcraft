@@ -9,7 +9,7 @@ import { buildDesignGuide } from "../services/guide.service.js";
 import { syncPartsOf } from "../services/import.service.js";
 import { planeOf } from "../services/plane.service.js";
 import { categories } from "./home.routes.js";
-import { normalizeTheme } from "@windcraft/core/theme.js";
+import { normalizeTheme, pageTheme } from "@windcraft/core/theme.js";
 
 // ── Pages ────────────────────────────────────────────────────────────────────
 export const projectPages = express.Router();
@@ -109,6 +109,23 @@ projectApi.get("/:id/board", async (req, res) => {
         res.json({ success: true, data });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message || "Could not open the project" });
+    }
+});
+
+// Up to three frames for the project's card on the Projects page: its first pages (else its first design), each with the width and theme to draw it in.
+projectApi.get("/:id/cover", async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ success: false, message: "Not found" });
+        const project = await Project.findOne({ _id: req.params.id, owner: req.session.user.id }).select("theme").lean();
+        if (!project) return res.status(404).json({ success: false, message: "Not found" });
+        const own = { createdBy: req.session.user.id, project: project._id };
+        const pick = "htmlCode twConfig board frameW";
+        let items = await Component.find({ ...own, kind: "page" }).sort("order createdAt").limit(3).select(pick).lean();
+        if (!items.length) items = await Component.find({ ...own, kind: { $ne: "section" } }).sort("order createdAt").limit(1).select(pick).lean();
+        const theme = normalizeTheme(project.theme);
+        res.json({ success: true, data: { frames: items.map((c) => ({ html: c.htmlCode, width: (c.board && c.board.w) || c.frameW || 1280, theme: pageTheme(theme, c.twConfig) })) } });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message || "Could not load the preview" });
     }
 });
 

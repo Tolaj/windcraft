@@ -1,6 +1,6 @@
 {
     "watch": ["src", "packages", ".env"],
-    "ext": "js,mjs,cjs,json,env",
-    "ignore": ["src/public", "src/views", "packages/*/test", "packages/*/demo", "**/node_modules"],
+    "ext": "js,mjs,cjs,json,env,handlebars,css,html",
+    "ignore": ["packages/*/test", "packages/*/demo", "**/node_modules"],
     "delay": 300
 }

@@ -10,6 +10,30 @@
     </div>
 
     <style>
+        /* the frame preview in a card's corner: faint, and stronger when you hover the card */
+        /* the project's frames in the card's corner: one frame is a tilted browser window that straightens on hover; several are a stack that fans out */
+        .cv-shot { position: absolute; left: 0; top: 0; overflow: hidden; background: #fff; opacity: 0; transition: opacity .3s; }
+        .cv-shot.ready { opacity: 1; }
+        .cv-win .cv-shot, .cv-win .cv-skel { top: 14px; }
+        /* the sketch shown until the real frame has loaded */
+        .cv-skel { position: absolute; inset: 0; padding: 10px; background: #fafaf9; }
+        .cv-skel .sk-ln { height: 6px; border-radius: 3px; background: #d4d4d4; }
+        .cv-skel .sk-st { display: flex; gap: 5px; margin: 8px 0; }
+        .cv-skel .sk-st i { flex: 1; height: 16px; border: 1px solid #e5e5e5; border-radius: 3px; background: #fff; }
+        .cv-skel .sk-bars { display: flex; gap: 4px; align-items: flex-end; height: 44px; }
+        .cv-skel .sk-bars i { flex: 1; border-radius: 2px; background: #a3a3a3; }
+        .cv-shot iframe { border: 0; position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+        .cv-win { position: absolute; width: 210px; height: 140px; right: -24px; bottom: -30px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.08); transform: perspective(700px) rotateY(-24deg) rotateX(10deg); transition: transform .4s cubic-bezier(.2,.8,.2,1); }
+        [data-card]:hover .cv-win { transform: perspective(700px) rotateY(0) rotateX(0) translate(-14px,-12px); }
+        .cv-dots { display: flex; gap: 4px; height: 14px; align-items: center; padding: 0 8px; border-bottom: 1px solid #f3f4f6; }
+        .cv-dots i { width: 6px; height: 6px; border-radius: 50%; background: #d1d5db; }
+        .cv-pg { position: absolute; width: 170px; height: 110px; right: -10px; bottom: -16px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,.08); transition: transform .35s cubic-bezier(.2,.8,.2,1); }
+        .cv-pg.a { transform: rotate(-14deg) translate(-34px,6px); }
+        .cv-pg.b { transform: rotate(-6deg) translate(-14px,0); }
+        .cv-pg.c { transform: rotate(3deg); }
+        [data-card]:hover .cv-pg.a { transform: rotate(-22deg) translate(-86px,-6px); }
+        [data-card]:hover .cv-pg.b { transform: rotate(-9deg) translate(-44px,-10px); }
+        [data-card]:hover .cv-pg.c { transform: rotate(4deg) translate(4px,-8px); }
         /* tags: two rows that scroll sideways; "+N more" opens them all */
         #tagBar { display: flex; flex-wrap: wrap; align-items: center; }
         #tagBar:not(.tag-ready) { max-height: 62px; overflow: hidden; }
@@ -35,20 +59,33 @@
     <p id="projNone" class="hidden rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">No project matches.</p>
     <div id="projGrid" class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {{#each projects}}
-        <a href="/projects/{{this.id}}" data-card data-name="{{this.name}} {{this.description}}" data-cats="{{this.catSlugs}}" data-tags="{{this.tagList}}" class="group rounded-xl border border-gray-200 bg-white p-5 transition-colors hover:border-gray-400">
-            <div class="flex items-start justify-between gap-2">
-                <h2 class="truncate text-base font-semibold text-gray-900">{{this.name}}{{#if this.active}} <span class="ml-1 rounded-full bg-blue-50 px-2 py-0.5 align-middle text-[10px] font-medium text-blue-700">Active</span>{{/if}}</h2>
-                <span class="shrink-0 text-xs text-gray-400">{{formatDate this.updatedAt}}</span>
+        <a href="/projects/{{this.id}}" data-card data-name="{{this.name}} {{this.description}}" data-cats="{{this.catSlugs}}" data-tags="{{this.tagList}}" class="group relative flex min-h-[210px] flex-col gap-4 overflow-hidden rounded-xl border border-gray-200 bg-white p-6 text-gray-900 no-underline transition hover:border-gray-400 hover:shadow-sm">
+            {{!-- the project's frames in the bottom-right corner: one frame as a tilted window, several as a fanned stack --}}
+            <div data-cover data-id="{{this.id}}" aria-hidden="true" class="pointer-events-none absolute inset-0">
+                {{#if (gt this.pages 2)}}<div class="cv-pg a"><div class="cv-skel"><div class="sk-ln" style="width:35%"></div><div class="sk-st"><i></i><i></i><i></i></div><div class="sk-bars"><i style="height:40%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:70%"></i></div></div></div>{{/if}}
+                {{#if (gt this.pages 1)}}<div class="cv-pg b"><div class="cv-skel"><div class="sk-ln" style="width:35%"></div><div class="sk-st"><i></i><i></i><i></i></div><div class="sk-bars"><i style="height:40%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:70%"></i></div></div></div><div class="cv-pg c"><div class="cv-skel"><div class="sk-ln" style="width:35%"></div><div class="sk-st"><i></i><i></i><i></i></div><div class="sk-bars"><i style="height:40%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:70%"></i></div></div></div>
+                {{else if (eq this.pages 1)}}<div class="cv-win"><div class="cv-dots"><i></i><i></i><i></i></div><div class="cv-skel"><div class="sk-ln" style="width:35%"></div><div class="sk-st"><i></i><i></i><i></i></div><div class="sk-bars"><i style="height:40%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:70%"></i></div></div></div>
+                {{else if this.components}}<div class="cv-win"><div class="cv-dots"><i></i><i></i><i></i></div><div class="cv-skel"><div class="sk-ln" style="width:35%"></div><div class="sk-st"><i></i><i></i><i></i></div><div class="sk-bars"><i style="height:40%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:70%"></i></div></div></div>{{/if}}
             </div>
-            <p class="mt-1 line-clamp-2 min-h-[2.5rem] text-sm text-gray-500">{{#if this.description}}{{this.description}}{{else}}No description{{/if}}</p>
-            <div class="mt-3 flex min-h-[1.5rem] flex-wrap items-center gap-1.5">
-                {{#each this.catNames}}{{#if (lt @index 5)}}<span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium leading-4 text-gray-700">{{this.name}}{{#if (gt this.count 1)}}<span class="text-gray-400">{{this.count}}</span>{{/if}}</span>{{/if}}{{/each}}
-                {{#if (gt this.catNames.length 5)}}<span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] leading-4 text-gray-500">+{{minus this.catNames.length 5}}</span>{{/if}}
+            <div class="relative flex flex-col gap-1">
+                <div class="flex items-start justify-between gap-3">
+                    <h2 class="self-start rounded-[3px] text-lg font-semibold tracking-tight text-gray-900" style="background:rgba(255,255,255,.92)">{{this.name}}</h2>
+                    {{#if this.active}}<span class="mt-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700"><span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>Active</span>{{/if}}
+                </div>
+                {{#if this.tags.length}}<div class="mt-1 flex flex-nowrap gap-1.5 overflow-hidden" style="-webkit-mask-image:linear-gradient(to right,#000 85%,transparent);mask-image:linear-gradient(to right,#000 85%,transparent)">
+                    {{#each this.tags}}{{#if (lt @index 8)}}<span class="shrink-0 whitespace-nowrap rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-medium leading-4 text-gray-600">{{this}}</span>{{/if}}{{/each}}
+                </div>{{else if this.description}}<p data-desc class="mt-1 line-clamp-2 text-sm text-gray-500"><span class="rounded-[3px] box-decoration-clone" style="background:rgba(255,255,255,.92)">{{this.description}}</span></p>{{/if}}
             </div>
-            <div class="mt-3 flex gap-4 text-sm text-gray-700">
-                <span><strong class="text-gray-900">{{this.pages}}</strong> frame{{#unless (eq this.pages 1)}}s{{/unless}}</span>
-                <span><strong class="text-gray-900">{{this.components}}</strong> part{{#unless (eq this.components 1)}}s{{/unless}}</span>
+            <div class="relative mt-auto flex flex-col items-start gap-0.5">
+                {{#if this.description}}<span role="button" tabindex="0" data-desc-open class="mb-1.5 inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-[11px] font-medium text-gray-700 hover:border-gray-900 hover:text-gray-900"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Description</span>{{/if}}
+                <span class="rounded-[3px] text-sm font-semibold text-gray-900" style="background:rgba(255,255,255,.92)">{{this.pages}} frame{{#unless (eq this.pages 1)}}s{{/unless}}</span>
+                <span class="rounded-[3px] text-xs text-gray-500" style="background:rgba(255,255,255,.92)">{{formatDate this.updatedAt}}</span>
             </div>
+            {{#if this.description}}<div data-desc-panel class="absolute inset-0 z-20 hidden flex-col bg-black/90 p-6 text-white backdrop-blur-sm">
+                <span role="button" tabindex="0" data-desc-close aria-label="Close" class="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
+                <p class="pr-8 text-sm font-semibold">{{this.name}}</p>
+                <p class="mt-2 overflow-auto text-sm leading-6 text-gray-200">{{this.description}}</p>
+            </div>{{/if}}
         </a>
         {{/each}}
     </div>
@@ -59,7 +96,91 @@
     </div>
     {{/if}}
 </main>
+<script type="module">
+    // a faded preview of one frame in the corner of each card, drawn only when the card scrolls into view
+    import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
+    // one frame drawn into a w x h box, scaled so its full width fits
+    const shot = (fr, w, h) => {
+        const el = document.createElement("div"), scale = w / fr.width;
+        el.className = "cv-shot";
+        el.style.cssText = "width:" + w + "px;height:" + h + "px";
+        setPreviewTheme(fr.theme);
+        const f = document.createElement("iframe");
+        f.setAttribute("sandbox", "allow-scripts");
+        f.tabIndex = -1;
+        f.title = "";
+        f.srcdoc = buildPreviewDocument(parseComponentSource(fr.html), { width: fr.width, fixedScreen: true, still: true, theme: fr.theme });
+        f.style.cssText = "width:" + fr.width + "px;height:" + Math.ceil(h / scale) + "px;transform:scale(" + scale + ")";
+        f.addEventListener("load", () => setTimeout(() => el.classList.add("ready"), 350), { once: true });
+        el.appendChild(f);
+        return el;
+    };
+    // the description keeps only the lines that end above the preview (at rest), so the two never overlap
+    const fitDesc = (card) => {
+        const p = card.querySelector("[data-desc]"), parts = card.querySelectorAll(".cv-win, .cv-pg");
+        if (!p || !parts.length) return;
+        p.style.display = "";
+        p.style.webkitLineClamp = "2";
+        const top = Math.min(...[...parts].map((el) => el.getBoundingClientRect().top));
+        const line = parseFloat(getComputedStyle(p).lineHeight) || 20;
+        const fit = Math.min(2, Math.floor((top - p.getBoundingClientRect().top - 4) / line));
+        if (fit < 1) p.style.display = "none";
+        else p.style.webkitLineClamp = String(fit);
+    };
+    window.addEventListener("resize", () => document.querySelectorAll("[data-card]").forEach(fitDesc));
+    // one frame: a tilted browser window; two or three: a stack, the first page on top
+    const build = (box, n) => {
+        box.innerHTML = "";
+        if (n === 1) {
+            const win = document.createElement("div");
+            win.className = "cv-win";
+            win.innerHTML = '<div class="cv-dots"><i></i><i></i><i></i></div>';
+            box.appendChild(win);
+            return;
+        }
+        (n === 2 ? ["b", "c"] : ["a", "b", "c"]).forEach((spot) => {
+            const pg = document.createElement("div");
+            pg.className = "cv-pg " + spot;
+            box.appendChild(pg);
+        });
+    };
+    const draw = async (box) => {
+        try {
+            const res = await fetch("/api/projects/" + box.dataset.id + "/cover");
+            const frames = (((await res.json()).data || {}).frames || []).slice(0, 3);
+            if (!frames.length) return;
+            let spots = [...box.querySelectorAll(".cv-win, .cv-pg")]; // the sketches the page was drawn with
+            if (spots.length !== frames.length) { build(box, frames.length); spots = [...box.querySelectorAll(".cv-win, .cv-pg")]; }
+            // the first frame goes on top: the last spot in the stack
+            frames.forEach((fr, k) => {
+                const spot = spots[spots.length - 1 - k];
+                spot.appendChild(spot.classList.contains("cv-win") ? shot(fr, 208, 124) : shot(fr, 168, 108));
+            });
+            requestAnimationFrame(() => fitDesc(box.closest("[data-card]")));
+        } catch (e) { /* no preview: the sketch stays */ }
+    };
+    document.querySelectorAll("[data-card]").forEach(fitDesc); // the sketches are already in place, so the description can fit now
+    const seen = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) { seen.unobserve(e.target); draw(e.target); } }), { rootMargin: "200px" });
+    document.querySelectorAll("[data-cover]").forEach((b) => seen.observe(b));
+</script>
 <script>
+    (function () {
+        // the Description button opens the card's description over a dark layer; any click on it, or Escape, closes it
+        var panelOf = function (el) { return el.closest("[data-card]").querySelector("[data-desc-panel]"); };
+        var show = function (panel, on) { panel.classList.toggle("hidden", !on); panel.classList.toggle("flex", on); };
+        document.addEventListener("click", function (e) {
+            var open = e.target.closest("[data-desc-open]"), panel = e.target.closest("[data-desc-panel]");
+            if (!open && !panel) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (open) show(panelOf(open), true); else show(panel, false);
+        }, true);
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") document.querySelectorAll("[data-desc-panel].flex").forEach(function (p) { show(p, false); });
+            var open = e.target.closest && e.target.closest("[data-desc-open]");
+            if (open && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); show(panelOf(open), true); }
+        });
+    })();
     (function () {
         var cards = [].slice.call(document.querySelectorAll("[data-card]")), q = "", cats = [], tags = [];
         function apply() {
