@@ -1,7 +1,6 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
 import { mountConfigFileEditor } from "@windcraft/editor/design/config-file-editor.js";
-import { hasTw } from "@windcraft/core/config-file.js";
 import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, brandScale, grayScale } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
 import { mountPlan } from "@windcraft/core/mount-order.js";
@@ -635,7 +634,6 @@ function renderDetails() {
                 <button type="button" id="focusBtn" class="${btn}" title="Shift+2">Zoom to frame</button>
                 <a href="/design/${it.id}" class="flex h-8 flex-1 items-center justify-center rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Open in editor</a>
             </div>
-            ${frame ? `<p class="mt-2 text-[11px] leading-4 text-neutral-400">Tailwind config: ${hasTw(it.twConfig) ? "this frame has its own file, on top of the project's" : "the project's only"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>` : ""}
         </section>
         ${frame ? `<section class="border-b border-neutral-200 p-4">
             <p class="sec-h">Details</p>

@@ -66,7 +66,7 @@ test("a page's own file is stored on the page and laid over the project's", { sk
     assert.deepEqual(colours, { a: "rgb(124, 58, 237)", b: "rgb(15, 118, 110)" }, "the page's colour and the project's both apply");
     await page.goto(`${stack.base}/projects/${ids.project}`);
     await page.click("#outline [data-pick]");
-    assert.match(await page.textContent("#details"), /this frame has its own file/);
+    assert.ok(await page.locator("#details #detTitle").count(), "the frame's details open (they no longer carry a note about its config file)");
     await page.close();
 });
 
