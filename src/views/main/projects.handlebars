@@ -9,14 +9,26 @@
         </div>
     </div>
 
+    <style>
+        /* tags: two rows that scroll sideways; "+N more" opens them all */
+        #tagBar { display: flex; flex-wrap: wrap; align-items: center; }
+        #tagBar:not(.tag-ready) { max-height: 62px; overflow: hidden; }
+        #tagBar.tag-scroll { display: block; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
+        #tagBar.tag-fade { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
+        #tagBar .tag-rows { display: flex; flex-direction: column; gap: 6px; width: max-content; }
+        #tagBar .tag-row { display: flex; gap: 6px; }
+    </style>
     {{#if projects.length}}
     {{!-- Search and the category filter are in the top bar; the tags of the designs are chips here --}}
     <div class="mb-6">
         {{#if tagChips.length}}
-        <div id="tagBar" class="flex flex-wrap items-center gap-1.5">
+        <div class="flex items-start gap-2">
+        <div id="tagBar" class="relative min-w-0 flex-1 gap-1.5">
             {{#each tagChips}}
-            <button type="button" data-tag="{{this.name}}" aria-pressed="false" class="tag-chip rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">{{this.name}} <span class="text-gray-400">{{this.count}}</span></button>
+            <button type="button" data-tag="{{this.name}}" data-i="{{@index}}" aria-pressed="false" class="tag-chip rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">{{this.name}} <span class="text-gray-400">{{this.count}}</span></button>
             {{/each}}
+        </div>
+        <button type="button" id="tagMore" class="hidden h-[30px] shrink-0 whitespace-nowrap rounded-full border border-dashed border-gray-400 bg-white px-3 text-xs font-medium text-gray-700 hover:border-gray-900 hover:text-gray-900"></button>
         </div>
         {{/if}}
     </div>
@@ -81,7 +93,41 @@
             document.getElementById("catClear").addEventListener("click", function () { boxes.forEach(function (b) { b.checked = false; }); cats = []; label(); apply(); });
         }
 
-        var bar = document.getElementById("tagBar");
+        var bar = document.getElementById("tagBar"), more = document.getElementById("tagMore"), open = false;
+        // one row of tags by default, with a toggle for the rest; a chosen tag is never left hidden
+        var layout = function () {
+            if (!bar) return;
+            var chips = [].slice.call(bar.querySelectorAll(".tag-chip")).sort(function (a, b) { return a.dataset.i - b.dataset.i; });
+            var old = bar.querySelector(".tag-rows");
+            chips.forEach(function (c) { bar.appendChild(c); }); // flat, in order, so they can be measured
+            if (old) old.remove();
+            bar.classList.add("tag-ready");
+            bar.classList.toggle("tag-scroll", !open);
+            if (open) return;
+            var picked = chips.filter(function (c) { return c.getAttribute("aria-pressed") === "true"; });
+            chips = picked.concat(chips.filter(function (c) { return picked.indexOf(c) < 0; })); // chosen tags first
+            var wrap = document.createElement("div"), rows = [document.createElement("div"), document.createElement("div")], len = [0, 0];
+            wrap.className = "tag-rows";
+            rows.forEach(function (r) { r.className = "tag-row"; wrap.appendChild(r); });
+            chips.forEach(function (c) { var k = len[0] <= len[1] ? 0 : 1; len[k] += c.offsetWidth + 6; rows[k].appendChild(c); });
+            bar.appendChild(wrap);
+        };
+        var fit = function (relayout) {
+            if (!bar || !more) return;
+            if (relayout === true) layout();
+            var edge = bar.getBoundingClientRect().right;
+            var past = [].slice.call(bar.querySelectorAll(".tag-chip")).filter(function (c) { return c.getBoundingClientRect().right > edge + 1; }).length;
+            more.classList.toggle("hidden", !open && bar.scrollWidth <= bar.clientWidth + 1);
+            bar.classList.toggle("tag-fade", !open && bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 1); // a soft edge instead of a cut chip
+            more.textContent = open ? "Show fewer" : past ? "+" + past + " more" : "Show all";
+        };
+        if (more) {
+            more.addEventListener("click", function () { open = !open; fit(true); bar.scrollLeft = 0; });
+            window.addEventListener("resize", function () { fit(true); });
+            bar.addEventListener("scroll", function () { fit(); }, { passive: true });
+            fit(true);
+            if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { fit(true); });
+        }
         if (bar) bar.addEventListener("click", function (e) {
             var b = e.target.closest(".tag-chip");
             if (!b) return;
@@ -91,6 +137,7 @@
             ["bg-white", "text-gray-700", "border-gray-300"].forEach(function (k) { b.classList.toggle(k, !on); });
             tags = [].slice.call(bar.querySelectorAll('[aria-pressed="true"]')).map(function (x) { return x.dataset.tag; });
             apply();
+
         });
     })();
 </script>
