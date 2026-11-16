@@ -9,4 +9,7 @@ router.get("/documentation", page("documentation", "documentation", "Documentati
 router.get("/about", page("about", "about", "About"));
 router.get("/support", page("support", "support", "Support"));
 
+router.get("/privacy", page("privacy", "privacy", "Privacy Policy"));
+router.get("/terms", page("terms", "terms", "Terms of Service"));
+
 export default router;
