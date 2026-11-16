@@ -21,6 +21,7 @@ projectPages.get("/", async (req, res) => {
             catNames: p.cats.map((c) => ({ slug: c.slug, name: categories[c.slug]?.name || c.slug, count: c.count })),
             catSlugs: p.cats.map((c) => c.slug).join(" "),
             tagList: p.tags.join("\u0001"),
+            frames: p.pages + p.components, // every page and component is a frame; the parts cut from a page are not
         }));
         // every category used across the projects, with how many designs: the filter chips
         const all = {};
@@ -112,16 +113,14 @@ projectApi.get("/:id/board", async (req, res) => {
     }
 });
 
-// Up to three frames for the project's card on the Projects page: its first pages (else its first design), each with the width and theme to draw it in.
+// Up to three frames for the project's card on the Projects page: its first frames (pages and components alike), each with the width and theme to draw it in.
 projectApi.get("/:id/cover", async (req, res) => {
     try {
         if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ success: false, message: "Not found" });
         const project = await Project.findOne({ _id: req.params.id, owner: req.session.user.id }).select("theme").lean();
         if (!project) return res.status(404).json({ success: false, message: "Not found" });
         const own = { createdBy: req.session.user.id, project: project._id };
-        const pick = "htmlCode twConfig board frameW";
-        let items = await Component.find({ ...own, kind: "page" }).sort("order createdAt").limit(3).select(pick).lean();
-        if (!items.length) items = await Component.find({ ...own, kind: { $ne: "section" } }).sort("order createdAt").limit(1).select(pick).lean();
+        const items = await Component.find({ ...own, kind: { $ne: "section" } }).sort("order createdAt").limit(3).select("htmlCode twConfig board frameW").lean(); // pages and components alike
         const theme = normalizeTheme(project.theme);
         res.json({ success: true, data: { frames: items.map((c) => ({ html: c.htmlCode, width: (c.board && c.board.w) || c.frameW || 1280, theme: pageTheme(theme, c.twConfig) })) } });
     } catch (err) {
