@@ -618,32 +618,42 @@ function renderDetails() {
         </div>`;
         return;
     }
-    el.innerHTML = `<div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${it.kind}</span><span class="font-mono text-[10px] text-neutral-400">v${it.version}</span></div>
-        ${it.kind === "section" ? `<p class="mt-2 text-sm font-semibold text-neutral-900">${esc(it.title)}</p>
-        <p class="mt-1 text-neutral-500">${esc(it.description || "")}</p>
-        ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}` : `<label class="mt-3 block text-neutral-500">Title</label>
-        <input id="detTitle" class="fi" value="${esc(it.title)}" maxlength="120" placeholder="Gradient hero section" spellcheck="false">
-        <label class="mt-3 block text-neutral-500">Description <span class="text-neutral-400">(optional)</span></label>
-        <textarea id="detDesc" rows="3" class="fi area" placeholder="What it is and when to use it">${esc(it.description || "")}</textarea>`}
-        <button type="button" id="focusBtn" class="mt-4 h-8 w-full rounded-md border border-neutral-200 text-xs hover:bg-neutral-50">Zoom to this frame (Shift+2)</button>
-        ${it.kind === "section" ? "" : `<p class="mt-3 text-neutral-500">Tailwind config: ${hasTw(it.twConfig) ? `<b class="text-neutral-800">this frame has its own file</b> on top of the project's` : "the project's only"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>`}
-        <a href="/design/${it.id}" class="mt-2 flex h-8 items-center justify-center rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Open in editor</a>
-        ${it.kind === "section" ? "" : `<label class="mt-3 block text-neutral-500">Category</label>
-        <select id="detCat" class="fi">${(data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((c) => `<option value="${esc(c.slug)}" ${it.category === c.slug ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>
-        <label class="mt-3 flex cursor-pointer items-center gap-2 text-neutral-700"><input id="detKind" type="checkbox" ${it.kind === "page" ? "checked" : ""} class="h-3.5 w-3.5 accent-black"> This is a page</label>
-        <p class="mt-1 text-neutral-500">${it.kind === "page" ? "A screen of your project: Preview plays it, and its elements (header, hero, footer…) are found automatically." : "A reusable piece you keep to use in other frames."}</p>
-        <label class="mt-3 block text-neutral-500">Tags <span class="text-neutral-400">(comma separated)</span></label>
-        <input id="detTags" class="fi" value="${esc((it.tags || []).join(", "))}" placeholder="hero, dark, saas" spellcheck="false">`}
-        ${it.kind === "section" ? "" : `<label class="mt-3 flex cursor-pointer items-center gap-2 text-neutral-700" title="Public designs appear in the gallery, where anyone can look at them, copy the code and like them"><input id="publicBox" type="checkbox" ${it.isPublished ? "checked" : ""} class="h-3.5 w-3.5 accent-black"> Public in the gallery</label>
-        <p id="publicNote" class="mt-1 text-neutral-500">${it.isPublished ? `Shown in the gallery under <a class="underline" href="/category/${esc(it.category)}" target="_blank" rel="noopener">its category</a>.` : "Private: only you can see it."}</p>`}
-        <div class="mt-2 flex gap-2">
-            <button type="button" id="exportBtn" class="h-8 flex-1 rounded-md border border-neutral-200 text-xs hover:bg-neutral-50" title="HTML, React, Vue, Svelte, design spec">Export</button>
-            <button type="button" id="historyBtn" class="h-8 flex-1 rounded-md border border-neutral-200 text-xs hover:bg-neutral-50" title="Earlier versions, and restoring one">History</button>
-        </div>
-        <label class="mt-3 block text-neutral-500">Move to project</label>
-        <select id="moveSel" class="fi"><option value="">Choose a project…</option>${(data.projects || []).filter((p) => p.id !== project.id).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
-        <label class="mt-3 flex cursor-pointer items-center gap-2 text-neutral-600" title="When on, AI generation can use this as a style reference"><input id="refBox" type="checkbox" ${it.useAsReference !== false ? "checked" : ""} class="h-3.5 w-3.5 accent-black"> Use as AI reference</label>
-        <button type="button" id="deleteBtn" class="mt-3 h-8 w-full rounded-md border border-neutral-200 text-xs text-red-700 hover:bg-red-50">Delete</button>`;
+    const frame = it.kind !== "section"; // a frame is a page or a component; a section is an element saved from a page (read-only here)
+    const btn = "h-8 flex-1 rounded-md border border-neutral-200 text-xs hover:bg-neutral-50";
+    const kindText = it.kind === "page" ? "A screen of your project: Preview plays it, and its elements (header, hero, footer…) are found automatically." : "A reusable piece you keep to use in other frames.";
+    const publicText = it.isPublished ? `Shown in the gallery under <a class="underline" href="/category/${esc(it.category)}" target="_blank" rel="noopener">its category</a>.` : "Private: only you can see it.";
+    const refRow = switchRow('id="refBox"', "Use as AI reference", "AI tools may use this design as a style reference.", it.useAsReference !== false);
+    el.innerHTML = `<div class="-m-3">
+        <section class="border-b border-neutral-200 p-4">
+            <div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${it.kind}</span><span class="font-mono text-[10px] text-neutral-400">v${it.version}</span></div>
+            ${frame ? `<label class="field"><span>Title</span><input id="detTitle" class="fi" value="${esc(it.title)}" maxlength="120" placeholder="Gradient hero section" spellcheck="false"></label>
+            <label class="field"><span>Description <i class="font-normal not-italic text-neutral-400">(optional)</i></span><textarea id="detDesc" rows="3" class="fi area" placeholder="What it is and when to use it">${esc(it.description || "")}</textarea></label>` : `<p class="mt-3 text-sm font-semibold text-neutral-900">${esc(it.title)}</p>
+            <p class="mt-1 text-neutral-500">${esc(it.description || "")}</p>
+            ${it.tags.length ? `<div class="mt-2 flex flex-wrap gap-1">${it.tags.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : ""}`}
+            <div class="mt-4 flex gap-2">
+                <button type="button" id="focusBtn" class="${btn}" title="Shift+2">Zoom to frame</button>
+                <a href="/design/${it.id}" class="flex h-8 flex-1 items-center justify-center rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Open in editor</a>
+            </div>
+            ${frame ? `<p class="mt-2 text-[11px] leading-4 text-neutral-400">Tailwind config: ${hasTw(it.twConfig) ? "this frame has its own file, on top of the project's" : "the project's only"}. <a class="underline" href="/design/${it.id}">Edit in the editor</a></p>` : ""}
+        </section>
+        ${frame ? `<section class="border-b border-neutral-200 p-4">
+            <p class="sec-h">Details</p>
+            <label class="field" style="margin-top:0"><span>Category</span><select id="detCat" class="fi">${(data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((c) => `<option value="${esc(c.slug)}" ${it.category === c.slug ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select></label>
+            <label class="field"><span>Tags <i class="font-normal not-italic text-neutral-400">(comma separated)</i></span><input id="detTags" class="fi" value="${esc((it.tags || []).join(", "))}" placeholder="hero, dark, saas" spellcheck="false"></label>
+        </section>
+        <section class="border-b border-neutral-200 px-4 py-2">
+            <div class="divide-y divide-neutral-100">${switchRow('id="detKind"', it.kind === "page" ? "This is a page" : "This is a component", kindText, it.kind === "page")}${switchRow('id="publicBox"', "Public in the gallery", publicText, it.isPublished)}${refRow}</div>
+        </section>` : ""}
+        <section class="p-4">
+            <div class="flex gap-2">
+                <button type="button" id="exportBtn" class="${btn}" title="HTML, React, Vue, Svelte, design spec">Export</button>
+                <button type="button" id="historyBtn" class="${btn}" title="Earlier versions, and restoring one">History</button>
+            </div>
+            <label class="field"><span>Move to project</span><select id="moveSel" class="fi"><option value="">Choose a project…</option>${(data.projects || []).filter((p) => p.id !== project.id).map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></label>
+            ${frame ? "" : `<div class="mt-2">${refRow}</div>`}
+            <button type="button" id="deleteBtn" class="mt-4 h-8 w-full rounded-md border border-neutral-200 text-xs text-red-700 hover:bg-red-50">Delete</button>
+        </section>
+    </div>`;
 }
 
 function select(id) {
