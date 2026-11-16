@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createUser, userSignIn, getLlmSettings, updateLlmSettings, createApiToken, revokeApiToken } from "../controllers/user.controller.js";
+import { getMe, updateMe, changePassword, deleteMe, createUser, userSignIn, getLlmSettings, updateLlmSettings, createApiToken, revokeApiToken } from "../controllers/user.controller.js";
 import { limit } from "../utils/rateLimit.js";
 import * as userService from "../services/user.service.js";
 import { ensureAuthAPI } from "../middlewares/auth.js";
@@ -21,6 +21,9 @@ router.post("/check-email", limit("check-email", 30, 10 * 60 * 1000), async (req
 
 router.route("/sign-in").post(userSignIn);
 router.route("/settings/llm").get(ensureAuthAPI, getLlmSettings).put(ensureAuthAPI, updateLlmSettings);
+
+router.route("/me").get(ensureAuthAPI, getMe).put(ensureAuthAPI, updateMe).delete(ensureAuthAPI, deleteMe);
+router.put("/password", ensureAuthAPI, changePassword);
 
 router.post("/api-token", ensureAuthAPI, createApiToken);
 router.delete("/api-token", ensureAuthAPI, revokeApiToken);

@@ -164,3 +164,102 @@ export const revokeApiToken = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+/* ---------- the Settings page ---------- */
+
+const accountOf = (user) => ({
+    name: user.name,
+    email: user.email,
+    hasPassword: Boolean(user.password),
+    google: Boolean(user.googleId),
+    createdAt: user.createdAt,
+    token: user.apiTokenHash ? { prefix: user.apiTokenPrefix, createdAt: user.apiTokenCreatedAt } : null,
+});
+
+export const getMe = async (req, res) => {
+    try {
+        const user = await userService.getUserById(req.session.user.id);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        res.json(accountOf(user));
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const updateMe = async (req, res) => {
+    try {
+        const name = String(req.body?.name || "").trim();
+        if (!name) return res.status(400).json({ message: "Enter your name" });
+        if (name.length > 80) return res.status(400).json({ message: "That name is too long" });
+        const user = await userService.updateUser(req.session.user.id, { name });
+        if (!user) return res.status(404).json({ message: "User not found" });
+        req.session.user.name = name;
+        res.json({ message: "Saved", name });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+/** Changes the password. A person who signed in with Google has none yet, so they can set one without a current password. */
+export const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body || {};
+        if (typeof newPassword !== "string" || newPassword.length < 6) {
+            return res.status(400).json({ message: "The new password must be at least 6 characters" });
+        }
+        const user = await userService.getUserById(req.session.user.id);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        if (user.password) {
+            if (typeof currentPassword !== "string" || !(await bcrypt.compare(currentPassword, user.password))) {
+                return res.status(401).json({ message: "Your current password is wrong" });
+            }
+        }
+        user.password = await bcrypt.hash(newPassword, 10);
+        await user.save();
+        res.json({ message: user.googleId ? "Password set. You can now sign in with email too." : "Password changed" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+/** Deletes the account and everything that belongs to it. The person types their email to confirm (and their password, when they have one). */
+export const deleteMe = async (req, res) => {
+    try {
+        const user = await userService.getUserById(req.session.user.id);
+        if (!user) return res.status(404).json({ message: "User not found" });
+        if (String(req.body?.email || "").trim().toLowerCase() !== user.email.toLowerCase()) {
+            return res.status(400).json({ message: "Type your email exactly to confirm" });
+        }
+        if (user.password && !(await bcrypt.compare(String(req.body?.password || ""), user.password))) {
+            return res.status(401).json({ message: "Your password is wrong" });
+        }
+        const id = user._id;
+        const [{ default: Project }, { default: Component }, { default: OauthToken }, { default: FigmaToken }, { default: FigmaLink }, { default: FigmaChunk }, { default: FigmaDraft }, { default: FigmaDraftSource }, { default: FigmaSource }] = await Promise.all([
+            import("../models/project.model.js"), import("../models/component.model.js"), import("../models/oauthToken.model.js"),
+            import("../models/figmaToken.model.js"), import("../models/figmaLink.model.js"), import("../models/figmaChunk.model.js"),
+            import("../models/figmaDraft.model.js"), import("../models/figmaDraftSource.model.js"), import("../models/figmaSource.model.js"),
+        ]);
+        // likes and reports this person left on other people's designs
+        const liked = await Component.find({ likedBy: id }).select("_id").lean();
+        if (liked.length) await Component.updateMany({ likedBy: id }, { $pull: { likedBy: id }, $inc: { likes: -1 } });
+        await Component.updateMany({ "reports.by": id }, { $pull: { reports: { by: id } } });
+        await Promise.all([
+            Component.deleteMany({ createdBy: id }),
+            Project.deleteMany({ owner: id }),
+            OauthToken.deleteMany({ userId: id }),
+            FigmaToken.deleteMany({ userId: id }),
+            FigmaLink.deleteMany({ userId: id }),
+            FigmaChunk.deleteMany({ userId: id }),
+            FigmaDraft.deleteMany({ userId: id }),
+            FigmaDraftSource.deleteMany({ userId: id }),
+            FigmaSource.deleteMany({ userId: id }),
+        ]);
+        await userService.deleteUser(id);
+        req.session.destroy(() => {
+            res.clearCookie("TailwindUISession");
+            res.json({ message: "Your account was deleted" });
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};

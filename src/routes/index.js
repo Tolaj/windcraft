@@ -47,6 +47,7 @@ const constructorMethod = (app) => {
     // the Library is gone: a design lives in its project
     app.get(["/library", "/my-components"], (req, res) => res.redirect("/projects"));
     app.get("/library/design-guide.md", (req, res) => res.redirect("/projects/design-guide.md" + (req.query.download ? "?download=1" : "")));
+    app.get("/settings", ensureAuth, (req, res) => res.render("main/settings", { layout: "main", title: "Settings", activePage: "settings", user: req.session.user }));
     app.use("/connect", ensureAuth, connectRoutes);
     app.use("/design", ensureAuth, designRoutes);
     app.use("/projects", ensureAuth, projectPages);
