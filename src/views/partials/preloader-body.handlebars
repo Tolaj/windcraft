@@ -3,25 +3,34 @@
         (function () {
             var h = document.documentElement, p = document.getElementById("wc-pre"), over = false, t, shownAt = 0;
             if (!p) return;
-            // shown only if the server is slow: when the rest of the page has not started to arrive after 400 ms (the layout sets window.__wcBody when it does).
-            // A quick load never sees it, and the browser's own work on an arrived page is no reason to show it. Once shown it stays at least 500 ms, so it never just flashes.
-            t = setTimeout(function () { if (!over && !window.__wcBody) { shownAt = Date.now(); p.classList.add("on"); } }, 400);
+            // performance.now() counts from the moment the navigation began (a click, a typed address), so it includes the time the server took.
+            // Shown when the page is still not ready 600 ms after that, whatever the wait is made of (the server, the styles, the scripts, the images).
+            // A page that is ready sooner never shows it. Once shown it stays at least 400 ms, so it never just flashes.
+            var elapsed = performance.now();
+            t = setTimeout(function () {
+                if (over) return;
+                shownAt = Date.now();
+                if (elapsed >= 600) p.classList.add("instant"); // already long: no fade-in
+                p.classList.add("on");
+            }, Math.max(0, 600 - elapsed));
             var finish = function () {
                 if (over) return;
                 over = true;
                 clearTimeout(t);
                 setTimeout(function () {
                     h.classList.remove("wc-pre");
+                    p.classList.remove("instant");
                     p.classList.remove("on"); // fades out (at once, if it was never shown)
                     document.dispatchEvent(new Event("wc:ready")); // the landing page's opening animation waits for this
                     setTimeout(function () { p.remove(); }, 500);
-                }, shownAt ? Math.max(0, 500 - (Date.now() - shownAt)) : 0);
+                }, shownAt ? Math.max(0, 400 - (Date.now() - shownAt)) : 0);
             };
-            // ready = the page is built and styled (DOMContentLoaded plus a moment for the styles to settle); images still arriving are no reason to keep the screen up.
-            // A timer, not animation frames: a background tab or an embedded browser paints no frames, and the screen must still leave.
-            var ready = function () { setTimeout(finish, 60); };
-            if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ready); else ready();
-            setTimeout(finish, 8000); // never keeps the page from view for long
+            // ready = the content has loaded (the load event: styles, scripts and the images in view), plus a moment for the styles to settle.
+            // If that takes long (a slow image), 2.5 s after the page is built is enough, and 8 s after the start is the most it ever waits.
+            // Timers, not animation frames: a background tab or an embedded browser paints no frames, and the screen must still leave.
+            if (document.readyState === "complete") setTimeout(finish, 60); else window.addEventListener("load", function () { setTimeout(finish, 60); });
+            if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(finish, 2500); }); else setTimeout(finish, 2500);
+            setTimeout(finish, 8000);
             window.addEventListener("pageshow", function (e) { if (e.persisted) finish(); });
         })();
     </script>

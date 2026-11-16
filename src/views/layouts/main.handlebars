@@ -1,9 +1,13 @@
-{{#unless streamed}}{{> doc-open}}{{> preloader-style}}{{/unless}}{{#if streamed}}<script>window.__wcBody = 1; /* the rest of the page has started to arrive: the preloader need not be shown */</script>{{/if}}
+{{#unless streamed}}{{> doc-open}}{{#if (eq activePage "home")}}    <title>{{title}}</title>
+{{> preloader-head}}{{> preloader-style}}</head>
+
+<body class="min-h-screen bg-tertiary">
+{{> preloader-body}}{{else}}{{> preloader-style}}{{/if}}{{/unless}}
     <script type="importmap">{ "imports": { "@windcraft/core/": "/core/", "@windcraft/editor/": "/editor/" } }</script>
     <link rel="icon" href="/favicon.ico" sizes="48x48">
     <link rel="icon" type="image/png" sizes="32x32" href="/public/images/favicon-32.png">
     <link rel="apple-touch-icon" href="/public/images/apple-touch-icon.png">
-    {{#unless streamed}}<title>{{title}}</title>{{/unless}}
+    {{#unless (or streamed (eq activePage "home"))}}<title>{{title}}</title>{{/unless}}
     <script src="https://cdn.tailwindcss.com"></script>
 
     <link rel="stylesheet" href="/public/css/style.css" />
@@ -16,10 +20,10 @@
 
 
 
-{{#unless streamed}}</head>
+{{#unless (or streamed (eq activePage "home"))}}</head>
 
-<body class="min-h-screen bg-tertiary">
-    {{> preloader-nav}}{{/unless}}
+<body class="min-h-screen bg-tertiary">{{/unless}}
+    {{#unless streamed}}{{> preloader-nav}}{{/unless}}
 
     {{> header}}
     <div id="mainContainer" data-user='{{{ json user }}}' class="flex mt-20 m-4 overflow-clip min-h-screen">
