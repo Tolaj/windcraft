@@ -17,6 +17,10 @@
         .cv-win .cv-shot, .cv-win .cv-skel { top: 14px; }
         /* the sketch shown until the real frame has loaded */
         .cv-skel { position: absolute; inset: 0; padding: 10px; background: #fafaf9; }
+        /* the sketch pulses (its normal look, then a lighter one) while the real frame loads; opacity only, so it runs on the GPU with no layout or paint, and only for cards in view that are still loading */
+        @keyframes skel-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+        [data-cover].loading .cv-skel { animation: skel-pulse 1.4s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { [data-cover].loading .cv-skel { animation: none; } }
         .cv-skel .sk-ln { height: 6px; border-radius: 3px; background: #d4d4d4; }
         .cv-skel .sk-st { display: flex; gap: 5px; margin: 8px 0; }
         .cv-skel .sk-st i { flex: 1; height: 16px; border: 1px solid #e5e5e5; border-radius: 3px; background: #fff; }
@@ -100,7 +104,7 @@
     // a faded preview of one frame in the corner of each card, drawn only when the card scrolls into view
     import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
     // one frame drawn into a w x h box, scaled so its full width fits
-    const shot = (fr, w, h) => {
+    const shot = (fr, w, h, done) => {
         const el = document.createElement("div"), scale = w / fr.width;
         el.className = "cv-shot";
         el.style.cssText = "width:" + w + "px;height:" + h + "px";
@@ -111,7 +115,7 @@
         f.title = "";
         f.srcdoc = buildPreviewDocument(parseComponentSource(fr.html), { width: fr.width, fixedScreen: true, still: true, theme: fr.theme });
         f.style.cssText = "width:" + fr.width + "px;height:" + Math.ceil(h / scale) + "px;transform:scale(" + scale + ")";
-        f.addEventListener("load", () => setTimeout(() => el.classList.add("ready"), 350), { once: true });
+        f.addEventListener("load", () => setTimeout(() => { el.classList.add("ready"); if (done) done(); }, 350), { once: true });
         el.appendChild(f);
         return el;
     };
@@ -148,19 +152,22 @@
         try {
             const res = await fetch("/api/projects/" + box.dataset.id + "/cover");
             const frames = (((await res.json()).data || {}).frames || []).slice(0, 3);
-            if (!frames.length) return;
+            if (!frames.length) { box.classList.remove("loading"); return; }
+            let pending = frames.length;
+            const done = () => { if (--pending <= 0) box.classList.remove("loading"); }; // the real frames are in: the sketch stops pulsing
+            setTimeout(() => box.classList.remove("loading"), 20000); // never pulse forever (a frame that fails to load)
             let spots = [...box.querySelectorAll(".cv-win, .cv-pg")]; // the sketches the page was drawn with
             if (spots.length !== frames.length) { build(box, frames.length); spots = [...box.querySelectorAll(".cv-win, .cv-pg")]; }
             // the first frame goes on top: the last spot in the stack
             frames.forEach((fr, k) => {
                 const spot = spots[spots.length - 1 - k];
-                spot.appendChild(spot.classList.contains("cv-win") ? shot(fr, 208, 124) : shot(fr, 168, 108));
+                spot.appendChild(spot.classList.contains("cv-win") ? shot(fr, 208, 124, done) : shot(fr, 168, 108, done));
             });
             requestAnimationFrame(() => fitDesc(box.closest("[data-card]")));
-        } catch (e) { /* no preview: the sketch stays */ }
+        } catch (e) { box.classList.remove("loading"); /* no preview: the sketch stays */ }
     };
     document.querySelectorAll("[data-card]").forEach(fitDesc); // the sketches are already in place, so the description can fit now
-    const seen = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) { seen.unobserve(e.target); draw(e.target); } }), { rootMargin: "200px" });
+    const seen = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) { seen.unobserve(e.target); e.target.classList.add("loading"); draw(e.target); } }), { rootMargin: "200px" });
     document.querySelectorAll("[data-cover]").forEach((b) => seen.observe(b));
 </script>
 <script>
