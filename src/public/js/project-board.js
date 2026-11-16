@@ -60,7 +60,7 @@ const KINDS = [["nav", "Navigation"], ["hero", "Hero"], ["section", "Sections"],
 const extractCache = new Map(); // page id -> { key, found }
 function extractedAll() {
     const out = [];
-    if (project.autoParts === false) return out; // elements are made only while the project's "Auto-create elements" is on
+    if (project.autoParts !== true) return out; // elements are made only while the project's "Auto-create elements" is on (off unless it was turned on)
     pages().forEach((pg) => {
         const key = `${pg.version}|${(pg.htmlCode || "").length}`;
         let hit = extractCache.get(pg.id);
@@ -443,11 +443,12 @@ function renderOutline() {
 }
 /** One setting as a row: its name and a sentence on the left, a switch on the right. `attr` is the data attribute the change handler looks for. */
 function switchRow(attr, title, text, on) {
-    return `<label class="switch-row"><span class="min-w-0"><b>${title}</b><span>${text}</span></span><span class="switch"><input ${attr} type="checkbox" ${on ? "checked" : ""}><i></i></span></label>`;
+    // the sentence under the name is a bubble behind an i icon (hover, focus or tap): the rows stay short
+    return `<label class="switch-row"><span class="min-w-0"><b>${title}<span class="info" tabindex="0" role="button" aria-label="More about ${esc(String(title).replace(/<[^>]*>/g, ""))}"><i>i</i><span class="info-bubble">${text}</span></span></b></span><span class="switch"><input ${attr} type="checkbox" ${on ? "checked" : ""}><i></i></span></label>`;
 }
 /** The "Auto-create elements" switch, in the project's details (any switch with data-parts-toggle changes the setting). */
 function partsToggleHtml() {
-    return `<div>${switchRow("data-parts-toggle", "Auto-create elements", "Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.", project.autoParts !== false)}</div>`;
+    return `<div>${switchRow("data-parts-toggle", "Auto-create elements", "Find the nav, hero, sections, footer, forms and buttons of every frame, and keep them up to date when a frame is saved.", project.autoParts === true)}</div>`;
 }
 /** The "Publish" switch: every frame of the project in the gallery. It reads off the frames, so making one private turns it off. */
 const framesList = () => items.filter((i) => i.kind !== "section");
@@ -460,7 +461,7 @@ function renderComponents(found) {
     const words = filter.q ? filter.q.split(/\s+/) : [];
     const match = (text) => words.every((w) => text.toLowerCase().includes(w));
     const row = (id, tag, name, from) => `<div class="layer-row cursor-pointer gap-1 px-1 ${id === selectedId ? "is-selected" : ""}" style="padding-left:6px" data-pick="${esc(id)}"><span class="w-11 shrink-0 font-mono text-[10px] text-neutral-500">${tag}</span><span class="truncate" title="${esc(name)}">${esc(name)}</span>${from ? `<span class="ml-auto max-w-[70px] shrink-0 truncate pl-2 text-[10px] text-neutral-400" title="from ${esc(from)}">${esc(from)}</span>` : ""}</div>`;
-    const on = project.autoParts !== false;
+    const on = project.autoParts === true;
     let html = "";
     KINDS.forEach(([k, name]) => {
         if (filter.kind && filter.kind !== k) return;
@@ -608,7 +609,7 @@ function renderDetails() {
                 <label class="field"><span>Name</span><input id="nameInput" type="text" maxlength="80" class="fi" value="${esc(project.name)}" placeholder="Project name"></label>
                 <label class="field"><span>Description</span><textarea id="descInput" rows="3" class="fi area" placeholder="What is this project?">${esc(project.description)}</textarea></label>
                 <label class="field"><span>Brief</span><textarea id="briefInput" rows="6" class="fi area" placeholder="Brand, audience, tone, colors, navigation, rules.">${esc(project.brief || "")}</textarea><small>Claude and designers read this automatically while this is the active project.</small></label>
-                <div class="mt-4 flex justify-end"><button type="button" id="saveDesc" class="h-8 rounded-md bg-black px-4 font-semibold text-white hover:bg-neutral-800">Save changes</button></div>
+                <p id="saveNote" class="mt-2 h-4 text-right text-[11px] text-neutral-400" aria-live="polite"></p>
             </section>
             <section class="border-b border-neutral-200 p-4">
                 <p class="sec-h">Settings</p>
@@ -689,7 +690,29 @@ async function saveField(body, apply) {
     renderFilters(); renderOutline(); renderHeader();
     return true;
 }
+/** The project's name, description and brief save by themselves when you leave a field (as a frame's details do). */
+let noteTimer = 0;
+async function saveProjectFields() {
+    const nameEl = $("nameInput"), note = $("saveNote");
+    if (!nameEl) return;
+    const name = nameEl.value.trim();
+    if (!name) { nameEl.value = project.name; return; } // a project always has a name
+    const description = $("descInput").value, brief = $("briefInput").value;
+    if (name === project.name && description === (project.description || "") && brief === (project.brief || "")) return;
+    note.textContent = "Saving…";
+    try {
+        const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, description, brief }) });
+        const json = await res.json().catch(() => ({}));
+        if (!json.success) throw new Error(json.message || "Could not save it");
+        project.name = name; project.description = description; project.brief = brief;
+        renderHeader();
+        note.textContent = "Saved";
+        clearTimeout(noteTimer);
+        noteTimer = setTimeout(() => { const n = $("saveNote"); if (n) n.textContent = ""; }, 1500);
+    } catch (err) { note.textContent = err.message || "Could not save it"; }
+}
 document.addEventListener("change", async (e) => {
+    if (["nameInput", "descInput", "briefInput"].includes(e.target.id)) return saveProjectFields();
     if (e.target.id === "detCat" && selectedId) {
         const category = e.target.value;
         // the category decides page or component: the item moves between the Pages and Components tabs
@@ -738,6 +761,14 @@ document.addEventListener("change", async (e) => {
     }
 });
 
+document.addEventListener("click", (e) => { // the i icon: tap to show or hide its bubble, without flipping the switch it sits in
+    const info = e.target.closest(".info");
+    document.querySelectorAll(".info.open").forEach((x) => { if (x !== info) x.classList.remove("open"); });
+    if (!info) return;
+    if (e.target.closest("a")) return; // a link inside the bubble works as a link
+    e.preventDefault();
+    info.classList.toggle("open");
+});
 document.addEventListener("click", async (e) => {
     const pick = e.target.closest("[data-pick]");
     if (pick) { const part = extractedById(pick.dataset.pick); select(pick.dataset.pick); focusItem(part && tab !== "component" ? part.pageId : pick.dataset.pick); return; }
@@ -754,14 +785,6 @@ document.addEventListener("click", async (e) => {
         const it = byId(selectedId);
         try { if (!(await deleteItem(it))) return; } catch (err) { return alert(err.message); }
         dropItem(it);
-    }
-    if (e.target.id === "saveDesc") {
-        const name = $("nameInput").value.trim();
-        if (!name) { $("nameInput").focus(); return; }
-        const description = $("descInput").value;
-        const brief = $("briefInput").value;
-        const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, description, brief }) });
-        if ((await res.json()).success) { project.name = name; project.description = description; project.brief = brief; renderHeader(); e.target.textContent = "Saved"; setTimeout(() => (e.target.textContent = "Save changes"), 1200); }
     }
 });
 

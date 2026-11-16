@@ -346,7 +346,7 @@ export function renderInspector() {
     const elementCode = sel && ui.tab === "classes" ? sourceOf(sel.path) : null;
     const top = insp.scrollTop;
     if (S.canvasOnly) { // nothing selected: the canvas's own panel
-        renderPanel(insp, { canvas: { ...canvasLook(), frames: docs.size, picked: S.framesSel.length, project: data.project && data.project.name, partsOn: data.project && host.saveProjectSettings ? data.project.autoParts !== false : null, partsMsg, partsBusy, publishBusy, publishOn: data.project && host.saveProjectSettings && typeof data.project.published === "boolean" ? data.project.published : null, publishMsg } }, panelActions, ui);
+        renderPanel(insp, { canvas: { ...canvasLook(), frames: docs.size, picked: S.framesSel.length, project: data.project && data.project.name, partsOn: data.project && host.saveProjectSettings ? data.project.autoParts === true : null, partsMsg, partsBusy, publishBusy, publishOn: data.project && host.saveProjectSettings && typeof data.project.published === "boolean" ? data.project.published : null, publishMsg } }, panelActions, ui);
         insp.scrollTop = top;
         return;
     }

@@ -34,7 +34,7 @@
 .field > small { display: block; margin-top: 4px; font-size: 10px; line-height: 14px; color: #9a9a9a; }
 .field .fi { height: 30px; padding: 0 8px; font-size: 12px; background: #f7f7f7; border-color: #ececec; }
 .field textarea.fi.area { height: auto; padding: 8px; }
-.switch-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; cursor: pointer; }
+.switch-row { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; cursor: pointer; }
 .switch-row b { display: block; font-size: 12px; font-weight: 600; color: #111; }
 .switch-row > span:first-child > span { display: block; margin-top: 2px; line-height: 15px; color: #777; }
 .switch { position: relative; flex: none; width: 34px; height: 20px; margin-top: 1px; }
@@ -53,3 +53,12 @@ select.fi { -webkit-appearance: none; appearance: none; padding-right: 20px; bac
 /* the page is black and white: checkboxes and radios too, not the browser's blue */
 input[type="checkbox"], input[type="radio"] { accent-color: #111; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+/* the i icon beside an option's name, and the bubble with its description */
+.info { display: inline-flex; vertical-align: middle; margin-left: 6px; cursor: help; outline: none; }
+.info > i { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border: 1px solid #b5b5b5; border-radius: 50%; font-size: 9px; font-weight: 600; font-style: normal; line-height: 1; color: #8a8a8a; transition: color .12s, border-color .12s; }
+.info:hover > i, .info:focus > i, .info.open > i { border-color: #111; color: #111; }
+.info-bubble { display: none; position: absolute; left: 0; right: 0; top: 100%; z-index: 30; margin-top: -2px; padding: 8px 10px; border-radius: 8px; background: #111; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); font-size: 11px; font-weight: 400; line-height: 16px; color: #f5f5f5; text-align: left; white-space: normal; cursor: default; }
+.info-bubble::before { content: ""; position: absolute; left: 0; right: 0; top: -8px; height: 8px; } /* a bridge, so the pointer can travel from the icon into the bubble */
+.info-bubble a { color: #fff; text-decoration: underline; }
+.info:hover .info-bubble, .info:focus .info-bubble, .info:focus-within .info-bubble, .info.open .info-bubble { display: block; }

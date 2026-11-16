@@ -33,7 +33,7 @@ test("Auto-create elements: off makes none, turning it on makes the parts of the
     const ctx = await browser.newContext();
     await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
 
-    assert.equal((await projectData(ctx)).project.autoParts, true, "a project makes parts until it is told not to");
+    assert.equal((await projectData(ctx)).project.autoParts, false, "a project makes no elements until it is told to");
 
     await setParts(ctx, false);
     assert.equal((await projectData(ctx)).project.autoParts, false);
@@ -60,7 +60,7 @@ test("the project's details panel renames the project and has the Auto-create el
     await page.goto(`${stack.base}/projects/${ids.project}`);
     await page.locator("#nameInput").waitFor({ timeout: 30000 });
     await page.locator("#nameInput").fill("Renamed in the panel");
-    await page.locator("#saveDesc").click();
+    await page.locator("#nameInput").press("Tab"); // leaving the field saves it (there is no Save button)
     await page.waitForFunction(() => document.getElementById("projName").textContent === "Renamed in the panel", null, { timeout: 10000 });
     assert.equal((await projectData(ctx)).project.name, "Renamed in the panel", "the new name is saved");
     const panelSwitch = page.locator("#details [data-parts-toggle]");

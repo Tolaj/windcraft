@@ -76,7 +76,7 @@ async function boardData(userId, projectId) {
         Project.find({ owner: userId }).select("name").sort("name").lean(),
     ]);
     const data = {
-        project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", autoParts: project.autoParts !== false, active: Boolean(active && String(active._id) === String(project._id)) },
+        project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", autoParts: project.autoParts === true, active: Boolean(active && String(active._id) === String(project._id)) },
         categories: Object.entries(Object.entries(categories).reduce((g, [slug, c]) => ((g[c.group] ||= []).push({ slug, name: c.name }), g), {})).map(([group, list]) => ({ group, items: list })), // for each design's category
         projects: others.map((x) => ({ id: String(x._id), name: x.name })), // for "Move to project"
         items: items.map((c) => ({
@@ -190,7 +190,7 @@ projectApi.put("/:id", async (req, res) => {
     const p = await Project.findOneAndUpdate({ _id: req.params.id, owner: req.session.user.id }, update, { new: true });
     if (!p) return res.status(404).json({ success: false, message: "Not found" });
     // turned on after being off: the parts of the frames already there are made now (in the background; each frame's parts are made again when it is saved)
-    if (before && before.autoParts === false) {
+    if (before && before.autoParts !== true) {
         (async () => {
             const frames = await Component.find({ createdBy: req.session.user.id, project: p._id, kind: "page" });
             for (const f of frames) { try { await syncPartsOf(req.session.user.id, f); } catch (err) { console.error("Parts error:", err); } }
@@ -198,7 +198,7 @@ projectApi.put("/:id", async (req, res) => {
     }
     // "Publish": every frame of the project in the gallery (true), or none (false)
     const gallery = req.body && typeof req.body.published === "boolean" ? await setPublished(req.session.user.id, p._id, req.body.published) : null;
-    res.json({ success: true, data: { id: String(p._id), name: p.name, description: p.description, autoParts: p.autoParts !== false, theme: normalizeTheme(p.theme), ...(gallery ? { published: gallery.published } : {}) } });
+    res.json({ success: true, data: { id: String(p._id), name: p.name, description: p.description, autoParts: p.autoParts === true, theme: normalizeTheme(p.theme), ...(gallery ? { published: gallery.published } : {}) } });
 });
 
 // Makes this the project Claude works in by default (or clears it with { active: false }).
