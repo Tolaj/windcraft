@@ -164,7 +164,7 @@
     //  1. a thick black ribbon sweeps in from the right edge and circles into a vortex over the right of the hero; the designs come out of the vortex and settle into the fan;
     //  2. the spin ends and the ribbon leaves the vortex, flying (rippling) across to the top left corner, where it draws the exact mark of the logo (the centre lines of the real drawing) in place;
     //  3. the real logo takes over from the drawing.
-    (function () {
+    var wcStartHero = function () {
         var root = document.documentElement, hero = document.getElementById("hero"), sp = document.querySelector("#hero .spread"), brand = document.querySelector("[data-brand]");
         var done = function () { root.classList.remove("intro"); if (sp) sp.classList.remove("pre"); };
         if (!root.classList.contains("intro")) return;
@@ -316,5 +316,7 @@
             root.classList.remove("intro");
             svg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, delay: 120, fill: "forwards" }).onfinish = function () { svg.remove(); };
         }
-    })();
+    };
+    // with the preloader up, the opening waits until it has left (the preloader's own timeout makes sure it does)
+    if (document.documentElement.classList.contains("wc-pre")) document.addEventListener("wc:ready", wcStartHero, { once: true }); else wcStartHero();
 </script>
