@@ -97,9 +97,10 @@
 
     <!-- Preview Panel -->
     <div id="preview-{{_id}}" class="bg-white border border-gray-200 rounded-xl transition-all duration-300"
-        style="position: relative; overflow: hidden;">
-        <div id="preview-inner-{{_id}}" class="w-full transition-all duration-300"
-            style="position: relative; min-height: 200px; contain: layout style;">
+        style="position: relative; overflow: hidden;"{{#if (and (eq kind "component") frameW)}} data-frame-w="{{frameW}}"{{/if}}>
+        {{!-- a frame chosen as a component keeps its own width and sits in the middle of the panel --}}
+        <div id="preview-inner-{{_id}}" class="w-full transition-all duration-300{{#if (and (eq kind "component") frameW)}} frame-center{{/if}}"
+            style="position: relative; min-height: 200px; contain: layout style;{{#if (and (eq kind "component") frameW)}} --fw: {{frameW}}px;{{/if}}">
             <!-- Content rendered by category.js -->
         </div>
     </div>

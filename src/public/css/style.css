@@ -30,3 +30,5 @@
   animation: shimmer 1.5s infinite ease-in-out;
   border-radius: 0.5rem;
 }
+/* A frame chosen as a component: shown at its own width, in the middle of the gallery panel (--fw is the frame's width) */
+.frame-center { max-width: var(--fw); margin-inline: auto; display: flex; flex-direction: column; justify-content: center; }

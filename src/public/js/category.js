@@ -220,7 +220,8 @@ import { DEVICES, buildDeviceFrame } from '@windcraft/editor/design/device-frame
             preview.classList.remove('bg-gray-900', 'text-white', 'bg-gray-100');
             preview.classList.add('bg-white');
             preview.style.overflow = 'hidden';
-            preview.innerHTML = `<div id="preview-inner-${id}" class="w-full" style="position: relative; min-height: 200px; contain: layout style;"></div>`;
+            const fw = Number(preview.dataset.frameW) || 0; // a frame chosen as a component: its own width, in the middle
+            preview.innerHTML = `<div id="preview-inner-${id}" class="w-full${fw ? ' frame-center' : ''}" style="position: relative; min-height: 200px; contain: layout style;${fw ? ` --fw: ${fw}px;` : ''}"></div>`;
 
             // Restore dark bg if needed
             if (state.isDark) {
