@@ -1,0 +1,19 @@
+    <script>document.documentElement.classList.add("wc-pre");</script>
+    <link rel="preload" as="image" href="/public/images/logo-light.png">
+    <style>
+        /* the landing page's preloader: a black screen, the logo filling up from the bottom like a liquid; it leaves when the page has loaded */
+        html.wc-pre { background: #000; } /* only until the preloader starts to leave: a root background stops the body's from covering the page */
+        #wc-pre { position: fixed; inset: 0; z-index: 2147483647; display: flex; align-items: center; justify-content: center; background: #000; transition: opacity .45s ease; }
+        #wc-pre.done { opacity: 0; pointer-events: none; }
+        #wc-pre .wc-logo { position: relative; width: min(78vw, 640px); aspect-ratio: 828 / 152; }
+        #wc-pre .wc-dim { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .16; }
+        #wc-pre .wc-fill { position: absolute; inset: 0; overflow: hidden; -webkit-mask: url(/public/images/logo-light.png) center / 100% 100% no-repeat; mask: url(/public/images/logo-light.png) center / 100% 100% no-repeat; }
+        /* the liquid: a block that rises (transform only, so it keeps moving while the page is busy), with a wavy top that drifts sideways */
+        #wc-pre .wc-liquid { position: absolute; left: 0; right: 0; top: 0; height: 100%; background: #ececec; transform: translateY(108%); animation: wc-rise 4.2s cubic-bezier(.35, .25, .35, 1) .15s forwards, wc-breathe 1.8s ease-in-out 4.6s infinite; will-change: transform; }
+        #wc-pre .wc-liquid::before { content: ""; position: absolute; left: 0; bottom: 99%; width: 200%; height: 22%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 24' preserveAspectRatio='none'%3E%3Cpath fill='%23ececec' d='M0 12Q12.5 0 25 12T50 12T75 12T100 12V24H0Z'/%3E%3C/svg%3E") 0 0 / 50% 100% repeat-x; animation: wc-wave 1.5s linear infinite; will-change: transform; }
+        @keyframes wc-rise { to { transform: translateY(-6%); } }
+        @keyframes wc-wave { to { transform: translateX(-50%); } }
+        @keyframes wc-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .78; } }
+        @media (prefers-reduced-motion: reduce) { #wc-pre .wc-liquid, #wc-pre .wc-liquid::before { animation: none; } #wc-pre .wc-liquid { transform: translateY(0); } }
+    </style>
+    <noscript><style>#wc-pre { display: none; }</style></noscript>

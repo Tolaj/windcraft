@@ -1,0 +1,20 @@
+    <div id="wc-pre" role="status" aria-label="Loading Windcraft">
+        <div class="wc-logo" aria-hidden="true"><img class="wc-dim" src="/public/images/logo-light.png" alt="" width="828" height="152"><div class="wc-fill"><div class="wc-liquid"></div></div></div>
+    </div>
+    <script>
+        (function () {
+            var h = document.documentElement, p = document.getElementById("wc-pre"), over = false;
+            if (!p || !h.classList.contains("wc-pre")) return;
+            var finish = function () {
+                if (over) return;
+                over = true;
+                h.classList.remove("wc-pre"); // the page's own background is back at once, under the fading screen
+                p.classList.add("done"); // fades out
+                document.dispatchEvent(new Event("wc:ready")); // the landing page's opening animation waits for this
+                setTimeout(function () { p.remove(); }, 500);
+            };
+            if (document.readyState === "complete") finish(); else window.addEventListener("load", finish);
+            setTimeout(finish, 8000); // never keeps the page from view for long
+            window.addEventListener("pageshow", function (e) { if (e.persisted) finish(); });
+        })();
+    </script>

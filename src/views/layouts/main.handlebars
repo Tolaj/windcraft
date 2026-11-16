@@ -1,35 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-{{#if (eq activePage "home")}}
-    <script>document.documentElement.classList.add("wc-pre");</script>
-    <link rel="preload" as="image" href="/public/images/logo-light.png">
-    <style>
-        /* the landing page's preloader: a black screen, the logo filling up from the bottom like a liquid; it leaves when the page has loaded */
-        html.wc-pre { background: #000; } /* only until the preloader starts to leave: a root background stops the body's from covering the page */
-        #wc-pre { position: fixed; inset: 0; z-index: 2147483647; display: flex; align-items: center; justify-content: center; background: #000; transition: opacity .45s ease; }
-        #wc-pre.done { opacity: 0; pointer-events: none; }
-        #wc-pre .wc-logo { position: relative; width: min(78vw, 640px); aspect-ratio: 828 / 152; }
-        #wc-pre .wc-dim { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .16; }
-        #wc-pre .wc-fill { position: absolute; inset: 0; overflow: hidden; -webkit-mask: url(/public/images/logo-light.png) center / 100% 100% no-repeat; mask: url(/public/images/logo-light.png) center / 100% 100% no-repeat; }
-        /* the liquid: a block that rises (transform only, so it keeps moving while the page is busy), with a wavy top that drifts sideways */
-        #wc-pre .wc-liquid { position: absolute; left: 0; right: 0; top: 0; height: 100%; background: #ececec; transform: translateY(108%); animation: wc-rise 4.2s cubic-bezier(.35, .25, .35, 1) .15s forwards, wc-breathe 1.8s ease-in-out 4.6s infinite; will-change: transform; }
-        #wc-pre .wc-liquid::before { content: ""; position: absolute; left: 0; bottom: 99%; width: 200%; height: 22%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 24' preserveAspectRatio='none'%3E%3Cpath fill='%23ececec' d='M0 12Q12.5 0 25 12T50 12T75 12T100 12V24H0Z'/%3E%3C/svg%3E") 0 0 / 50% 100% repeat-x; animation: wc-wave 1.5s linear infinite; will-change: transform; }
-        @keyframes wc-rise { to { transform: translateY(-6%); } }
-        @keyframes wc-wave { to { transform: translateX(-50%); } }
-        @keyframes wc-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .78; } }
-        @media (prefers-reduced-motion: reduce) { #wc-pre .wc-liquid, #wc-pre .wc-liquid::before { animation: none; } #wc-pre .wc-liquid { transform: translateY(0); } }
-    </style>
-    <noscript><style>#wc-pre { display: none; }</style></noscript>
-{{/if}}
+{{#unless streamed}}{{> doc-open}}{{#if (eq activePage "home")}}{{> preloader-head}}{{/if}}{{/unless}}
     <script type="importmap">{ "imports": { "@windcraft/core/": "/core/", "@windcraft/editor/": "/editor/" } }</script>
     <link rel="icon" href="/favicon.ico" sizes="48x48">
     <link rel="icon" type="image/png" sizes="32x32" href="/public/images/favicon-32.png">
     <link rel="apple-touch-icon" href="/public/images/apple-touch-icon.png">
-    <title>{{title}}</title>
+    {{#unless streamed}}<title>{{title}}</title>{{/unless}}
     <script src="https://cdn.tailwindcss.com"></script>
 
     <link rel="stylesheet" href="/public/css/style.css" />
@@ -42,31 +16,10 @@
 
 
 
-</head>
+{{#unless streamed}}</head>
 
 <body class="min-h-screen bg-tertiary">
-{{#if (eq activePage "home")}}
-    <div id="wc-pre" role="status" aria-label="Loading Windcraft">
-        <div class="wc-logo" aria-hidden="true"><img class="wc-dim" src="/public/images/logo-light.png" alt="" width="828" height="152"><div class="wc-fill"><div class="wc-liquid"></div></div></div>
-    </div>
-    <script>
-        (function () {
-            var h = document.documentElement, p = document.getElementById("wc-pre"), over = false;
-            if (!p || !h.classList.contains("wc-pre")) return;
-            var finish = function () {
-                if (over) return;
-                over = true;
-                h.classList.remove("wc-pre"); // the page's own background is back at once, under the fading screen
-                p.classList.add("done"); // fades out
-                document.dispatchEvent(new Event("wc:ready")); // the landing page's opening animation waits for this
-                setTimeout(function () { p.remove(); }, 500);
-            };
-            if (document.readyState === "complete") finish(); else window.addEventListener("load", finish);
-            setTimeout(finish, 8000); // never keeps the page from view for long
-            window.addEventListener("pageshow", function (e) { if (e.persisted) finish(); });
-        })();
-    </script>
-{{/if}}
+{{#if (eq activePage "home")}}{{> preloader-body}}{{/if}}{{/unless}}
 
     {{> header}}
     <div id="mainContainer" data-user='{{{ json user }}}' class="flex mt-20 m-4 overflow-clip min-h-screen">

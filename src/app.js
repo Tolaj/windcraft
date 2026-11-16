@@ -8,6 +8,7 @@ import { sessionConfig } from "./middlewares/sessionConfig.js";
 import { setSessionLocals } from "./middlewares/auth.js";
 import lastSeenMiddleware from "./middlewares/lastSeen.js";
 import connectDB from "./config/mongoConnection.js";
+import { earlyShell } from "./middlewares/earlyShell.js";
 
 import { formatDate, substring } from './utils/handlebars-helpers.js';
 
@@ -20,6 +21,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // middlewares
+// the landing page's first bytes go out before anything else (MongoDB, the session) is waited for: see middlewares/earlyShell.js
+app.use(earlyShell);
 app.use("/public", express.static(path.join(__dirname, "public")));
 // browsers ask for /favicon.ico on their own, whatever the page says
 app.get("/favicon.ico", (req, res) => res.sendFile(path.join(__dirname, "public", "favicon.ico")));
@@ -33,6 +36,7 @@ app.use(async (req, res, next) => {
         next();
     } catch (error) {
         const body = { error: "database_unavailable", message: "The database is not reachable right now. Try again in a moment." };
+        if (res.headersSent) return res.end(`<p style="font:16px system-ui,sans-serif;padding:24px;color:#fff;position:fixed;inset:0;z-index:2147483647;background:#000">${body.message}</p>`); // the page's start is already on its way
         if (req.path.startsWith("/mcp")) return res.status(503).set("Retry-After", "5").json({ jsonrpc: "2.0", id: null, error: { code: -32603, message: body.message } });
         res.status(503).set("Retry-After", "5").json(body);
     }
