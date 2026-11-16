@@ -29,6 +29,9 @@ const sessionConfig = session({
         dbName: mongoConfig.database,
         collectionName: "sessions",
         ttl: 60 * 60 * 2,
+        // express-session waits for the store to "touch" the session before it ends every response of a signed-in visitor: one more
+        // round trip to a far-away database on every page. Once in five minutes is enough to keep the session alive (it lasts two hours).
+        touchAfter: 5 * 60,
     }),
     cookie: {
         maxAge: 1000 * 60 * 60 * 2,
