@@ -175,12 +175,12 @@ $("fitBtn").addEventListener("click", fitAll);
 
 // ── Frames ───────────────────────────────────────────────────────────────────
 // A live preview (an iframe that loads Tailwind) per frame is too heavy for a project of hundreds of frames, so only the frames near the
-// screen are mounted, at most MAX_LIVE at once; zoomed far out they are plain white blocks until you come closer. The order matters
+// screen are mounted, at most MAX_LIVE at once; zoomed out below 5% they are plain white blocks until you come closer (at 8% they are drawn). The order matters
 // (core/mount-order.js): frames that match the search, tag or category come first, the others follow in small batches.
 // MAX_LIVE: how many previews load for what is in view. KEEP_MAX: how many drawn previews are kept in all. A preview that has been drawn is
 // NOT thrown away when it leaves the screen or when you zoom out: it stays, and only when there are more than KEEP_MAX the ones seen longest ago go.
 // (A drawn preview that is not on screen costs memory but no work; throwing it away made every frame blank and load again when you came back.)
-const MAX_LIVE = 40, KEEP_MAX = Number(window.__KEEP_MAX) || 80, LIVE_MIN_Z = 0.1, BATCH = 6, BATCH_GAP = 250;
+const MAX_LIVE = 40, KEEP_MAX = Number(window.__KEEP_MAX) || 80, LIVE_MIN_Z = 0.05, BATCH = 6, BATCH_GAP = 250;
 let mountTimer = 0, mountRun = 0, batchTimer = 0, seenClock = 0;
 function scheduleMounts(delay = 140) { clearTimeout(mountTimer); mountTimer = setTimeout(refreshMounts, delay); }
 function unmount(entry) { if (entry.iframe) { entry.iframe.remove(); entry.iframe = null; } }
