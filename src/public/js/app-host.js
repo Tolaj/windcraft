@@ -47,6 +47,13 @@ export const appHost = {
         if (navigator.sendBeacon) navigator.sendBeacon(`/api/projects/${projectId}/layout`, new Blob([JSON.stringify({ positions })], { type: "application/json" }));
     },
     generate,
+    listGallery: async (params) => {
+        const qs = new URLSearchParams(Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => [k, String(v)]));
+        const res = await fetch(`/api/gallery/designs?${qs}`);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.success) throw new Error(body.message || `Could not load the gallery (the server answered ${res.status})`);
+        return body.data;
+    },
     saveProjectTheme: async (id, theme) => {
         const res = await fetch(`/api/projects/${id}`, { method: "PUT", headers: JSON_HEADERS, body: JSON.stringify({ theme }) });
         const body = await res.json().catch(() => ({}));

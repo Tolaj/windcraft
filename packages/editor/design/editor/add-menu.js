@@ -88,6 +88,9 @@ export function openDetails() {
     $("dTags").value = (data.tags || []).join(", ");
     setVisible(Boolean(data.isPublished)); // private unless it was made public
     $("dRef").checked = data.useAsReference !== false;
+    const credit = $("dSources"), src = data.sources || [];
+    credit.classList.toggle("hidden", !src.length);
+    credit.textContent = src.length ? `Contains designs from the gallery: ${src.map((x) => `${x.title} by ${x.author}`).join(", ")}.` : "";
     $("dDesc").required = false; // optional: it defaults to the name
     $("detailsTitle").textContent = S.isNew ? "Name and save your component" : "Component details";
     $("detailsSave").textContent = S.isNew ? "Create component" : "Save details";
@@ -95,10 +98,19 @@ export function openDetails() {
     dlg.showModal();
 }
 
+/** A gallery design was put into this one: its source is kept with the design (shown in the details, not in the code). */
+export function addSource(from) {
+    if (!from || !from.id) return;
+    const list = data.sources || (data.sources = []);
+    if (list.some((x) => x.id === from.id)) return;
+    list.push({ id: from.id, title: from.title, author: from.author });
+    if (!S.isNew && data.id && typeof host.updateComponent === "function") host.updateComponent(data.id, { sources: list }).catch(() => {}); // kept with the design; a failure here is not worth interrupting the work
+}
+
 /** Saves the design's details (and, the first time, the design itself). Rejects with the reason when it can't. */
 export async function saveDetails(fields) {
     const fromDraft = S.isNew && S.draftKey && S.draftKey === S.curKey; // a design opened from a Figma draft: its Figma data moves to the new page
-    const saved = S.isNew ? await host.createComponent({ ...fields, htmlCode: assemble(), ...(fromDraft ? { draftId: data.draftId } : {}) }) : await host.updateComponent(data.id, fields);
+    const saved = S.isNew ? await host.createComponent({ ...fields, htmlCode: assemble(), sources: data.sources || [], ...(fromDraft ? { draftId: data.draftId } : {}) }) : await host.updateComponent(data.id, fields);
     const movedProject = (data.project ? data.project.id : "") !== (fields.project || "");
     if (fields.kind) { const d = docs.get(S.curKey); if (d) d.kind = fields.kind; }
     if (movedProject) data.project = (data.projects || []).find((p) => p.id === fields.project) || null; // (the same project keeps what it carries: whether all its frames are in the gallery)

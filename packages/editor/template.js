@@ -236,6 +236,7 @@ export const editorHtml = `<div class="flex h-full flex-col">
                     id="dTags" class="field" style="height:36px" placeholder="hero, dark, saas (comma separated)">
                 <p class="mt-1 text-[11px] text-neutral-500">Tags help you, AI and coding agents find it.</p>
             </div>
+            <p id="dSources" class="hidden rounded-lg bg-neutral-50 px-3 py-2 text-[11px] text-neutral-600"></p>
             <div><label class="mb-1 block text-xs font-medium text-neutral-700" for="dProject">Project</label>
                 <select id="dProject" class="field" style="height:36px" required></select>
             </div>

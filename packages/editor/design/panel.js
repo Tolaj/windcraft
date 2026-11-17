@@ -189,7 +189,7 @@ function PagePanel({ page: pg, actions }) {
             <datalist id="dl-groups">${(pg.groups || []).map((g) => html`<option value=${g} />`)}</datalist>
             <div class="row"><span class="lbl">Version</span><span class="text-[11px] text-neutral-700">${pg.isNew ? "not saved yet" : `v${pg.version}`}${pg.project ? ` · ${pg.project}` : ""}</span></div>
         </div></div>
-        <${WireframeRow} onOpen=${actions.wireframes} label="Add a wireframe" hint="Sections and frame layouts" />
+        <${WireframeRow} onOpen=${actions.wireframes} label=${actions.canGallery ? "Add a wireframe or design" : "Add a wireframe"} hint=${actions.canGallery ? "Sections, layouts and gallery designs" : "Sections and frame layouts"} />
         ${pg.empty && actions.canAI && html`<${AskBox} title="Generate with AI" placeholder="e.g. a pricing section with three tiers and a highlighted middle plan" rows=${3}
             button="Generate" help="Or draw with the tools, add blocks from +, or paste code in the code panel." empty="Describe what you want first."
             run=${actions.draftPage} />`}
@@ -235,7 +235,7 @@ function Panel({ view, tab, actions }) {
     if (view.design) {
         const { key, s } = view.design;
         body = html`<${DesignTop} key=${key} s=${s} actions=${actions} />
-            ${WIREFRAME_TAGS.has(s.tag) && html`<${WireframeRow} key=${`w${key}`} onOpen=${actions.wireframes} label="Add a wireframe" hint=${`Inside this ${s.tag}`} />`}
+            ${WIREFRAME_TAGS.has(s.tag) && html`<${WireframeRow} key=${`w${key}`} onOpen=${actions.wireframes} label=${actions.canGallery ? "Add a wireframe or design" : "Add a wireframe"} hint=${`Replace or add to this ${s.tag}`} />`}
             ${s.tag !== "body" && html`<${PositionSection} key=${`p${key}`} s=${s} actions=${actions} />`}<${LayoutSection} key=${`l${key}`} s=${s} actions=${actions} />
             <${SpacingSection} key=${`s${key}`} s=${s} actions=${actions} /><${ItemSection} key=${`f${key}`} s=${s} actions=${actions} /><${Styles} k=${key} s=${s} actions=${actions} page=${s.tag === "body"} />`;
     }

@@ -2834,6 +2834,16 @@ export function agentMain() {
             const n = tpl.content.firstElementChild;
             if (n) { el.replaceWith(n); sels = sels.includes(el) ? sels.map((x) => (x === el ? n : x)) : sels; } // the selection stays where it is
         },
+        fill: (el, m) => { // a design takes the place of this element (a wireframe's slot): the selection goes to the new one
+            const tpl = document.createElement("template");
+            tpl.innerHTML = m.html;
+            const n = tpl.content.firstElementChild;
+            if (!n) return;
+            const rest = [...tpl.content.children].slice(1); // a design's own <style> after its root comes along
+            el.replaceWith(n, ...rest);
+            markMade(n);
+            sels = [n];
+        },
         insert: (el, m) => {
             const tpl = document.createElement("template");
             tpl.innerHTML = m.html;

@@ -1,10 +1,12 @@
 import { config } from "../config.js";
+import { host } from "../host.js";
 import { $, S, esc, model } from "./base.js";
-import { addToEmpty } from "./add-menu.js";
+import { addToEmpty, addSource } from "./add-menu.js";
 import { cmd } from "./frame-messages.js";
 import { stillDocument } from "./docs.js";
 import { curWidth } from "./plane.js";
-import { screenHeightFor } from "../../playground/component-source.js";
+import { screenHeightFor, parseComponentSource, buildPreviewDocument } from "../../playground/component-source.js";
+import { fillClasses, isSlot } from "../../../core/slot-fill.js";
 import { KIND_NAMES, LAYOUTS, SECTIONS, wireframe } from "../../../core/wireframes.js";
 export { LAYOUTS, SECTIONS };
 
@@ -17,7 +19,8 @@ export { LAYOUTS, SECTIONS };
 const inBox = (html) => html.replace(/\bmin-h-screen\b/g, "min-h-[32rem]");
 
 const dismissed = new Set(); // pages where the tip was dismissed: it stays away from them
-let box = null, keyShown = null, sizer = null, onEsc = null;
+let box = null, keyShown = null, sizer = null, onEsc = null, cleanup = null;
+const chosenMode = { slot: null, box: null }; // where the person last chose to put a pick, for a slot and for a box
 
 // ── Previews: what the pick will really be ────────────────────────────────────────────────────────────────────────────
 // A tile is not the wireframe drawn with the editor's own styles (those follow the editor window's width, not the page's, and have
@@ -115,7 +118,7 @@ function fitTiles(node) {
 }
 
 let watcher = null; // the endless list's "more as you scroll" observer
-function hide() { if (watcher) { watcher.disconnect(); watcher = null; } if (sizer) { sizer.disconnect(); sizer = null; } if (box) { box.remove(); box = null; } closeProbe(); keyShown = null; onEsc = null; }
+function hide() { if (cleanup) { cleanup(); cleanup = null; } if (watcher) { watcher.disconnect(); watcher = null; } if (sizer) { sizer.disconnect(); sizer = null; } if (box) { box.remove(); box = null; } closeProbe(); keyShown = null; onEsc = null; }
 function skip() { dismissed.add(S.curKey); hide(); }
 
 /**
@@ -138,14 +141,93 @@ function browse(o) {
     box.innerHTML = `<div data-card class="pointer-events-auto flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
         <div class="flex items-center justify-between gap-4 px-5 pt-5"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(o.title)}</h2>
             <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${esc(o.closeLabel || "Close")}</button></div>
+        ${o.gallery || into ? `<div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-3">
+            ${o.gallery ? `<div data-sources role="tablist" class="inline-flex rounded-lg border border-neutral-200 p-0.5 text-xs">
+                <button type="button" role="tab" data-source="wire" class="rounded-md px-3 py-1 font-medium">Wireframes</button>
+                <button type="button" role="tab" data-source="gallery" class="rounded-md px-3 py-1 font-medium">Gallery</button></div>` : "<span></span>"}
+            ${into ? `<div data-puts role="radiogroup" aria-label="Where it goes" class="inline-flex items-center gap-1.5 text-xs text-neutral-500"><span>Put it</span>
+                <span class="inline-flex rounded-lg border border-neutral-200 p-0.5">${[["replace", "Replace selected"], ["inside", "Add inside"], ["after", "Add after"]].map(([m, l]) => `<button type="button" role="radio" data-put="${m}" class="rounded-md px-2.5 py-1 font-medium">${l}</button>`).join("")}</span></div>` : ""}
+        </div>` : ""}
         <div data-chips class="flex flex-wrap gap-1.5 px-5 pb-3 pt-3">${chips.map(([k, l]) => `<button type="button" data-kind="${k}" class="rounded-full border px-3 py-1 text-xs">${esc(l)}</button>`).join("")}</div>
         <div data-scroll class="min-h-0 flex-1 overflow-y-auto border-t border-neutral-100 px-5 pb-5 pt-4"><div data-grid class="grid grid-cols-4 gap-3"></div>
             <p data-more class="py-6 text-center text-xs text-neutral-400">Loading more…</p></div>
+        <div data-gctl class="hidden flex-wrap items-center gap-2 px-5 pb-3 pt-3">
+            <input data-gq type="search" placeholder="Search designs" aria-label="Search designs" class="h-8 w-48 rounded-md border border-neutral-200 px-2.5 text-xs focus:border-neutral-900 focus:outline-none">
+            <span data-gkinds class="inline-flex gap-1.5">${[["component", "Components"], ["page", "Pages"], ["all", "All"]].map(([k, l]) => `<button type="button" data-gkind="${k}" class="rounded-full border px-3 py-1 text-xs">${l}</button>`).join("")}</span>
+            <select data-gcat aria-label="Category" class="h-8 rounded-md border border-neutral-200 px-2 text-xs"><option value="">All categories</option>${(config.data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((c) => `<option value="${esc(c.slug)}">${esc(c.name)}</option>`).join("")}</optgroup>`).join("")}</select>
+            <select data-gsort aria-label="Sort" class="h-8 rounded-md border border-neutral-200 px-2 text-xs"><option value="new">Newest</option><option value="liked">Most liked</option></select>
+        </div>
+        <div data-gscroll class="hidden min-h-0 flex-1 overflow-y-auto border-t border-neutral-100 px-5 pb-5 pt-4"><div data-ggrid class="grid grid-cols-3 gap-3"></div>
+            <p data-gmore class="py-6 text-center text-xs text-neutral-400">Loading…</p></div>
     </div>`;
     $("canvas").appendChild(box);
     const card = box.querySelector("[data-card]"), grid = box.querySelector("[data-grid]"), more = box.querySelector("[data-more]"), scroller = box.querySelector("[data-scroll]");
     const items = new Map();
     let kind = "all", n = 0, seen = new Set(), done = false;
+    // where a pick goes: a slot of a wireframe is replaced, a box is added to (the choice is remembered, per kind of target, in this editor session)
+    const slot = Boolean(into && isSlot(into)), puts = box.querySelectorAll("[data-put]");
+    let mode = into ? (chosenMode[slot ? "slot" : "box"] || (slot ? "replace" : "inside")) : "inside";
+    const paintPuts = () => puts.forEach((b) => { const on = b.dataset.put === mode; b.setAttribute("aria-checked", String(on)); b.className = `rounded-md px-2.5 py-1 font-medium ${on ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100"}`; });
+    paintPuts();
+    // the Gallery tab: published designs from the app, a dozen at a time, drawn only while in view
+    const gctl = box.querySelector("[data-gctl]"), gscroll = box.querySelector("[data-gscroll]"), ggrid = box.querySelector("[data-ggrid]"), gmore = box.querySelector("[data-gmore]");
+    const gitems = new Map(), drawn = [];
+    let source = "wire", gq = "", gkind = "component", gcat = "", gsort = "new", gpage = 0, gdone = false, gbusy = false, gseq = 0, gtimer = 0;
+    const GW = curWidth(), GH = screenHeightFor(GW), MAX_DRAWN = 36;
+    const gtile = (it) => `<button type="button" data-gid="${esc(it.id)}" class="group text-left"><div data-gprev class="relative overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900" style="aspect-ratio:${GW} / ${GH}"></div>
+        <div class="mt-1.5 flex items-center justify-between gap-2 text-xs"><span class="truncate font-medium text-neutral-800" title="${esc(it.title)}">${esc(it.title)}</span><span class="shrink-0 text-neutral-400" title="Author">${esc(it.author)}</span></div></button>`;
+    /** Draws a design into its tile (once; a tile that scrolls out keeps its drawing, up to MAX_DRAWN of them). */
+    const draw = (prev) => {
+        if (prev.dataset.drawn || !box) return;
+        const it = gitems.get(prev.parentElement.dataset.gid);
+        if (!it) return;
+        const f = document.createElement("iframe"), k = (prev.clientWidth || 200) / GW;
+        f.setAttribute("sandbox", "allow-scripts");
+        f.tabIndex = -1;
+        f.title = it.title;
+        f.style.cssText = `position:absolute;left:0;top:0;width:${GW}px;height:${GH}px;border:0;transform-origin:0 0;transform:scale(${k});pointer-events:none;background:#fff`;
+        f.srcdoc = buildPreviewDocument(parseComponentSource(it.html), { width: GW, fixedScreen: true, still: true });
+        prev.appendChild(f);
+        prev.dataset.drawn = "1";
+        drawn.push(prev);
+        if (drawn.length > MAX_DRAWN) { const old = drawn.shift(); old.innerHTML = ""; delete old.dataset.drawn; }
+    };
+    const gseen = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) draw(e.target); }), { root: gscroll, rootMargin: "300px" });
+    const refit = () => ggrid.querySelectorAll("[data-gprev] iframe").forEach((f) => { f.style.transform = `scale(${(f.parentElement.clientWidth || 200) / GW})`; });
+    /** The next dozen for the search as it is now; a new search starts over (an answer that arrives for an old one is dropped). */
+    async function gload(reset) {
+        if (reset) { gseq++; gpage = 0; gdone = false; gbusy = false; gitems.clear(); drawn.length = 0; ggrid.innerHTML = ""; gscroll.scrollTop = 0; gmore.textContent = "Loading…"; }
+        if (gdone || gbusy || !box) return;
+        gbusy = true;
+        const mine = gseq;
+        try {
+            const r = await host.listGallery({ q: gq, category: gcat, kind: gkind === "all" ? "" : gkind, sort: gsort, page: gpage + 1 });
+            if (mine !== gseq || !box) return;
+            gpage = r.page;
+            r.items.forEach((it) => { gitems.set(it.id, it); ggrid.insertAdjacentHTML("beforeend", gtile(it)); gseen.observe(ggrid.lastElementChild.querySelector("[data-gprev]")); });
+            gdone = !r.hasMore;
+            gmore.textContent = !gitems.size ? "No design matches." : gdone ? "That's all." : "Loading more…";
+        } catch (err) {
+            if (mine !== gseq) return;
+            gdone = true;
+            gmore.textContent = `${err.message || "Could not load the gallery"}. Close this and open it again to retry.`;
+        } finally { if (mine === gseq) gbusy = false; }
+        // still room below (a short list, a tall window): fill it
+        requestAnimationFrame(() => { if (!gdone && box && source === "gallery" && gmore.getBoundingClientRect().top < gscroll.getBoundingClientRect().bottom + 300) gload(false); });
+    }
+    const paintG = () => {
+        box.querySelectorAll("[data-gkind]").forEach((c) => { const on = c.dataset.gkind === gkind; c.className = `rounded-full border px-3 py-1 text-xs ${on ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-600 hover:border-neutral-400"}`; });
+    };
+    function setSource(next) {
+        source = next;
+        box.querySelectorAll("[data-source]").forEach((b) => { const on = b.dataset.source === source; b.setAttribute("aria-selected", String(on)); b.className = `rounded-md px-3 py-1 font-medium ${on ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100"}`; });
+        const g = source === "gallery";
+        box.querySelector("[data-chips]").classList.toggle("hidden", g);
+        scroller.classList.toggle("hidden", g);
+        gctl.classList.toggle("hidden", !g); gctl.classList.toggle("flex", g);
+        gscroll.classList.toggle("hidden", !g);
+        if (g) { paintG(); if (!gitems.size && !gbusy && !gdone) gload(true); requestAnimationFrame(refit); }
+    }
     openProbe();
     let pending = [], painting = false, gen = 0;
     /** Measures the tiles added since the last time, in the copy of the page, and draws them. */
@@ -191,24 +273,68 @@ function browse(o) {
     }
     watcher = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMore(); }, { root: scroller, rootMargin: "400px" });
     watcher.observe(more);
-    sizer = new ResizeObserver(() => fitTiles(grid));
+    sizer = new ResizeObserver(() => { fitTiles(grid); refit(); });
     sizer.observe(grid);
+    sizer.observe(ggrid);
+    const gwatch = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) gload(false); }, { root: gscroll, rootMargin: "400px" });
+    gwatch.observe(gmore);
+    cleanup = () => { gwatch.disconnect(); gseen.disconnect(); clearTimeout(gtimer); };
     onEsc = o.onClose;
     // the canvas pans and zooms with the wheel and the pointer: not under the browser
     ["wheel", "pointerdown"].forEach((t) => (o.modal ? box : card).addEventListener(t, (e) => e.stopPropagation()));
     if (o.modal) box.addEventListener("click", (e) => { if (!card.contains(e.target)) o.onClose(); });
     card.addEventListener("click", (e) => {
         if (e.target.closest("[data-skip]")) return o.onClose();
+        const src = e.target.closest("[data-source]");
+        if (src) return setSource(src.dataset.source);
+        const put = e.target.closest("[data-put]");
+        if (put) { mode = put.dataset.put; chosenMode[slot ? "slot" : "box"] = mode; return paintPuts(); }
+        const gk = e.target.closest("[data-gkind]");
+        if (gk) { gkind = gk.dataset.gkind; paintG(); return gload(true); }
         const chip = e.target.closest("[data-kind]");
         if (chip) return show(chip.dataset.kind);
+        const g = e.target.closest("[data-gid]");
+        if (g) {
+            const it = gitems.get(g.dataset.gid);
+            if (!it) return;
+            hide();
+            return o.onPick(designMarkup(it.html), { mode, from: { id: it.id, title: it.title, author: it.author }, ownConfig: Boolean(it.twConfig) || /tailwind\.config\s*=/.test(it.html) });
+        }
         const t = e.target.closest("[data-layout]");
         if (!t) return;
         const html = items.get(t.dataset.layout);
         if (!html) return;
         hide();
-        o.onPick(html);
+        o.onPick(html, { mode });
     });
+    box.querySelector("[data-gq]").addEventListener("input", (e) => { clearTimeout(gtimer); gtimer = setTimeout(() => { gq = e.target.value.trim(); gload(true); }, 300); });
+    box.querySelector("[data-gcat]").addEventListener("change", (e) => { gcat = e.target.value; gload(true); });
+    box.querySelector("[data-gsort]").addEventListener("change", (e) => { gsort = e.target.value; gload(true); });
     show("all");
+    setSource("wire");
+}
+
+/** A gallery design as what goes into a page: its body markup, with its own CSS after it (a design may carry some; its scripts are not taken). */
+function designMarkup(html) {
+    const p = parseComponentSource(html);
+    const css = p.styles.map((st) => `<style${st.type ? ` type="${esc(st.type)}"` : ""}>${st.text.replace(/<\/style/gi, "<\\/style")}</style>`).join("\n");
+    return [p.markup.trim(), css].filter(Boolean).join("\n");
+}
+
+/** A design (or a wireframe) made to take the place of a slot: its root keeps the slot's size and place in the layout; several roots are wrapped in one. */
+function fitToSlot(markup, info) {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = markup;
+    const roots = [...tpl.content.children].filter((el) => !/^(STYLE|SCRIPT|LINK)$/.test(el.tagName));
+    const apply = (el) => { const c = fillClasses(info.classes, el.getAttribute("class") || ""); if (c) el.setAttribute("class", c); else el.removeAttribute("class"); };
+    if (roots.length === 1) apply(roots[0]);
+    else if (roots.length > 1) {
+        const wrap = document.createElement(/^[a-z][a-z0-9-]*$/.test(info.tag) ? info.tag : "div");
+        apply(wrap);
+        tpl.content.insertBefore(wrap, roots[0]);
+        roots.forEach((el) => wrap.appendChild(el));
+    }
+    return tpl.innerHTML;
 }
 
 // ── An empty page: a tip pointing at the wireframes ─────────────────────────────────────────────────────────────────
@@ -273,19 +399,76 @@ export function syncLayoutPicker() {
     if (want) showTip(); else hideTip();
 }
 
+// ── Putting a pick in the page ─────────────────────────────────────────────────────────────────────────────────────────────
+let noteEl = null, noteTimer = 0;
+/** A small note over the canvas, with buttons: what was done and the other way to do it. */
+function note(text, actions = []) {
+    clearTimeout(noteTimer);
+    if (noteEl) noteEl.remove();
+    noteEl = document.createElement("div");
+    noteEl.id = "pickNote";
+    noteEl.className = "pointer-events-auto absolute bottom-6 left-1/2 z-[60] flex max-w-[90%] -translate-x-1/2 items-center gap-3 rounded-xl bg-neutral-900 px-4 py-2.5 text-xs text-white shadow-[0_8px_30px_rgba(0,0,0,.25)]";
+    noteEl.innerHTML = `<span>${esc(text)}</span>${actions.map(([label], i) => `<button type="button" data-act="${i}" class="rounded-md bg-white px-2.5 py-1 font-medium text-neutral-900 hover:bg-neutral-100">${esc(label)}</button>`).join("")}<button type="button" data-x aria-label="Dismiss" class="text-neutral-400 hover:text-white">×</button>`;
+    noteEl.addEventListener("click", (e) => {
+        if (e.target.closest("[data-x]")) { noteEl.remove(); noteEl = null; return; }
+        const b = e.target.closest("[data-act]");
+        if (b) { const f = actions[Number(b.dataset.act)][1]; noteEl.remove(); noteEl = null; f(); }
+    });
+    ["wheel", "pointerdown"].forEach((t) => noteEl.addEventListener(t, (e) => e.stopPropagation()));
+    $("canvas").appendChild(noteEl);
+    noteTimer = setTimeout(() => { if (noteEl) { noteEl.remove(); noteEl = null; } }, 10000);
+}
+
+const OTHER = { replace: ["inside", "Add inside instead"], inside: ["replace", "Replace instead"] };
+/** The slot as it was (its tag, its classes and attributes), with `html` inside it: what "Add inside instead" turns a replaced slot into. */
+const slotWith = (into, html) => {
+    const attrs = Object.entries(into.attrs || {}).map(([k, v]) => ` ${k}="${esc(v)}"`).join("");
+    return `<${into.tag} class="${esc(into.classes || "")}"${attrs}>${html}</${into.tag}>`;
+};
 /**
- * The wireframe browser as a popup, from the Properties panel: `target` is the selected element ({ path, tag }) or null for the page.
- * A pick goes inside that element (after what it holds) or at the end of the page (or fills it when it is empty). One undo step.
+ * Puts a pick where `how.mode` says: replace the selected element (a wireframe's slot keeps its size and place in the layout), add inside it,
+ * or add after it; with nothing selected, at the end of the page (or in an empty page). One undo step. A note offers the other way.
+ */
+function place(html, how, into, again = false) {
+    const mode = into ? how.mode || "inside" : "inside";
+    if (!into) {
+        if (model.markup.trim() === "") addToEmpty(html);
+        else cmd({ cmd: "insert", path: [], html, position: "inside" });
+    } else if (mode === "replace") {
+        cmd({ cmd: "fill", path: into.path, html: isSlot(into) ? fitToSlot(html, into) : html });
+    } else {
+        cmd({ cmd: "insert", path: into.path, html, position: mode === "after" ? "after" : "inside" });
+    }
+    if (how.from) addSource(how.from);
+    const actions = [];
+    if (into && OTHER[mode] && !again) {
+        const [next, label] = OTHER[mode];
+        // the other way, straight from here (a second step: undo twice to get back to before the pick)
+        actions.push([label, () => {
+            const html2 = next === "inside" ? slotWith(into, html) : isSlot(into) ? fitToSlot(html, into) : html;
+            cmd({ cmd: "fill", path: into.path, html: html2 });
+            if (how.from) addSource(how.from);
+            note(next === "inside" ? "Added inside it." : "Replaced it.");
+        }]);
+    }
+    if (how.from || actions.length) {
+        const parts = [mode === "replace" ? "Replaced it" : mode === "after" ? "Added after it" : into ? "Added inside it" : "Added"];
+        if (how.ownConfig) parts.push("this design brings its own Tailwind config, so colours may differ from your theme");
+        note(parts.join(". ") + ".", actions);
+    }
+}
+
+/**
+ * The wireframe browser as a popup, from the Properties panel: `target` is the selected element ({ path, tag, classes, kids, ownText }) or
+ * null for the page. A pick goes where the choice in the popup says (replace the selected element, inside it, or after it) or at the end of
+ * the page (or fills it when it is empty). One undo step.
  */
 export function openWireframes(target) {
     hideTip();
     const into = target && target.path && target.path.length ? target : null;
     browse({
-        title: into ? `Add a wireframe inside this ${into.tag}` : "Add a wireframe to the frame", modal: true, into, onClose: hide,
-        onPick: (html) => {
-            if (!into && model.markup.trim() === "") return addToEmpty(html);
-            cmd({ cmd: "insert", path: into ? into.path : [], html, position: "inside" });
-        },
+        title: into ? `Add to this ${into.tag}` : "Add to the frame", modal: true, into, gallery: typeof host.listGallery === "function", onClose: hide,
+        onPick: (html, how = {}) => place(html, how, into),
     });
 }
 

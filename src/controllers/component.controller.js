@@ -19,6 +19,11 @@ export const normalizeTags = (tags) => {
 };
 
 // Get all components
+/** The gallery designs a design was built from (id, title, author): a short list of short strings. */
+const cleanSources = (list) => (Array.isArray(list) ? list : []).slice(0, 20)
+    .map((x) => ({ id: String((x && x.id) || "").slice(0, 40), title: String((x && x.title) || "").slice(0, 120), author: String((x && x.author) || "").slice(0, 80) }))
+    .filter((x) => x.id);
+
 export const getAllComponents = async (req, res) => {
     try {
         const { category } = req.query;
@@ -30,7 +35,7 @@ export const getAllComponents = async (req, res) => {
         }
 
         const components = await Component.find(query)
-            .populate('createdBy', 'name email')
+            .populate('createdBy', 'name')
             .sort('-createdAt');
 
         res.status(200).json({
@@ -48,7 +53,7 @@ export const getAllComponents = async (req, res) => {
 // Get single component
 export const getComponentById = async (req, res) => {
     try {
-        const component = await Component.findById(req.params.id).populate('createdBy', 'name email');
+        const component = await Component.findById(req.params.id).populate('createdBy', 'name');
 
         if (!component) {
             return res.status(404).json({
@@ -82,7 +87,7 @@ async function makeParts(userId, page) {
 // Create component
 export const createComponent = async (req, res) => {
     try {
-        const { title, category, description, htmlCode, tags, isPublished, useAsReference, project: projectRef, group, draftId, kind: askedKind } = req.body;
+        const { title, category, description, htmlCode, tags, isPublished, useAsReference, project: projectRef, group, draftId, kind: askedKind, sources } = req.body;
         const project = await resolveProject(req.session.user.id, projectRef);
         if (!project) return res.status(400).json({ success: false, message: 'Choose a project: every design belongs to one' });
 
@@ -105,6 +110,7 @@ export const createComponent = async (req, res) => {
             group: project ? await fitGroup(req.session.user.id, project._id, normalizeGroup(group)) : "",
             isPublished: isPublished === true || isPublished === "true", // private until its owner turns Public on
             useAsReference: !(useAsReference === false || useAsReference === "false"), // AI may use it as a style reference unless the owner says no
+            sources: cleanSources(sources),
             createdBy: req.session.user.id
         });
 
@@ -148,7 +154,7 @@ export const updateComponent = async (req, res) => {
             });
         }
 
-        const { title, category, description, htmlCode, isPublished, tags, note, useAsReference, project: projectRef, board, group, twConfig, kind: askedKind } = req.body;
+        const { title, category, description, htmlCode, isPublished, tags, note, useAsReference, project: projectRef, board, group, twConfig, kind: askedKind, sources } = req.body;
         let codeChanged = false;
         const kindWas = component.kind === 'page';
 
@@ -186,6 +192,7 @@ export const updateComponent = async (req, res) => {
         if (description) component.description = description;
         if (typeof useAsReference === 'boolean' || useAsReference === 'true' || useAsReference === 'false') component.useAsReference = useAsReference === true || useAsReference === 'true';
         if (tags !== undefined) component.tags = normalizeTags(tags);
+        if (sources !== undefined) component.sources = cleanSources(sources);
         if (typeof isPublished !== 'undefined') component.isPublished = isPublished === true || isPublished === "true";
 
         const wasPage = component.kind === 'page' && !kindWas;

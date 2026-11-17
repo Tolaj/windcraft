@@ -77,6 +77,8 @@ const componentSchema = new mongoose.Schema(
             ref: "Component",
             default: null
         },
+        // gallery designs put into this one from the editor's Gallery tab: who made them (shown in the details, never in the code)
+        sources: { type: [{ id: String, title: String, author: String, _id: false }], default: [] },
         partHash: { type: String, default: "" }, // a generated part: a fingerprint of the code made for it, to tell if someone has changed it by hand
         useAsReference: {
             type: Boolean,

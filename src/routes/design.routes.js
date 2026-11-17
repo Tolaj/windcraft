@@ -66,7 +66,7 @@ router.get("/:id", async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return notFound(req, res);
     try {
         const find = () => Component.findOne({ _id: req.params.id, createdBy: req.session.user.id })
-            .select("title htmlCode version category description tags isPublished useAsReference project kind parent board group frameW twConfig")
+            .select("title htmlCode version category description tags isPublished useAsReference project kind parent board group frameW twConfig sources")
             .lean();
         let c = await retry(find);
         if (!c) { await wait(600); c = await retry(find); } // a design saved a moment ago may not be readable everywhere yet
@@ -84,6 +84,7 @@ router.get("/:id", async (req, res) => {
             figmaSource: await optional("the Figma data", () => figmaSourceInfo(c._id), null),
             id: String(c._id), title: c.title, group: c.group || "", frameW: c.frameW || null, version: c.version || 1, htmlCode: c.htmlCode,
             category: c.category, description: c.description, tags: c.tags || [], isPublished: c.isPublished, useAsReference: c.useAsReference !== false,
+            sources: (c.sources || []).map((x) => ({ id: x.id, title: x.title, author: x.author })),
             kind: c.kind, parent: c.parent ? String(c.parent) : null, board: boardOf(c), plane,
             groups: pl ? pl.groups : [], planeGroup: pl ? pl.group : null, planeTruncated: pl ? pl.truncated : false,
         }, c.title);

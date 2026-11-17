@@ -13,6 +13,7 @@ import connectRoutes from "./connect.routes.js";
 import oauthRoutes from "./oauth.routes.js";
 import designRoutes from "./design.routes.js";
 import { projectPages, projectApi, sharePages, protoPages } from "./project.routes.js";
+import { galleryApi } from "./gallery.routes.js";
 import { communityPages, communityApi } from "./community.routes.js";
 import { adminPages, adminApi } from "./admin.routes.js";
 
@@ -57,6 +58,7 @@ const constructorMethod = (app) => {
     app.use("/api/admin", ensureAuthAPI, ensureAdmin, adminApi);
     app.use("/community", communityPages); // a public project: open to anyone
     app.use("/api/community", communityApi);
+    app.use("/api/gallery", galleryApi); // the designs for the editor's Gallery tab: open to anyone
     app.use("/p", sharePages); // a project's share link: open to anyone who has it
     app.use("/prototype", protoPages); // the prototype view: open to anyone who has its link, or to the owner by project id
     app.get(["/catalog", "/catalog/{*rest}"], (req, res) => res.redirect(301, "/")); // the gallery is the catalog
