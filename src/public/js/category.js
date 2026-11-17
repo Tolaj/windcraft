@@ -65,7 +65,7 @@ import { DEVICES, buildDeviceFrame } from '@windcraft/editor/design/device-frame
         const previewInner = document.getElementById(`preview-inner-${componentId}`);
         const code = document.getElementById(`code-content-${componentId}`);
         if (!previewInner || !code) return;
-        const doc = new DOMParser().parseFromString(code.textContent, "text/html");
+        const doc = new DOMParser().parseFromString(code.dataset.raw ?? code.textContent, "text/html"); // (the code box may show it indented: the original is kept in data-raw)
         doc.querySelectorAll("script").forEach((s) => s.remove());
         previewInner.replaceChildren(...doc.head.querySelectorAll("style"), ...doc.body.childNodes);
         setTimeout(() => fixComponentPositioning(componentId), 50);
@@ -126,7 +126,20 @@ import { DEVICES, buildDeviceFrame } from '@windcraft/editor/design/device-frame
 
     // ─── Preview / Code Tab ───────────────────────────────────────────────────
 
+    /** The Code tab shows the code with tidy indentation. Done the first time it is needed (the formatter loads then), the original kept for drawing. */
+    async function formatCodeBox(id) {
+        const code = document.getElementById(`code-content-${id}`);
+        if (!code || code.dataset.raw !== undefined) return;
+        const raw = code.textContent;
+        code.dataset.raw = raw;
+        try {
+            const { formatHtml } = await import('@windcraft/editor/design/code-view.js');
+            code.textContent = formatHtml(raw);
+        } catch { delete code.dataset.raw; /* the code stays as it was written */ }
+    }
+
     window.toggleTab = function (id, tab) {
+        if (tab === 'code') formatCodeBox(id);
         const preview = document.getElementById(`preview-${id}`);
         const code = document.getElementById(`code-${id}`);
         const previewBtn = document.getElementById(`preview-btn-${id}`);
@@ -302,10 +315,11 @@ import { DEVICES, buildDeviceFrame } from '@windcraft/editor/design/device-frame
 
     // ─── Copy Code ────────────────────────────────────────────────────────────
 
-    window.copyCode = function (id) {
+    window.copyCode = async function (id) {
         const codeEl = document.getElementById(`code-content-${id}`);
         const btn = document.getElementById(`copy-btn-${id}`);
         if (!codeEl || !btn) return;
+        await formatCodeBox(id); // what is copied is the tidy code, as the Code tab shows it
 
         navigator.clipboard.writeText(codeEl.innerText).then(() => {
             const originalHTML = btn.innerHTML;
