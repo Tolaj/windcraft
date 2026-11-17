@@ -1,4 +1,4 @@
-// End to end: the landing page for someone signed out: the sidebar starts closed, New design asks to sign in, the hero offers Get started and Documentation. Signed in, the sidebar starts open.
+// End to end: the landing page for someone signed out: the sidebar starts closed, New design asks to sign in, the hero offers Get started and Try demo. Signed in, the sidebar starts open.
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
@@ -14,7 +14,7 @@ before(async () => {
 });
 after(async () => { if (skip) return; if (browser) await within(browser.close()); if (stack) await within(stack.stop(), 20000); });
 
-test("signed out: sidebar closed, New design goes to sign in, hero shows Get started and Documentation; signed in: sidebar open", { skip: skip || false, timeout: 120000 }, async () => {
+test("signed out: sidebar closed, New design goes to sign in, hero shows Get started and Try demo; signed in: sidebar open", { skip: skip || false, timeout: 120000 }, async () => {
     const out = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await out.newPage();
     await page.goto(`${stack.base}/`);
@@ -23,7 +23,7 @@ test("signed out: sidebar closed, New design goes to sign in, hero shows Get sta
     const nav = page.locator("#navNewDesign");
     assert.match((await nav.textContent()).trim(), /New design/);
     assert.match(await nav.getAttribute("href"), /\/auth\/sign-in/, "New design leads to the sign-in page");
-    assert.ok(await page.getByRole("link", { name: "Documentation" }).first().isVisible(), "the hero links to the documentation");
+    assert.ok(await page.getByRole("link", { name: "Try demo" }).first().isVisible(), "the hero links to the demo");
     assert.ok(await page.getByRole("link", { name: "Get started" }).first().isVisible(), "and offers Get started");
     await page.getByRole("link", { name: "New design" }).click();
     await page.waitForURL(/\/auth\/sign-in/, { timeout: 15000 });
