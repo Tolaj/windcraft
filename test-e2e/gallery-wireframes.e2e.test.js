@@ -104,3 +104,46 @@ test("a gallery sidebar fills a wireframe's sidebar slot: the slot keeps its siz
     assert.ok(!saved.data.htmlCode.includes("Ada"), "and the code does not mention it");
     await ctx.close();
 });
+
+test("each design and layout has a full-preview icon: it opens a large preview over the dialog, Escape or Back returns, Use puts it in the page", { skip: skip || false, timeout: 240000 }, async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+    const made = await (await ctx.request.post(`${stack.base}/api/components`, { data: { title: "Blank two", category: "landing-page", description: "d", htmlCode: "<div></div>", project: ids.project, kind: "page" } })).json();
+    const page = await ctx.newPage();
+    await page.goto(`${stack.base}/design/${made.data._id}`);
+    await page.locator("#panelBtn").waitFor({ timeout: 60000 });
+    await page.waitForTimeout(2500);
+    if (!(await page.locator("#inspector").isVisible())) await page.locator("#panelBtn").click();
+    await page.locator("#inspector .wfbtn").first().click();
+    await page.locator("#layoutPicker").waitFor();
+
+    // a layout: the icon is there once it is drawn
+    await page.waitForSelector("[data-layout] [data-expand]", { timeout: 30000 });
+    const layout = page.locator("[data-layout]").first();
+    await layout.hover();
+    await layout.locator("[data-expand]").click();
+    await page.waitForSelector("[data-xstage] [data-shrink] > div", { timeout: 10000 });
+    await page.locator("[data-xback]").click();
+    assert.equal(await page.locator("[data-xstage]").count(), 0, "Back closes the preview");
+    assert.equal(await page.locator("#layoutPicker").count(), 1, "and the dialog stays");
+
+    // a design
+    await page.locator('[data-source="gallery"]').click();
+    await page.locator("[data-gq]").fill("sidebar");
+    await page.waitForFunction(() => document.querySelectorAll("[data-gid]").length === 1, null, { timeout: 15000 });
+    const design = page.locator("[data-gid]").first();
+    await design.hover();
+    await design.locator("[data-expand]").click();
+    await page.waitForSelector("[data-xstage] iframe", { timeout: 10000 });
+    assert.equal(await page.locator("#layoutPicker").count(), 1, "a click on the icon is not a pick");
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator("[data-xstage]").count(), 0, "Escape closes the preview");
+    assert.equal(await page.locator("#layoutPicker").count(), 1, "and not the dialog");
+    await design.hover();
+    await design.locator("[data-expand]").click();
+    await page.locator("[data-xuse]").click();
+    await page.waitForTimeout(2000);
+    assert.equal(await page.locator("#layoutPicker").count(), 0, "Use puts it in the page and closes the dialog");
+    assert.match(await page.frameLocator("#frame").locator("body").innerText(), /Menu/, "the sidebar is in the page");
+    await ctx.close();
+});

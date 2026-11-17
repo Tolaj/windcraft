@@ -98,10 +98,13 @@ function tile(id, name) {
         <div class="mt-1.5 truncate text-xs text-neutral-600 group-hover:text-neutral-900" title="${esc(name)}">${esc(name)}</div>
     </button>`;
 }
+/** The full-preview icon in a tile's corner (it shows on hover or focus): it opens the design or layout large, over the dialog. */
+const EXPAND = `<span role="button" tabindex="0" data-expand aria-label="Full preview" title="Full preview" class="absolute right-1.5 top-1.5 z-[1] flex h-6 w-6 items-center justify-center rounded-md border border-neutral-200 bg-white/90 text-neutral-600 opacity-0 transition hover:text-neutral-900 group-hover:opacity-100 focus-visible:opacity-100"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span>`;
 /** Draws a measured wireframe into its tile. */
 function paint(t, m) {
     const f = t && t.querySelector("[data-shrink]");
     if (!f || !m) return;
+    if (!f.parentElement.querySelector("[data-expand]")) f.parentElement.insertAdjacentHTML("beforeend", EXPAND); // a layout can be seen large once it is drawn
     f.dataset.w = String(m.w);
     f.style.width = `${m.w}px`;
     f.style.height = `${m.h}px`;
@@ -138,7 +141,7 @@ function browse(o) {
     // a dialog sits over the canvas toolbars too; the empty page's card under them, so they stay usable
     box.className = o.modal ? "absolute inset-0 z-[60] flex items-center justify-center bg-black/10 p-6" : "pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-6 pb-6 pt-20";
     const chips = [["all", "All"], ...Object.entries(KIND_NAMES)];
-    box.innerHTML = `<style>@keyframes wcShow{to{opacity:1}}</style><div data-card style="min-height:min(34rem,100%)" class="pointer-events-auto flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
+    box.innerHTML = `<style>@keyframes wcShow{to{opacity:1}}</style><div data-card style="min-height:min(34rem,100%)" class="pointer-events-auto relative flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
         <div class="flex items-center justify-between gap-4 px-5 pt-5"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(o.title)}</h2>
             <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${esc(o.closeLabel || "Close")}</button></div>
         ${o.gallery || into ? `<div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-3">
@@ -162,7 +165,8 @@ function browse(o) {
     </div>`;
     $("canvas").appendChild(box);
     const card = box.querySelector("[data-card]"), grid = box.querySelector("[data-grid]"), more = box.querySelector("[data-more]"), scroller = box.querySelector("[data-scroll]");
-    const items = new Map();
+    const items = new Map(), meas = new Map(); // meas: each drawn layout's measured boxes (for its full preview)
+    let xview = null, xro = null; // the full preview open over the dialog, and what watches its size
     let kind = "all", n = 0, seen = new Set(), done = false;
     // where a pick goes: a slot of a wireframe is replaced, a box is added to (the choice is remembered, per kind of target, in this editor session)
     const slot = Boolean(into && isSlot(into)), puts = box.querySelectorAll("[data-put]");
@@ -180,7 +184,7 @@ function browse(o) {
     const skel = () => `<div data-skel class="absolute inset-0" style="${LATE}" aria-hidden="true">${sketch()}</div>`;
     /** Placeholder tiles while a dozen designs are on their way (also only if they take longer than a blink). */
     const placeholders = (n) => Array.from({ length: n }, () => `<div data-gph aria-hidden="true" style="${LATE}"><div class="relative overflow-hidden rounded-lg border border-neutral-200 bg-white" style="aspect-ratio:${GW} / ${GH}"><div class="absolute inset-0">${sketch()}</div></div><div class="mt-1.5 h-3 w-1/2 animate-pulse rounded bg-neutral-100"></div></div>`).join("");
-    const gtile = (it) => `<button type="button" data-gid="${esc(it.id)}" class="group text-left"><div data-gprev class="relative overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900" style="aspect-ratio:${GW} / ${GH}">${skel()}</div>
+    const gtile = (it) => `<button type="button" data-gid="${esc(it.id)}" class="group text-left"><div data-gprev class="relative overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900" style="aspect-ratio:${GW} / ${GH}">${skel()}${EXPAND}</div>
         <div class="mt-1.5 flex items-center justify-between gap-2 text-xs"><span class="truncate font-medium text-neutral-800" title="${esc(it.title)}">${esc(it.title)}</span><span class="shrink-0 text-neutral-400" title="Author">${esc(it.author)}</span></div></button>`;
     /** Draws a design into its tile (once; a tile that scrolls out keeps its drawing, up to MAX_DRAWN of them). */
     const draw = (prev) => {
@@ -201,7 +205,7 @@ function browse(o) {
         prev.appendChild(f);
         prev.dataset.drawn = "1";
         drawn.push(prev);
-        if (drawn.length > MAX_DRAWN) { const old = drawn.shift(); old.innerHTML = skel(); delete old.dataset.drawn; }
+        if (drawn.length > MAX_DRAWN) { const old = drawn.shift(); old.innerHTML = skel() + EXPAND; delete old.dataset.drawn; }
     };
     const gseen = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) draw(e.target); }), { root: gscroll, rootMargin: "300px" });
     const refit = () => ggrid.querySelectorAll("[data-gprev] iframe").forEach((f) => { f.style.transform = `scale(${(f.parentElement.clientWidth || 200) / GW})`; });
@@ -252,7 +256,7 @@ function browse(o) {
             const batch = pending.splice(0, 12), g = gen;
             const ms = await measure(batch.map((id) => items.get(id)), into);
             if (g !== gen || !box) continue; // the list was refiltered meanwhile
-            batch.forEach((id, i) => paint(grid.querySelector(`[data-layout="${CSS.escape(id)}"]`), ms[i]));
+            batch.forEach((id, i) => { if (ms[i]) meas.set(id, ms[i]); paint(grid.querySelector(`[data-layout="${CSS.escape(id)}"]`), ms[i]); });
             fitTiles(grid);
         }
         painting = false;
@@ -292,13 +296,81 @@ function browse(o) {
     sizer.observe(ggrid);
     const gwatch = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) gload(false); }, { root: gscroll, rootMargin: "400px" });
     gwatch.observe(gmore);
-    cleanup = () => { gwatch.disconnect(); gseen.disconnect(); clearTimeout(gtimer); };
+    cleanup = () => { gwatch.disconnect(); gseen.disconnect(); clearTimeout(gtimer); if (xro) xro.disconnect(); };
     onEsc = o.onClose;
     // the canvas pans and zooms with the wheel and the pointer: not under the browser
     ["wheel", "pointerdown"].forEach((t) => (o.modal ? box : card).addEventListener(t, (e) => e.stopPropagation()));
     if (o.modal) box.addEventListener("click", (e) => { if (!card.contains(e.target)) o.onClose(); });
+    /** Puts a layout or a design in the page, where the choice says (also from the full preview). */
+    function choose(id, isDesign) {
+        if (isDesign) {
+            const it = gitems.get(id);
+            if (!it) return;
+            hide();
+            return o.onPick(designMarkup(it.html), { mode, from: { id: it.id, title: it.title, author: it.author }, ownConfig: Boolean(it.twConfig) || /tailwind\.config\s*=/.test(it.html) });
+        }
+        const html = items.get(id);
+        if (!html) return;
+        hide();
+        o.onPick(html, { mode });
+    }
+    const MODE_LABEL = { replace: "Replace selected", inside: "Add inside", after: "Add after" };
+    function closeX() {
+        if (xro) { xro.disconnect(); xro = null; }
+        if (xview) { xview.remove(); xview = null; }
+        onEsc = o.onClose;
+    }
+    /** A design or a layout large, over the whole dialog: its real preview, with a button to use it. Escape or Back returns to the list. */
+    function openX(tileEl) {
+        if (!tileEl) return;
+        const isDesign = Boolean(tileEl.dataset.gid), id = isDesign ? tileEl.dataset.gid : tileEl.dataset.layout;
+        const it = isDesign ? gitems.get(id) : null, m = isDesign ? null : meas.get(id);
+        if (!it && !m) return;
+        closeX();
+        const title = isDesign ? it.title : (tileEl.querySelector(".truncate") || {}).textContent || "Layout";
+        xview = document.createElement("div");
+        xview.className = "absolute inset-0 z-10 flex flex-col bg-white";
+        xview.innerHTML = `<div class="flex items-center gap-3 border-b border-neutral-100 px-5 py-3">
+            <button type="button" data-xback class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900">← Back</button>
+            <div class="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900" title="${esc(title)}">${esc(title)}${isDesign ? ` <span class="font-normal text-neutral-400">by ${esc(it.author)}</span>` : ""}</div>
+            <button type="button" data-xuse class="shrink-0 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700">${into ? MODE_LABEL[mode] : "Add to the frame"}</button></div>
+            <div class="min-h-0 flex-1 bg-neutral-50 p-4"><div data-xstage class="relative h-full w-full overflow-hidden rounded-lg border border-neutral-200 bg-white"></div></div>`;
+        card.appendChild(xview);
+        const stage = xview.querySelector("[data-xstage]");
+        let fit;
+        if (isDesign) {
+            const f = document.createElement("iframe"), parsed = parseComponentSource(it.html);
+            parsed.markup = centered(parsed.markup);
+            f.setAttribute("sandbox", "allow-scripts");
+            f.title = it.title;
+            f.srcdoc = buildPreviewDocument(parsed, { width: GW, fixedScreen: true, still: true });
+            f.style.cssText = `position:absolute;left:0;top:0;width:${GW}px;border:0;transform-origin:0 0;background:#fff`;
+            stage.appendChild(f);
+            fit = () => { const W = stage.clientWidth, H = stage.clientHeight; if (!W || !H) return; const k = W / GW; f.style.transform = `scale(${k})`; f.style.height = `${H / k}px`; };
+        } else {
+            const holder = document.createElement("div");
+            holder.setAttribute("data-shrink", "");
+            holder.className = "absolute left-0 top-0 origin-top-left";
+            holder.style.width = `${m.w}px`; holder.style.height = `${m.h}px`;
+            holder.innerHTML = m.boxes.map(([x, y, w, h, css]) => `<div style="position:absolute;box-sizing:border-box;left:${x}px;top:${y}px;width:${w}px;height:${h}px;${css}"></div>`).join("");
+            stage.appendChild(holder);
+            fit = () => { const W = stage.clientWidth, H = stage.clientHeight; if (!W || !H) return; const k = Math.min(W / m.w, H / m.h); holder.style.transform = `translate(${(W - m.w * k) / 2}px, ${(H - m.h * k) / 2}px) scale(${k})`; };
+        }
+        fit();
+        xro = new ResizeObserver(fit);
+        xro.observe(stage);
+        xview.addEventListener("click", (e) => {
+            e.stopPropagation(); // the button is gone from the page by the time this reaches the dialog's backdrop, which would read it as a click outside
+            if (e.target.closest("[data-xback]")) return closeX();
+            if (e.target.closest("[data-xuse]")) return choose(id, isDesign);
+        });
+        onEsc = closeX; // Escape closes the preview first, then the dialog
+        xview.querySelector("[data-xuse]").focus();
+    }
     card.addEventListener("click", (e) => {
         if (e.target.closest("[data-skip]")) return o.onClose();
+        const ex = e.target.closest("[data-expand]");
+        if (ex) { e.preventDefault(); e.stopPropagation(); return openX(ex.closest("[data-gid], [data-layout]")); }
         const src = e.target.closest("[data-source]");
         if (src) return setSource(src.dataset.source);
         const put = e.target.closest("[data-put]");
@@ -308,18 +380,13 @@ function browse(o) {
         const chip = e.target.closest("[data-kind]");
         if (chip) return show(chip.dataset.kind);
         const g = e.target.closest("[data-gid]");
-        if (g) {
-            const it = gitems.get(g.dataset.gid);
-            if (!it) return;
-            hide();
-            return o.onPick(designMarkup(it.html), { mode, from: { id: it.id, title: it.title, author: it.author }, ownConfig: Boolean(it.twConfig) || /tailwind\.config\s*=/.test(it.html) });
-        }
+        if (g) return choose(g.dataset.gid, true);
         const t = e.target.closest("[data-layout]");
-        if (!t) return;
-        const html = items.get(t.dataset.layout);
-        if (!html) return;
-        hide();
-        o.onPick(html, { mode });
+        if (t) return choose(t.dataset.layout, false);
+    });
+    card.addEventListener("keydown", (e) => { // the icon is a button inside the tile's button: Enter or Space on it opens the full preview, not the pick
+        const ex = e.target.closest && e.target.closest("[data-expand]");
+        if (ex && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); e.stopPropagation(); openX(ex.closest("[data-gid], [data-layout]")); }
     });
     box.querySelector("[data-gq]").addEventListener("input", (e) => { clearTimeout(gtimer); gtimer = setTimeout(() => { gq = e.target.value.trim(); gload(true); }, 300); });
     box.querySelector("[data-gcat]").addEventListener("change", (e) => { gcat = e.target.value; gload(true); });
