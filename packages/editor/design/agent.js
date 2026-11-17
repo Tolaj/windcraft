@@ -706,6 +706,8 @@ export function agentMain() {
             classes: el.getAttribute("class") || "",
             style: el.getAttribute("style") || "",
             leaf: el.children.length === 0,
+            index: el.parentElement ? Array.prototype.filter.call(el.parentElement.children, (k) => !/^(SCRIPT|STYLE)$/.test(k.tagName)).indexOf(el) : 0, // where it sits among its siblings (a sidebar is first in its row, a footer last)
+            siblings: el.parentElement ? Array.prototype.filter.call(el.parentElement.children, (k) => !/^(SCRIPT|STYLE)$/.test(k.tagName)).length : 0,
             kids: Array.prototype.filter.call(el.children, (c) => !/^(SCRIPT|STYLE)$/.test(c.tagName)).length, // for "animate the children one after another"
             group: el.hasAttribute("data-wc-group"),
             ownText: Array.prototype.some.call(el.childNodes, (n) => n.nodeType === 3 && n.textContent.trim() !== ""), // text of its own: Typography shows

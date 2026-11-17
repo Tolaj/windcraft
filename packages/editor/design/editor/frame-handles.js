@@ -146,6 +146,7 @@ export function applyPanel(key, raw) {
     return setProps([`${kind}-${side}`], val, `${k}${side[0]}`);
 }
 export const FLOAT_ACTIONS = {
+    layouts() { document.dispatchEvent(new CustomEvent("wc-wireframes")); }, // the layouts and designs for the selected element (layout-picker.js listens)
     bold() {
         if (S.editingInfo && S.editingInfo.on) return send({ cmd: "exec", name: "bold" });
         const on = parseInt(S.selected.computed["font-weight"], 10) >= 600;

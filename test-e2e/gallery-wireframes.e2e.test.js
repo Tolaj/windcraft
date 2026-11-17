@@ -73,7 +73,9 @@ test("a gallery sidebar fills a wireframe's sidebar slot: the slot keeps its siz
 
     await page.locator('[data-source="gallery"]').click();
     await page.waitForSelector("[data-gid]", { timeout: 30000 });
-    assert.ok((await page.locator("[data-gid]").count()) >= 12, "the gallery lists designs");
+    assert.equal(await page.locator("[data-gid]").count(), 1, "a sidebar slot: only the sidebar designs are listed");
+    await page.locator('[data-srole="sidebar"]').click(); // the filter off: every design
+    await page.waitForFunction(() => document.querySelectorAll("[data-gid]").length >= 12, null, { timeout: 20000 });
     await page.locator("[data-gq]").fill("sidebar");
     await page.waitForFunction(() => document.querySelectorAll("[data-gid]").length === 1, null, { timeout: 15000 });
     await page.waitForSelector("[data-gprev] iframe", { timeout: 15000 });

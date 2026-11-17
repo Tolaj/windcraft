@@ -7,6 +7,7 @@ import { stillDocument } from "./docs.js";
 import { curWidth } from "./plane.js";
 import { screenHeightFor, parseComponentSource, buildPreviewDocument } from "../../playground/component-source.js";
 import { fillClasses, isSlot } from "../../../core/slot-fill.js";
+import { ROLES, KINDS_FOR_ROLE, roleOfElement } from "../../../core/roles.js";
 import { KIND_NAMES, LAYOUTS, SECTIONS, wireframe } from "../../../core/wireframes.js";
 export { LAYOUTS, SECTIONS };
 
@@ -140,7 +141,9 @@ function browse(o) {
     box.dataset.modal = o.modal ? "1" : "";
     // a dialog sits over the canvas toolbars too; the empty page's card under them, so they stay usable
     box.className = o.modal ? "absolute inset-0 z-[60] flex items-center justify-center bg-black/10 p-6" : "pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-6 pb-6 pt-20";
-    const chips = [["all", "All"], ...Object.entries(KIND_NAMES)];
+    const suitedRoles = o.suited && o.suited.role ? [o.suited.role, ...o.suited.alts] : []; // what the selected element is, and what else it could be
+    let sRole = suitedRoles[0] || null; // the role the lists are narrowed to (null: everything)
+    const chips = [["suited", "Suited"], ["all", "All"], ...Object.entries(KIND_NAMES)];
     box.innerHTML = `<style>@keyframes wcShow{to{opacity:1}}</style><div data-card style="min-height:min(34rem,100%)" class="pointer-events-auto relative flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
         <div class="flex items-center justify-between gap-4 px-5 pt-5"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(o.title)}</h2>
             <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${esc(o.closeLabel || "Close")}</button></div>
@@ -151,6 +154,7 @@ function browse(o) {
             ${into ? `<div data-puts role="radiogroup" aria-label="Where it goes" class="inline-flex items-center gap-1.5 text-xs text-neutral-500"><span>Put it</span>
                 <span class="inline-flex rounded-lg border border-neutral-200 p-0.5">${[["replace", "Replace selected"], ["inside", "Add inside"], ["after", "Add after"]].map(([m, l]) => `<button type="button" role="radio" data-put="${m}" class="rounded-md px-2.5 py-1 font-medium">${l}</button>`).join("")}</span></div>` : ""}
         </div>` : ""}
+        <div data-suited class="hidden flex-wrap items-center gap-1.5 px-5 pt-3"></div>
         <div data-chips class="flex flex-wrap gap-1.5 px-5 pb-3 pt-3">${chips.map(([k, l]) => `<button type="button" data-kind="${k}" class="rounded-full border px-3 py-1 text-xs">${esc(l)}</button>`).join("")}</div>
         <div data-scroll class="min-h-0 flex-1 overflow-y-auto border-t border-neutral-100 px-5 pb-5 pt-4"><div data-grid class="grid grid-cols-4 gap-3"></div>
             <p data-more class="py-6 text-center text-xs text-neutral-400">Loading more…</p></div>
@@ -177,7 +181,7 @@ function browse(o) {
     const gctl = box.querySelector("[data-gctl]"), gscroll = box.querySelector("[data-gscroll]"), ggrid = box.querySelector("[data-ggrid]"), gmore = box.querySelector("[data-gmore]");
     const gitems = new Map(), drawn = [], inView = new Set();
     let clock = 0;
-    let source = "wire", gq = "", gkind = "component", gcat = "", gsort = "new", gpage = 0, gdone = false, gbusy = false, gseq = 0, gtimer = 0;
+    let source = "wire", gq = "", gkind = sRole ? "all" : "component", gneeds = false, gcat = "", gsort = "new", gpage = 0, gdone = false, gbusy = false, gseq = 0, gtimer = 0;
     const GW = curWidth(), GH = screenHeightFor(GW), MAX_DRAWN = 150;
     /** What a tile shows while its design has not drawn yet: a sketch of a page, pulsing. It appears only if the wait is longer than a blink (0.3 s): a design that draws at once shows no sketch at all. */
     const sketch = () => `<div class="h-full animate-pulse bg-neutral-50 p-3"><div class="h-1.5 w-1/3 rounded bg-neutral-200"></div><div class="mt-3 h-3 w-3/4 rounded bg-neutral-200"></div><div class="mt-2 h-2 w-2/3 rounded bg-neutral-200"></div><div class="mt-4 flex gap-2"><div class="h-5 w-16 rounded bg-neutral-200"></div><div class="h-5 w-16 rounded bg-neutral-100"></div></div><div class="mt-4 h-10 rounded bg-neutral-100"></div></div>`;
@@ -288,13 +292,13 @@ function browse(o) {
         const mine = gseq;
         ggrid.insertAdjacentHTML("beforeend", placeholders(gpage ? 3 : 6)); // sketches of the designs on their way
         try {
-            const r = await host.listGallery({ q: gq, category: gcat, kind: gkind === "all" ? "" : gkind, sort: gsort, page: gpage + 1 });
+            const r = await host.listGallery({ q: gq, category: gcat, kind: gkind === "all" ? "" : gkind, sort: gsort, role: sRole || "", page: gpage + 1 });
             if (mine !== gseq || !box) return;
             ggrid.querySelectorAll("[data-gph]").forEach((x) => x.remove());
             gpage = r.page;
             r.items.forEach((it) => { gitems.set(it.id, it); ggrid.insertAdjacentHTML("beforeend", gtile(it)); gseen.observe(ggrid.lastElementChild.querySelector("[data-gprev]")); });
             gdone = !r.hasMore;
-            gmore.textContent = !gitems.size ? "No design matches." : gdone ? "That's all." : "Loading more…";
+            gmore.textContent = !gitems.size ? (sRole && !gq && !gcat ? `No design is tagged ${ROLES[sRole]} yet. Choose another role above, or remove it to see everything.` : "No design matches.") : gdone ? "That's all." : "Loading more…";
         } catch (err) {
             if (mine !== gseq) return;
             ggrid.querySelectorAll("[data-gph]").forEach((x) => x.remove());
@@ -315,7 +319,7 @@ function browse(o) {
         scroller.classList.toggle("hidden", g);
         gctl.classList.toggle("hidden", !g); gctl.classList.toggle("flex", g);
         gscroll.classList.toggle("hidden", !g);
-        if (g) { paintG(); if (!gitems.size && !gbusy && !gdone) gload(true); requestAnimationFrame(refit); }
+        if (g) { paintG(); if (gneeds || (!gitems.size && !gbusy && !gdone)) { gneeds = false; gload(true); } requestAnimationFrame(refit); }
     }
     openProbe();
     let pending = [], painting = false, gen = 0;
@@ -338,7 +342,8 @@ function browse(o) {
         if (done || !box) return;
         let added = 0, tries = 0;
         while (added < 12 && tries < 240) {
-            const w = wireframe(kind, n++);
+            const ks = kind === "suited" ? KINDS_FOR_ROLE[sRole] || [] : null;
+            const w = ks && ks.length ? wireframe(ks[n % ks.length], Math.floor(n++ / ks.length)) : wireframe(kind === "suited" ? "all" : kind, n++);
             tries++;
             if (seen.has(w.html)) continue;
             seen.add(w.html);
@@ -353,6 +358,8 @@ function browse(o) {
     function show(k) {
         kind = k; n = 0; seen = new Set(); done = false; items.clear(); grid.innerHTML = ""; pending = []; gen++; more.textContent = "Loading more…";
         box.querySelectorAll("[data-kind]").forEach((c) => { c.className = `rounded-full border px-3 py-1 text-xs ${c.dataset.kind === k ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-600 hover:border-neutral-400"}`; });
+        const sc = box.querySelector('[data-kind="suited"]');
+        if (sc) sc.classList.toggle("hidden", !(sRole && KINDS_FOR_ROLE[sRole])); // (the chip is there only while a role with layouts is chosen)
         const picked = (list) => list.forEach(([id, name, html]) => { seen.add(html); add(`pick-${id}`, name, fitIn(html)); });
         // the hand-picked ones lead the list, the same for a box and for the page
         if (k === "all") picked([...SECTIONS, ...LAYOUTS]);
@@ -372,6 +379,21 @@ function browse(o) {
     // the canvas pans and zooms with the wheel and the pointer: not under the browser
     ["wheel", "pointerdown"].forEach((t) => (o.modal ? box : card).addEventListener(t, (e) => e.stopPropagation()));
     if (o.modal) box.addEventListener("click", (e) => { if (!card.contains(e.target)) o.onClose(); });
+    /** The "Suited for" row: the selected element's role first, then the roles it could also be. A chosen role narrows both tabs; choosing it again removes the filter. */
+    const suitedRow = box.querySelector("[data-suited]"), suitedChip = box.querySelector('[data-kind="suited"]');
+    const paintSuited = () => {
+        const on = Boolean(sRole && KINDS_FOR_ROLE[sRole]);
+        suitedChip.classList.toggle("hidden", !on);
+        if (on) suitedChip.textContent = `Suited for ${ROLES[sRole].toLowerCase()}`;
+        suitedRow.classList.toggle("hidden", !suitedRoles.length); suitedRow.classList.toggle("flex", suitedRoles.length > 0);
+        suitedRow.innerHTML = suitedRoles.length ? `<span class="text-xs text-neutral-500">Suited for</span>${suitedRoles.map((r) => { const a = r === sRole; return `<button type="button" data-srole="${r}" aria-pressed="${a}" class="rounded-full border px-3 py-1 text-xs ${a ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-200 text-neutral-600 hover:border-neutral-400"}">${esc(ROLES[r])}${a ? " ×" : ""}</button>`; }).join("")}${sRole ? "" : `<span class="text-xs text-neutral-400">showing everything</span>`}` : "";
+    };
+    function setRole(next) {
+        sRole = next;
+        paintSuited();
+        show(sRole && KINDS_FOR_ROLE[sRole] ? "suited" : "all"); // the layouts follow at once
+        if (source === "gallery") gload(true); else gneeds = true; // the designs, now or when their tab opens
+    }
     /** Puts a layout or a design in the page, where the choice says (also from the full preview). */
     function choose(id, isDesign) {
         if (isDesign) {
@@ -453,6 +475,8 @@ function browse(o) {
         if (src) return setSource(src.dataset.source);
         const put = e.target.closest("[data-put]");
         if (put) { mode = put.dataset.put; chosenMode[slot ? "slot" : "box"] = mode; return paintPuts(); }
+        const sr = e.target.closest("[data-srole]");
+        if (sr) { e.stopPropagation(); return setRole(sr.dataset.srole === sRole ? null : sr.dataset.srole); } // (the row is drawn again: this button is gone from the page by the time the click reaches the dialog's backdrop, which would read it as a click outside)
         const gk = e.target.closest("[data-gkind]");
         if (gk) { gkind = gk.dataset.gkind; paintG(); return gload(true); }
         const chip = e.target.closest("[data-kind]");
@@ -469,8 +493,9 @@ function browse(o) {
     box.querySelector("[data-gq]").addEventListener("input", (e) => { clearTimeout(gtimer); gtimer = setTimeout(() => { gq = e.target.value.trim(); gload(true); }, 300); });
     box.querySelector("[data-gcat]").addEventListener("change", (e) => { gcat = e.target.value; gload(true); });
     box.querySelector("[data-gsort]").addEventListener("change", (e) => { gsort = e.target.value; gload(true); });
-    show("all");
-    setSource("wire");
+    paintSuited();
+    show(sRole && KINDS_FOR_ROLE[sRole] ? "suited" : "all");
+    setSource(o.gallery && o.start === "designs" ? "gallery" : "wire"); // from the mini toolbar's layouts icon the designs come first; from the panel's wireframe button, the layouts
 }
 
 /**
@@ -629,16 +654,25 @@ function place(html, how, into, again = false) {
  * null for the page. A pick goes where the choice in the popup says (replace the selected element, inside it, or after it) or at the end of
  * the page (or fills it when it is empty). One undo step.
  */
-export function openWireframes(target) {
+export function openWireframes(target, { start = "layouts" } = {}) {
     hideTip();
     const into = target && target.path && target.path.length ? target : null;
+    const suited = into ? roleOfElement({ ...into, pageW: curWidth() }) : null; // what it is, so the lists can be narrowed to what suits it
+    const name = suited && suited.role ? ROLES[suited.role].toLowerCase() : into && into.tag;
     browse({
-        title: into ? `Add to this ${into.tag}` : "Add to the frame", modal: true, into, gallery: typeof host.listGallery === "function", onClose: hide,
+        title: into ? `Add to this ${name}` : "Add to the frame", modal: true, into, suited, start, gallery: typeof host.listGallery === "function", onClose: hide,
         onPick: (html, how = {}) => place(html, how, into),
     });
 }
 
+/** The selected element as the wireframe dialog takes it: where it is, what it is made of, how big it is and where it sits (see core/roles.js). */
+export const wireframeTarget = (sel) => (sel ? {
+    path: sel.path, tag: sel.tag, classes: sel.classes || "", attrs: sel.attrs || {}, kids: sel.kids || 0, ownText: Boolean(sel.ownText),
+    rect: sel.rect || null, parentLayout: sel.parentLayout || null, index: sel.index, siblings: sel.siblings,
+} : null);
+
 /** Registers this part's listeners (called once by editor.js). */
 export function init() {
+    document.addEventListener("wc-wireframes", () => { if (S.selected) openWireframes(wireframeTarget(S.selected), { start: "designs" }); }); // the layouts icon in the selected element's mini toolbar
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && box && onEsc) { e.preventDefault(); onEsc(); } });
 }

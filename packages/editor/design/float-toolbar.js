@@ -23,6 +23,7 @@ const ICONS = {
     solid: icon('<path d="M4 12h16"/>'),
     dashed: icon('<path d="M3 12h4M10 12h4M17 12h4"/>'),
     dotted: icon('<path d="M4 12h.01M8 12h.01M12 12h.01M16 12h.01M20 12h.01" stroke-width="2.4"/>'),
+    layouts: icon('<rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M9.5 4v16M9.5 10h11"/>'),
     more: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>',
 };
 
@@ -53,7 +54,9 @@ function moreMenu(st) {
     </div>`;
 }
 
-const more = (st) => `<span class="sep"></span><div class="relative">${btn("more", ICONS.more, "More", st.menu)}${st.menu ? moreMenu(st) : ""}</div>`;
+// Layouts and designs for the selected element: for any element but plain text (a button counts)
+const layoutsBtn = (st) => (st.sel && st.sel.tag !== "body" && !st.editing && (st.kind !== "text" || st.sel.tag === "button") ? btn("layouts", ICONS.layouts, "Layouts and designs for this element") : "");
+const more = (st) => `<span class="sep"></span>${layoutsBtn(st)}<div class="relative">${btn("more", ICONS.more, "More", st.menu)}${st.menu ? moreMenu(st) : ""}</div>`;
 
 function textBar(st) {
     const cs = (st.sel && st.sel.computed) || {};

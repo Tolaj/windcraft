@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { resetGalleryCache } from "../utils/galleryCache.js";
+import { rolesOfDesign, ROLES_VERSION } from "@windcraft/core/roles.js";
 
 const componentSchema = new mongoose.Schema(
     {
@@ -79,6 +80,9 @@ const componentSchema = new mongoose.Schema(
         },
         // gallery designs put into this one from the editor's Gallery tab: who made them (shown in the details, never in the code)
         sources: { type: [{ id: String, title: String, author: String, _id: false }], default: [] },
+        // what the design is (a sidebar, a hero, a card...): worked out from its code, title and category (core/roles.js), so the editor can list the designs suited to a selected element
+        roles: { type: [String], default: [], index: true },
+        rolesV: { type: Number, default: 0 },
         partHash: { type: String, default: "" }, // a generated part: a fingerprint of the code made for it, to tell if someone has changed it by hand
         useAsReference: {
             type: Boolean,
@@ -114,6 +118,13 @@ const componentSchema = new mongoose.Schema(
 // A component keeps its old versions inside its own document, and MongoDB stops at 16 MB per document. With designs up to 5 MB the
 // oldest versions are dropped first, so the code and its history stay under this many characters (the newest old version is always kept).
 const HISTORY_BUDGET = 12_000_000;
+// its roles are worked out again whenever what they come from changes (the ones saved some other way are caught up by services/roles.service.js)
+componentSchema.pre("save", function () {
+    if (this.isNew || this.rolesV !== ROLES_VERSION || this.isModified("htmlCode") || this.isModified("category") || this.isModified("title") || this.isModified("tags")) {
+        this.roles = rolesOfDesign(this);
+        this.rolesV = ROLES_VERSION;
+    }
+});
 componentSchema.pre("save", function () {
     if (!this.isModified("versions") && !this.isModified("htmlCode")) return;
     let total = (this.htmlCode || "").length + this.versions.reduce((n, v) => n + (v.htmlCode || "").length, 0);
