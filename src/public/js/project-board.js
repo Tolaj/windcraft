@@ -1,7 +1,7 @@
 import { parseComponentSource, buildPreviewDocument, setPreviewTheme } from "@windcraft/editor/playground/component-source.js";
 import { openItemDialog, moveItem, setReference, deleteItem } from "./item-tools.js";
 import { mountConfigFileEditor } from "@windcraft/editor/design/config-file-editor.js";
-import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, brandScale, grayScale } from "@windcraft/core/theme.js";
+import { GRAYS, RADII, SYSTEM_FONT, normalizeTheme, pageTheme, brandScale, grayScale, themeHead } from "@windcraft/core/theme.js";
 import { computeLayout as layoutItems, PAGE_H, SEC_H } from "@windcraft/core/board-layout.js";
 import { mountPlan } from "@windcraft/core/mount-order.js";
 import { extractParts } from "@windcraft/core/extract-parts.js";
@@ -13,7 +13,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 // The page is already open (with a spinner over it): the board's data comes from the server now.
 const loader = $("pageLoader");
 async function loadBoard() {
-    const res = await fetch(`/api/projects/${window.__PROJECT_ID}/board`);
+    const res = await fetch(window.__BOARD_URL || `/api/projects/${window.__PROJECT_ID}/board`);
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !body.success) throw new Error(body.message || `The server answered ${res.status}`);
     return body.data;
@@ -30,6 +30,9 @@ try { data = await loadBoard(); } catch (err) {
     throw err;
 }
 const project = data.project;
+// A public project (Community) opens the same board, read-only: nothing here changes it, and the server would refuse anyway.
+const READONLY = project.readOnly === true;
+if (READONLY) ["renameBtn", "shareBtn", "activeBtn", "tidyBtn", "importBtn", "newDesignBtn", "deleteProjBtn"].forEach((id) => { $(id).style.display = "none"; }); // (a class would lose to the buttons' own display class)
 let items = data.items;
 setPreviewTheme(project.theme); // the previews are drawn with the project's theme
 
@@ -280,11 +283,11 @@ let gesture = null;
 board.addEventListener("pointerdown", (e) => {
     const wrap = e.target.closest(".fwrap");
     board.setPointerCapture(e.pointerId);
-    if (wrap && e.button === 0 && !spaceDown && tab !== "component") {
+    if (wrap && e.button === 0 && !spaceDown && tab !== "component" && !READONLY) {
         const id = wrap.dataset.id;
         gesture = { type: "frame", id, wrap, sx: e.clientX, sy: e.clientY, ox: pos[id].x, oy: pos[id].y, moved: false };
     } else {
-        gesture = { type: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false, onFrame: Boolean(wrap), pick: tab === "component" && wrap && e.button === 0 ? wrap.dataset.id : null };
+        gesture = { type: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false, onFrame: Boolean(wrap), pick: (tab === "component" || READONLY) && wrap && e.button === 0 ? wrap.dataset.id : null };
         board.style.cursor = "grabbing";
     }
 });
@@ -327,7 +330,7 @@ board.addEventListener("dblclick", (e) => {
     // pointer capture retargets the event to the board, so find the frame under the cursor
     const under = document.elementFromPoint(e.clientX, e.clientY);
     const wrap = under && under.closest(".fwrap");
-    if (wrap && tab !== "component") location.href = `/design/${wrap.dataset.id}`;
+    if (wrap && tab !== "component" && !READONLY) location.href = `/design/${wrap.dataset.id}`;
 });
 
 // positions are saved a moment after the last drag
@@ -359,7 +362,7 @@ $("tidyBtn").addEventListener("click", () => {
 });
 
 // the Config editor sits inside the board: the board's pan, zoom and pointer capture must not take its clicks, typing or scrolling
-["pointerdown", "pointerup", "pointermove", "wheel", "dblclick"].forEach((t) => $("configSpace").addEventListener(t, (e) => e.stopPropagation()));
+["pointerdown", "pointerup", "pointermove", "wheel", "dblclick"].forEach((t) => [$("configSpace"), $("listSpace")].forEach((el) => el.addEventListener(t, (e) => e.stopPropagation()))); // (the list of designs too: its buttons, scrolling and selecting)
 
 // ── Header, outline, details ─────────────────────────────────────────────────
 function renderHeader() {
@@ -368,6 +371,7 @@ function renderHeader() {
     const frames = pages().length; // every page and every component is a frame
     const elements = extractedAll().length; // what the rules find in the frames
     $("projStats").textContent = `${frames} frame${frames === 1 ? "" : "s"} · ${elements} element${elements === 1 ? "" : "s"}`;
+    if (READONLY) renderReadOnlyHeader();
     $("newDesignBtn").href = `/design/new?project=${project.id}&kind=component`; // the same as New project: a blank page, the code below it
     const ab = $("activeBtn");
     ab.textContent = project.active ? "Active project ✓" : "Set as active";
@@ -472,7 +476,7 @@ function renderComponents(found) {
         const list = found.filter((x) => x.kind === k && match(`${x.name} ${x.pageTitle} ${k}`));
         if (list.length) html += `<div class="group-head">${name} · ${list.length}</div>${list.map((x) => row(x.id, k, x.kind === "button" ? x.name.replace(/^Button: /, "") : x.name, x.pageTitle)).join("")}`;
     });
-    $("outline").innerHTML = (html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : on ? "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your frames." : "Elements are off for this project, so none are made or listed. Turn on Auto-create elements in the project settings (click the empty board) to make them."}</div>`);
+    $("outline").innerHTML = (html || `<div class="p-3 text-neutral-500">${words.length || filter.kind ? "Nothing matches." : on ? "Nothing to list yet. The rules look for a nav, a hero, sections with a heading, a footer, forms and styled buttons in your frames." : READONLY ? "The author has not turned on elements for this project." : "Elements are off for this project, so none are made or listed. Turn on Auto-create elements in the project settings (click the empty board) to make them."}</div>`);
 }
 $("tabPages").addEventListener("click", () => { tab = "page"; renderFilters(); renderOutline(); });
 $("tabComponents").addEventListener("click", () => { tab = "component"; renderFilters(); renderOutline(); });
@@ -551,6 +555,7 @@ async function saveTheme(next) { // one save for both sections: the theme as sto
     redrawPreviews();
 }
 function renderTheme() {
+    if (READONLY) return renderReadOnlyTheme();
     const strip = (scale) => Object.values(scale).map((c) => `<i style="background:${c}"></i>`).join("");
     const fileName = () => (theme.engine === "4" ? "global.css" : "tailwind.config.js");
     $("themePanel").innerHTML = `<style>.sw{display:flex;height:14px;border-radius:4px;overflow:hidden;margin-top:6px}.sw i{flex:1}.chip{cursor:pointer;border:1px solid #e5e5e5;border-radius:6px;padding:4px 8px;background:#fff}.chip.on{border-color:#111;background:#f5f5f5;font-weight:600}</style>
@@ -618,6 +623,7 @@ function renderPartDetails(x) {
 }
 
 function renderDetails() {
+    if (READONLY) return renderReadOnlyDetails();
     const el = $("details");
     const part = selectedId && extractedById(selectedId);
     if (part) return renderPartDetails(part);
@@ -828,6 +834,84 @@ $("deleteProjBtn").addEventListener("click", async () => {
     if ((await res.json()).success) location.href = "/projects";
 });
 
+// ── Read-only (a public project in the Community): the header, the details, the config and the list of designs ─────────────────────────
+function renderReadOnlyHeader() {
+    const by = $("projAuthor");
+    by.innerHTML = `by <b class="text-neutral-900">${esc(project.author)}</b>${project.credit ? ` · remixed from <a class="underline" href="/community/${esc(project.credit.id)}">${esc(project.credit.name)}</a> by ${esc(project.credit.author)}` : ""}`;
+    by.classList.remove("hidden");
+    $("ownBtn").classList.toggle("hidden", !project.mine); $("ownBtn").classList.toggle("inline-flex", project.mine === true);
+    $("remixBtn").classList.toggle("hidden", project.mine || !project.signedIn);
+    $("remixSignIn").classList.toggle("hidden", project.mine || project.signedIn); $("remixSignIn").classList.toggle("inline-flex", !project.mine && !project.signedIn);
+}
+function renderReadOnlyDetails() {
+    const part = selectedId && extractedById(selectedId);
+    if (part) return renderPartDetails(part);
+    const it = selectedId && byId(selectedId);
+    const chips = (list) => (list && list.length ? `<div class="mt-2 flex flex-wrap gap-1">${list.map((t) => `<span class="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] text-neutral-600">${esc(t)}</span>`).join("")}</div>` : "");
+    if (!it) {
+        const real = framesList().length, elements = extractedAll().length;
+        $("details").innerHTML = `<div class="-m-3"><section class="p-4">
+            <p class="sec-h">Project</p>
+            <p class="text-sm font-semibold text-neutral-900">${esc(project.name)}</p>
+            <p class="mt-1 text-neutral-500">by ${esc(project.author)}${project.credit ? ` · remixed from <a class="underline" href="/community/${esc(project.credit.id)}">${esc(project.credit.name)}</a> by ${esc(project.credit.author)}` : ""}</p>
+            ${project.description ? `<p class="mt-3 leading-4 text-neutral-600">${esc(project.description)}</p>` : ""}
+            <p class="mt-3 text-neutral-500">${real} ${real === 1 ? "frame" : "frames"} · ${elements} ${elements === 1 ? "element" : "elements"}</p>
+            <p class="mt-4 leading-4 text-neutral-400">Click a frame to see its details and copy its code. <b>Edit a copy</b> makes your own version you can change; this one stays as the author made it.</p>
+        </section></div>`;
+        return;
+    }
+    $("details").innerHTML = `<div class="-m-3"><section class="border-b border-neutral-200 p-4">
+        <div class="flex items-center gap-2"><span class="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">${it.kind}</span><span class="font-mono text-[10px] text-neutral-400">v${it.version}</span></div>
+        <p class="mt-3 text-sm font-semibold text-neutral-900">${esc(it.title)}</p>
+        ${it.description ? `<p class="mt-1 text-neutral-500">${esc(it.description)}</p>` : ""}
+        ${it.category ? `<p class="mt-2 text-neutral-500">${esc(categoryName(it.category))}</p>` : ""}${chips(it.tags)}
+        <div class="mt-4 flex gap-2">
+            <button type="button" id="focusBtn" class="h-8 flex-1 rounded-md border border-neutral-200 text-xs hover:bg-neutral-50" title="Shift+2">Zoom to frame</button>
+            <button type="button" data-ro-copy class="h-8 flex-1 rounded-md bg-black text-xs font-semibold text-white hover:bg-neutral-800">Copy HTML</button>
+        </div>
+    </section></div>`;
+}
+function renderReadOnlyTheme() {
+    $("themePanel").innerHTML = `<p class="px-1 pb-2 text-neutral-500">The setup the author's previews use. Copy it to get the same look.</p>`;
+    const t = normalizeTheme(project.theme), head = themeHead(project.theme);
+    const strip = (scale) => Object.values(scale).map((c) => `<i style="flex:1;background:${c}"></i>`).join("");
+    $("configSpace").innerHTML = `<div class="min-h-0 flex-1 overflow-auto p-8 text-xs"><div class="mx-auto max-w-2xl space-y-5">
+        <div class="flex items-center gap-3"><div class="min-w-0"><p class="text-sm font-semibold text-neutral-900">Theme and Tailwind setup</p><p class="mt-0.5 text-neutral-500">Read-only. Paste this after the Tailwind script so your designs look the same.</p></div><button type="button" id="roThemeCopy" class="ml-auto h-8 shrink-0 rounded-md bg-black px-4 text-xs font-semibold text-white hover:bg-neutral-800">Copy setup</button></div>
+        <div class="grid grid-cols-2 gap-3 text-neutral-600"><div>Brand <b class="text-neutral-900">${esc(t.brand)}</b><div class="mt-1 flex h-3.5 overflow-hidden rounded">${strip(brandScale(t.brand))}</div></div><div>Gray <b class="text-neutral-900">${esc(t.gray)}</b><div class="mt-1 flex h-3.5 overflow-hidden rounded">${strip(grayScale(t.gray))}</div></div><div>Font <b class="text-neutral-900">${esc(t.font)}</b></div><div>Corners <b class="text-neutral-900">${esc(t.radius)}</b></div></div>
+        <pre class="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-neutral-50 p-4 font-mono text-[11px] leading-5 text-neutral-900">${esc(head)}</pre></div></div>`;
+    $("roThemeCopy").addEventListener("click", async (e) => { await navigator.clipboard.writeText(head); const b = e.currentTarget; b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy setup"; }, 1200); });
+}
+let listMounted = false;
+async function setView(mode) { // "board" or "list": the same project, two ways to look at it
+    const list = mode === "list";
+    $("listSpace").classList.toggle("hidden", !list);
+    if (innerWidth >= 768) { $("fitBtn").style.display = list ? "none" : ""; $("zoomOut").parentElement.style.display = list ? "none" : ""; } // pan and zoom belong to the board
+    [["viewBoard", !list], ["viewList", list]].forEach(([id, on]) => { $(id).className = `h-6 rounded px-2.5 ${on ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100"}`; $(id).setAttribute("aria-pressed", String(on)); });
+    if (list && !listMounted) {
+        listMounted = true;
+        const { mountShareList, copyTheme } = await import("./share-list.js");
+        $("listSpace").innerHTML = `<div class="mx-auto max-w-5xl p-6"><div class="mb-6 flex flex-wrap items-center gap-3"><h2 class="text-lg font-semibold text-neutral-900">${framesList().length} design${framesList().length === 1 ? "" : "s"}</h2><button id="roListTheme" type="button" class="h-8 rounded-md border border-neutral-300 px-3 text-xs font-medium text-neutral-800 hover:bg-neutral-50" title="Add this after the Tailwind script so the designs look the same">Copy theme setup</button></div><div id="roList" class="space-y-12"></div></div>`;
+        $("roListTheme").addEventListener("click", (e) => copyTheme(e.currentTarget, project.theme));
+        mountShareList($("roList"), { project: { theme: project.theme }, items: framesList() });
+    }
+}
+if (READONLY) {
+    $("viewBoard").addEventListener("click", () => setView("board"));
+    $("viewList").addEventListener("click", () => setView("list"));
+    // a click on a frame's row in the sidebar brings that design into view in the list
+    document.addEventListener("click", (e) => { const pick = e.target.closest("[data-pick]"); if (pick && !$("listSpace").classList.contains("hidden")) { const sec = $("listSpace").querySelector(`[data-item="${pick.dataset.pick}"]`); if (sec) sec.scrollIntoView({ block: "start", behavior: "smooth" }); } });
+    document.addEventListener("click", async (e) => { const c = e.target.closest("[data-ro-copy]"); if (!c || !selectedId || !byId(selectedId)) return; try { await navigator.clipboard.writeText(byId(selectedId).htmlCode); c.textContent = "Copied"; } catch { c.textContent = "Copy it from the list"; } setTimeout(() => { c.textContent = "Copy HTML"; }, 1500); });
+    $("remixBtn").addEventListener("click", async (e) => { // "Edit a copy": the visitor's own project, then opened
+        const b = e.currentTarget; b.disabled = true;
+        try {
+            const res = await fetch(`/api/community/${project.id}/remix`, { method: "POST" });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.message || "Could not make the copy");
+            location.href = `/projects/${json.data.id}`;
+        } catch (err) { alert(err.message); b.disabled = false; }
+    });
+}
+
 renderHeader();
 buildFrames();
 renderFilters();
@@ -836,6 +920,11 @@ renderDetails();
 applyView();
 fitAll();
 if (location.hash === "#config" || location.hash === "#plugins") { tab = "theme"; renderOutline(); renderTheme(); } // the editor links here
+if (READONLY) { // a phone starts on the list, with the list alone on the screen: the board and its side panels are made for a large screen
+    const phone = innerWidth < 768;
+    if (phone) { ["outlineAside", "detailsAside", "fitBtn", "zoomLabel", "projStats", "projAuthor"].forEach((id) => { $(id).style.display = "none"; }); $("zoomOut").parentElement.style.display = "none"; }
+    setView(phone ? "list" : "board");
+}
 loader.classList.add("is-done"); setTimeout(() => loader.remove(), 250); // the board is drawn: the spinner goes
 
 // ── Share link: anyone with it can look at the project and copy its code (no account, nothing editable) ──────────────

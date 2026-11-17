@@ -64,6 +64,15 @@ projectPages.get("/:id", async (req, res) => {
     }
 });
 
+/** One frame or element as the board takes it. */
+export const boardItem = (c) => ({
+    id: String(c._id), title: c.title, useAsReference: c.useAsReference !== false, twConfig: c.twConfig || null, group: c.group || "", description: c.description, kind: c.kind, parent: c.parent ? String(c.parent) : null,
+    version: c.version || 1, tags: c.tags || [], category: c.category || "", isPublished: c.isPublished === true, htmlCode: c.htmlCode, frameW: c.frameW || null, board: c.board && Number.isFinite(c.board.x) ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) } : null, updatedAt: c.updatedAt,
+});
+export const BOARD_FIELDS = "title description kind parent order group tags version htmlCode board category useAsReference twConfig isPublished updatedAt";
+/** The categories, by group, for a design's Category list. */
+export const boardCategories = () => Object.entries(Object.entries(categories).reduce((g, [slug, c]) => ((g[c.group] ||= []).push({ slug, name: c.name }), g), {})).map(([group, list]) => ({ group, items: list }));
+
 /** Everything the project board opens with: the project, its frames and parts (with their code) and the lists the panels need. */
 async function boardData(userId, projectId) {
     const project = await Project.findOne({ _id: projectId, owner: userId }).lean();
@@ -71,19 +80,16 @@ async function boardData(userId, projectId) {
     const [active, items, others] = await Promise.all([ // (three independent reads, together)
         getActiveProject(userId),
         Component.find({ createdBy: userId, project: project._id })
-        .select("title description kind parent order group tags version htmlCode board category useAsReference twConfig isPublished updatedAt")
+        .select(BOARD_FIELDS)
         .sort("order createdAt")
         .lean(),
         Project.find({ owner: userId }).select("name").sort("name").lean(),
     ]);
     const data = {
         project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", community: project.community === true, theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", autoParts: project.autoParts === true, active: Boolean(active && String(active._id) === String(project._id)) },
-        categories: Object.entries(Object.entries(categories).reduce((g, [slug, c]) => ((g[c.group] ||= []).push({ slug, name: c.name }), g), {})).map(([group, list]) => ({ group, items: list })), // for each design's category
+        categories: boardCategories(), // for each design's category
         projects: others.map((x) => ({ id: String(x._id), name: x.name })), // for "Move to project"
-        items: items.map((c) => ({
-            id: String(c._id), title: c.title, useAsReference: c.useAsReference !== false, twConfig: c.twConfig || null, group: c.group || "", description: c.description, kind: c.kind, parent: c.parent ? String(c.parent) : null,
-            version: c.version || 1, tags: c.tags || [], category: c.category || "", isPublished: c.isPublished === true, htmlCode: c.htmlCode, frameW: c.frameW || null, board: c.board && Number.isFinite(c.board.x) ? { x: c.board.x, y: c.board.y, ...(Number.isFinite(c.board.w) ? { w: c.board.w } : {}), ...(Number.isFinite(c.board.h) ? { h: c.board.h } : {}) } : null, updatedAt: c.updatedAt,
-        })),
+        items: items.map(boardItem),
     };
     return data;
 }

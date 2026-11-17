@@ -1,6 +1,7 @@
 import express from "express";
 import { listCommunity, communityProject, communityCover, remixProject } from "../services/community.service.js";
 import Component from "../models/component.model.js";
+import { boardItem, BOARD_FIELDS, boardCategories } from "./project.routes.js";
 import { normalizeTheme } from "@windcraft/core/theme.js";
 
 // ── A public project: open to anyone, the author named; "Edit a copy" makes the visitor their own copy ────────────────────────
@@ -23,20 +24,28 @@ communityPages.get("/:id", async (req, res) => {
     const user = req.session?.user || null;
     if (!found) return res.status(404).render("error", { layout: "main", title: "Not found", message: "This project isn't in the Community (any more).", user });
     const { project, author } = found;
-    const items = await Component.find({ project: project._id, kind: { $ne: "section" } }).select("title description kind htmlCode version twConfig").sort("order createdAt").lean();
-    const data = {
-        project: { name: project.name, theme: normalizeTheme(project.theme) },
-        items: items.map((c) => ({ id: String(c._id), title: c.title, description: c.description, kind: c.kind, htmlCode: c.htmlCode, twConfig: c.twConfig || null })),
-    };
-    res.render("main/share", {
-        layout: "main", activePage: "community", title: project.name, user, projectName: project.name, count: items.length, community: true,
-        projectId: String(project._id), author, mine: Boolean(user && String(project.owner) === String(user.id)), description: project.description,
-        credit: project.remixedFrom && project.remixedFrom.author ? { author: project.remixedFrom.author, name: project.remixedFrom.name, id: String(project.remixedFrom.project) } : null,
-        dataJson: JSON.stringify(data).replace(/</g, "\\u003c").replace(/[\u2028\u2029]/g, ""),
-    });
+    // the same board as the owner's, read-only: it opens with a spinner and takes its data from /api/community/:id/board
+    res.render("main/project", { layout: "canvas", title: project.name, projectId: String(project._id), projectName: project.name, readOnly: true, boardUrl: `/api/community/${project._id}/board`, backHref: "/community", backLabel: "Community" });
 });
 
 export const communityApi = express.Router();
+// everything the read-only board opens with: the same shape as the owner's, without anything private (no share link, no other projects)
+communityApi.get("/:id/board", async (req, res) => {
+    const found = await communityProject(req.params.id);
+    if (!found) return res.status(404).json({ success: false, message: "Not found" });
+    const { project, author } = found;
+    const me = req.session?.user || null;
+    const items = await Component.find({ project: project._id }).select(BOARD_FIELDS).sort("order createdAt").lean();
+    res.json({ success: true, data: {
+        project: {
+            id: String(project._id), name: project.name, description: project.description, brief: "", autoParts: project.autoParts === true, theme: normalizeTheme(project.theme),
+            readOnly: true, community: true, author, mine: Boolean(me && String(project.owner) === String(me.id)), signedIn: Boolean(me),
+            credit: project.remixedFrom && project.remixedFrom.author ? { author: project.remixedFrom.author, name: project.remixedFrom.name, id: String(project.remixedFrom.project) } : null,
+        },
+        categories: boardCategories(), projects: [],
+        items: items.map((c) => ({ ...boardItem(c), isPublished: false })),
+    } });
+});
 // the frames of a public project's card
 communityApi.get("/:id/cover", async (req, res) => {
     const found = await communityProject(req.params.id);
