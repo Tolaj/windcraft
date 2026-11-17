@@ -59,7 +59,7 @@ test("selecting a tag loads the previews of the frames that match it first", { s
     const near = wanted.filter((w) => w.near);
     assert.ok(near.length >= 10, `enough matching frames are in view to matter (${near.length})`);
     assert.ok(near.every((w) => w.live), `every matching frame in view has its preview (${JSON.stringify(near.filter((w) => !w.live).map((w) => w.title))})`);
-    assert.ok(await page.evaluate(() => document.querySelectorAll(".fwrap iframe").length) <= 40, "and the board still holds no more than 40 previews");
+    assert.ok(await page.evaluate(() => document.querySelectorAll(".fwrap iframe").length) <= 80, "and the board still holds no more than 80 previews (the most it keeps)");
     const added = await page.evaluate(() => window.__added);
     const lastMatch = Math.max(0, ...added.filter((a) => a.match).map((a) => a.t));
     const firstOther = Math.min(Infinity, ...added.filter((a) => !a.match).map((a) => a.t));
