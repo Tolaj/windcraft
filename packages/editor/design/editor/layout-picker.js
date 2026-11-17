@@ -175,9 +175,10 @@ function browse(o) {
     paintPuts();
     // the Gallery tab: published designs from the app, a dozen at a time, drawn only while in view
     const gctl = box.querySelector("[data-gctl]"), gscroll = box.querySelector("[data-gscroll]"), ggrid = box.querySelector("[data-ggrid]"), gmore = box.querySelector("[data-gmore]");
-    const gitems = new Map(), drawn = [];
+    const gitems = new Map(), drawn = [], inView = new Set();
+    let clock = 0;
     let source = "wire", gq = "", gkind = "component", gcat = "", gsort = "new", gpage = 0, gdone = false, gbusy = false, gseq = 0, gtimer = 0;
-    const GW = curWidth(), GH = screenHeightFor(GW), MAX_DRAWN = 36;
+    const GW = curWidth(), GH = screenHeightFor(GW), MAX_DRAWN = 150;
     /** What a tile shows while its design has not drawn yet: a sketch of a page, pulsing. It appears only if the wait is longer than a blink (0.3 s): a design that draws at once shows no sketch at all. */
     const sketch = () => `<div class="h-full animate-pulse bg-neutral-50 p-3"><div class="h-1.5 w-1/3 rounded bg-neutral-200"></div><div class="mt-3 h-3 w-3/4 rounded bg-neutral-200"></div><div class="mt-2 h-2 w-2/3 rounded bg-neutral-200"></div><div class="mt-4 flex gap-2"><div class="h-5 w-16 rounded bg-neutral-200"></div><div class="h-5 w-16 rounded bg-neutral-100"></div></div><div class="mt-4 h-10 rounded bg-neutral-100"></div></div>`;
     const LATE = "opacity:0;animation:wcShow 0s linear .3s forwards";
@@ -186,32 +187,102 @@ function browse(o) {
     const placeholders = (n) => Array.from({ length: n }, () => `<div data-gph aria-hidden="true" style="${LATE}"><div class="relative overflow-hidden rounded-lg border border-neutral-200 bg-white" style="aspect-ratio:${GW} / ${GH}"><div class="absolute inset-0">${sketch()}</div></div><div class="mt-1.5 h-3 w-1/2 animate-pulse rounded bg-neutral-100"></div></div>`).join("");
     const gtile = (it) => `<button type="button" data-gid="${esc(it.id)}" class="group text-left"><div data-gprev class="relative overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900" style="aspect-ratio:${GW} / ${GH}">${skel()}${EXPAND}</div>
         <div class="mt-1.5 flex items-center justify-between gap-2 text-xs"><span class="truncate font-medium text-neutral-800" title="${esc(it.title)}">${esc(it.title)}</span><span class="shrink-0 text-neutral-400" title="Author">${esc(it.author)}</span></div></button>`;
-    /** Draws a design into its tile (once; a tile that scrolls out keeps its drawing, up to MAX_DRAWN of them). */
-    const draw = (prev) => {
-        if (prev.dataset.drawn || !box) return;
+    /** A design's iframe is shown, and its sketch goes, only when the design has been styled (it says so itself: see centered()). */
+    const reveal = (f) => { f.style.opacity = "1"; const sk = f.parentElement && f.parentElement.querySelector("[data-skel]"); if (sk) sk.remove(); };
+    /**
+     * The design as it looks once styled, as plain HTML with no scripts: Tailwind runs once per design (that is the slow, heavy part), and
+     * from then on the tile shows this static copy. It costs next to nothing, and drawing it again (a tile that came back into view) is instant:
+     * nothing is blank, nothing unstyled, nothing to wait for.
+     */
+    const staticFrame = (html, title, k, w = GW, h = GH) => {
+        const f = document.createElement("iframe");
+        f.setAttribute("sandbox", ""); // no scripts at all
+        f.tabIndex = -1;
+        f.title = title;
+        f.style.cssText = `position:absolute;left:0;top:0;width:${w}px;height:${h}px;border:0;transform-origin:0 0;transform:scale(${k});pointer-events:none;background:#fff;opacity:0;transition:opacity .25s`;
+        f.srcdoc = html;
+        f.addEventListener("load", () => reveal(f), { once: true });
+        return f;
+    };
+    const onReady = (e) => {
+        if (!e.data || e.data.type !== "wc-tile-ready") return;
+        const f = [...box.querySelectorAll("iframe")].find((x) => x.contentWindow === e.source);
+        if (!f) return;
+        f.dataset.styled = e.data.styled ? "1" : "0";
+        reveal(f);
+        if (f.release) f.release(); // the next design in the queue may start
+        const prev = f.parentElement, tileBtn = prev && prev.parentElement, it = tileBtn && tileBtn.dataset && gitems.get(tileBtn.dataset.gid);
+        if (it && e.data.styled && e.data.html && !it.frozen) it.frozen = e.data.html; // only a page that has really been styled is kept
+        if (it && it.frozen && prev.hasAttribute("data-gprev")) { // the live one gives way to the static copy
+            const sf = staticFrame(it.frozen, it.title, (prev.clientWidth || 200) / GW);
+            sf.addEventListener("load", () => f.remove(), { once: true });
+            prev.insertBefore(sf, f);
+        }
+    };
+    window.addEventListener("message", onReady);
+    // Tailwind styles a design in its own page, and that takes the processor: a dozen at once would starve one another and none would finish for
+    // a long time. So at most LIVE_AT_ONCE are styled together, in the order they came into view (a tile that left the view meanwhile is skipped).
+    const LIVE_AT_ONCE = 4, queue = [];
+    let running = 0;
+    const pump = () => {
+        while (running < LIVE_AT_ONCE && queue.length) {
+            const prev = queue.shift();
+            delete prev.dataset.queued;
+            if (!prev.isConnected || prev.dataset.drawn || !inView.has(prev)) continue; // gone, drawn already, or out of view: not now
+            startLive(prev);
+        }
+    };
+    const startLive = (prev) => {
         const it = gitems.get(prev.parentElement.dataset.gid);
         if (!it) return;
-        const f = document.createElement("iframe"), k = (prev.clientWidth || 200) / GW;
+        const f = document.createElement("iframe");
         f.setAttribute("sandbox", "allow-scripts");
         f.tabIndex = -1;
         f.title = it.title;
-        f.style.cssText = `position:absolute;left:0;top:0;width:${GW}px;height:${GH}px;border:0;transform-origin:0 0;transform:scale(${k});pointer-events:none;background:#fff;opacity:0;transition:opacity .25s`;
+        f.style.cssText = `position:absolute;left:0;top:0;width:${GW}px;height:${GH}px;border:0;transform-origin:0 0;transform:scale(${(prev.clientWidth || 200) / GW});pointer-events:none;background:#fff;opacity:0;transition:opacity .25s`;
         const parsed = parseComponentSource(it.html);
         parsed.markup = centered(parsed.markup);
         f.srcdoc = buildPreviewDocument(parsed, { width: GW, fixedScreen: true, still: true });
-        // the sketch stays until the design has loaded and its Tailwind has styled it (a moment after the load), then the design fades in
-        f.addEventListener("load", () => setTimeout(() => { f.style.opacity = "1"; const sk = prev.querySelector("[data-skel]"); if (sk) sk.remove(); }, 400), { once: true });
-        setTimeout(() => { f.style.opacity = "1"; const sk = prev.querySelector("[data-skel]"); if (sk) sk.remove(); }, 12000); // never a sketch for ever (a design that fails to load)
+        running++;
+        let released = false;
+        f.release = () => { if (released) return; released = true; running = Math.max(0, running - 1); pump(); };
+        setTimeout(() => { if (f.isConnected) { reveal(f); f.release(); } }, 30000); // the page never answered: show what there is, and free the place
         prev.appendChild(f);
         prev.dataset.drawn = "1";
-        drawn.push(prev);
-        if (drawn.length > MAX_DRAWN) { const old = drawn.shift(); old.innerHTML = skel() + EXPAND; delete old.dataset.drawn; }
+        track(prev);
     };
-    const gseen = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) draw(e.target); }), { root: gscroll, rootMargin: "300px" });
+    /** Keeps count of the drawn tiles; past MAX_DRAWN, the one seen longest ago that is not in view goes (and comes back as its static copy, or in the queue). */
+    const track = (prev) => {
+        drawn.push(prev);
+        if (drawn.length > MAX_DRAWN) {
+            const gone = drawn.filter((x) => !inView.has(x)).sort((x, y) => Number(x.dataset.seen || 0) - Number(y.dataset.seen || 0))[0];
+            if (gone) { const f = gone.querySelector("iframe"); if (f && f.release) f.release(); drawn.splice(drawn.indexOf(gone), 1); gone.innerHTML = skel() + EXPAND; delete gone.dataset.drawn; }
+        }
+    };
+    /** Draws a design into its tile (once). A static copy is instant; a design not styled yet waits its turn in the queue. */
+    const draw = (prev) => {
+        if (prev.dataset.drawn || prev.dataset.queued || !box) return;
+        const it = gitems.get(prev.parentElement.dataset.gid);
+        if (!it) return;
+        if (it.frozen) {
+            const f = staticFrame(it.frozen, it.title, (prev.clientWidth || 200) / GW);
+            setTimeout(() => { if (f.isConnected) reveal(f); }, 12000);
+            prev.appendChild(f);
+            prev.dataset.drawn = "1";
+            track(prev);
+        } else {
+            prev.dataset.queued = "1";
+            queue.push(prev);
+            pump();
+        }
+    };
+    const gseen = new IntersectionObserver((es) => es.forEach((e) => {
+        if (e.isIntersecting) { inView.add(e.target); e.target.dataset.seen = String(++clock); draw(e.target); } else inView.delete(e.target);
+    }), { root: gscroll, rootMargin: "300px" });
     const refit = () => ggrid.querySelectorAll("[data-gprev] iframe").forEach((f) => { f.style.transform = `scale(${(f.parentElement.clientWidth || 200) / GW})`; });
     /** The next dozen for the search as it is now; a new search starts over (an answer that arrives for an old one is dropped). */
     async function gload(reset) {
-        if (reset) { gseq++; gpage = 0; gdone = false; gbusy = false; gitems.clear(); drawn.length = 0; ggrid.innerHTML = ""; gscroll.scrollTop = 0; gmore.textContent = "Loading…"; }
+        if (reset) { gseq++; gpage = 0; gdone = false; gbusy = false; gitems.clear(); drawn.length = 0; queue.length = 0; running = 0; inView.clear(); ggrid.innerHTML = ""; gscroll.scrollTop = 0; gmore.textContent = "Loading…"; }
         if (gdone || gbusy || !box) return;
         gbusy = true;
         const mine = gseq;
@@ -296,7 +367,7 @@ function browse(o) {
     sizer.observe(ggrid);
     const gwatch = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) gload(false); }, { root: gscroll, rootMargin: "400px" });
     gwatch.observe(gmore);
-    cleanup = () => { gwatch.disconnect(); gseen.disconnect(); clearTimeout(gtimer); if (xro) xro.disconnect(); };
+    cleanup = () => { gwatch.disconnect(); gseen.disconnect(); clearTimeout(gtimer); window.removeEventListener("message", onReady); queue.length = 0; if (xro) xro.disconnect(); };
     onEsc = o.onClose;
     // the canvas pans and zooms with the wheel and the pointer: not under the browser
     ["wheel", "pointerdown"].forEach((t) => (o.modal ? box : card).addEventListener(t, (e) => e.stopPropagation()));
@@ -339,13 +410,20 @@ function browse(o) {
         const stage = xview.querySelector("[data-xstage]");
         let fit;
         if (isDesign) {
-            const f = document.createElement("iframe"), parsed = parseComponentSource(it.html);
-            parsed.markup = centered(parsed.markup);
-            f.setAttribute("sandbox", "allow-scripts");
-            f.title = it.title;
-            f.srcdoc = buildPreviewDocument(parsed, { width: GW, fixedScreen: true, still: true });
-            f.style.cssText = `position:absolute;left:0;top:0;width:${GW}px;border:0;transform-origin:0 0;background:#fff`;
+            let f;
+            if (it.frozen) f = staticFrame(it.frozen, it.title, 1);
+            else {
+                f = document.createElement("iframe");
+                const parsed = parseComponentSource(it.html);
+                parsed.markup = centered(parsed.markup);
+                f.setAttribute("sandbox", "allow-scripts");
+                f.title = it.title;
+                f.srcdoc = buildPreviewDocument(parsed, { width: GW, fixedScreen: true, still: true });
+            }
+            f.style.cssText = `position:absolute;left:0;top:0;width:${GW}px;border:0;transform-origin:0 0;background:#fff;opacity:0;transition:opacity .25s`;
+            stage.insertAdjacentHTML("beforeend", skel());
             stage.appendChild(f);
+            setTimeout(() => { if (f.isConnected) reveal(f); }, 30000);
             fit = () => { const W = stage.clientWidth, H = stage.clientHeight; if (!W || !H) return; const k = W / GW; f.style.transform = `scale(${k})`; f.style.height = `${H / k}px`; };
         } else {
             const holder = document.createElement("div");
@@ -400,7 +478,7 @@ function browse(o) {
  * to bottom; a block that turns out narrower than the screen (a card, a button) is centred across too once Tailwind has styled it, and one that
  * fills the screen (a hero, a navbar) is left as it is.
  */
-const centered = (markup) => `<div data-wc-center style="box-sizing:border-box;min-height:100vh;display:flex;flex-direction:column;justify-content:center">${markup}</div><script>(function(){function f(){var w=document.querySelector("[data-wc-center]");if(!w)return;var vw=document.documentElement.clientWidth;[].forEach.call(w.children,function(e){if(/^(SCRIPT|STYLE|LINK)$/.test(e.tagName))return;var c=String(e.getAttribute("class")||"");var inl=(/^(A|BUTTON|SPAN|IMG|INPUT|LABEL|SELECT|B|I|EM|STRONG|SMALL|CODE|SVG)$/.test(e.tagName)&&!/(^|\\s)(block|flex|grid)(\\s|$)/.test(c))||/(^|\\s)inline(-block|-flex|-grid)?(\\s|$)/.test(c);if(inl){e.style.alignSelf="center";return}var r=e.getBoundingClientRect();if(r.width&&r.width<vw*0.92){e.style.marginLeft="auto";e.style.marginRight="auto"}})}addEventListener("load",function(){setTimeout(f,300);setTimeout(f,900);setTimeout(f,2000)})})()<\/script>`;
+const centered = (markup) => `<div data-wc-center style="box-sizing:border-box;min-height:100vh;display:flex;flex-direction:column;justify-content:center">${markup}</div><script>(function(){function f(){var w=document.querySelector("[data-wc-center]");if(!w)return;var vw=document.documentElement.clientWidth;[].forEach.call(w.children,function(e){if(/^(SCRIPT|STYLE|LINK)$/.test(e.tagName))return;var c=String(e.getAttribute("class")||"");var inl=(/^(A|BUTTON|SPAN|IMG|INPUT|LABEL|SELECT|B|I|EM|STRONG|SMALL|CODE|SVG)$/.test(e.tagName)&&!/(^|\\s)(block|flex|grid)(\\s|$)/.test(c))||/(^|\\s)inline(-block|-flex|-grid)?(\\s|$)/.test(c);if(inl){e.style.alignSelf="center";return}var r=e.getBoundingClientRect();if(r.width&&r.width<vw*0.92){e.style.marginLeft="auto";e.style.marginRight="auto"}})}var sent=false;function snap(){try{var c=document.documentElement.cloneNode(true);[].forEach.call(c.querySelectorAll("script"),function(x){x.remove()});return "<!doctype html>"+c.outerHTML}catch(e){return ""}}function done(ok){if(sent)return;sent=true;parent.postMessage({type:"wc-tile-ready",styled:!!ok,html:ok?snap():""},"*")}function styled(){var n=0,last=-1,same=0,tw=!!document.querySelector('script[src*="tailwindcss"]'),t=setInterval(function(){var len=0;[].forEach.call(document.querySelectorAll("style"),function(s){len+=s.textContent.length});same=len===last?same+1:0;last=len;n++;var made=!tw||[].some.call(document.querySelectorAll("style"),function(s){return /tailwindcss v\\d/.test(s.textContent)});var loaded=!tw||(typeof window.tailwind!=="undefined"&&made);if(loaded&&len>0&&same>=3){clearInterval(t);f();done(true)}else if(n>400){clearInterval(t);f();done(false)}},50)}addEventListener("load",function(){setTimeout(f,300);setTimeout(f,900);setTimeout(f,2000);styled()})})()<\/script>`;
 
 /** A gallery design as what goes into a page: its body markup, with its own CSS after it (a design may carry some; its scripts are not taken). */
 function designMarkup(html) {
