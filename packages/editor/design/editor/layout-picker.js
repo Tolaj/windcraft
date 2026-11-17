@@ -598,8 +598,9 @@ function note(text, actions = []) {
     if (noteEl) noteEl.remove();
     noteEl = document.createElement("div");
     noteEl.id = "pickNote";
-    noteEl.className = "pointer-events-auto absolute bottom-6 left-1/2 z-[60] flex max-w-[90%] -translate-x-1/2 items-center gap-3 rounded-xl bg-neutral-900 px-4 py-2.5 text-xs text-white shadow-[0_8px_30px_rgba(0,0,0,.25)]";
-    noteEl.innerHTML = `<span>${esc(text)}</span>${actions.map(([label], i) => `<button type="button" data-act="${i}" class="rounded-md bg-white px-2.5 py-1 font-medium text-neutral-900 hover:bg-neutral-100">${esc(label)}</button>`).join("")}<button type="button" data-x aria-label="Dismiss" class="text-neutral-400 hover:text-white">×</button>`;
+    // one line: the text gives way (an ellipsis, the whole of it in the tooltip) before the buttons do
+    noteEl.className = "pointer-events-auto absolute bottom-14 left-1/2 z-[60] flex max-w-[92%] -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-xl bg-neutral-900 py-2 pl-4 pr-3 text-xs text-white shadow-[0_8px_30px_rgba(0,0,0,.25)]";
+    noteEl.innerHTML = `<span class="min-w-0 truncate" title="${esc(text)}">${esc(text)}</span>${actions.map(([label], i) => `<button type="button" data-act="${i}" class="shrink-0 rounded-md bg-white px-2.5 py-1 font-medium text-neutral-900 hover:bg-neutral-100">${esc(label)}</button>`).join("")}<button type="button" data-x aria-label="Dismiss" class="shrink-0 px-1 text-base leading-none text-neutral-400 hover:text-white">×</button>`;
     noteEl.addEventListener("click", (e) => {
         if (e.target.closest("[data-x]")) { noteEl.remove(); noteEl = null; return; }
         const b = e.target.closest("[data-act]");
@@ -644,7 +645,7 @@ function place(html, how, into, again = false) {
     }
     if (how.from || actions.length) {
         const parts = [mode === "replace" ? "Replaced it" : mode === "after" ? "Added after it" : into ? "Added inside it" : "Added"];
-        if (how.ownConfig) parts.push("this design brings its own Tailwind config, so colours may differ from your theme");
+        if (how.ownConfig) parts.push("It has its own Tailwind config, so colours may differ");
         note(parts.join(". ") + ".", actions);
     }
 }
