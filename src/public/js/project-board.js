@@ -460,15 +460,14 @@ function publishToggleHtml() {
     const f = framesList(), open = f.filter((i) => i.isPublished).length;
     return switchRow("data-publish-toggle", "Publish all frames", `Show every frame in the gallery (${open} of ${f.length} are public now). Making one private turns this off; turning this off makes all of them private.`, allPublished());
 }
-/** The "Publish to Community" switch: the project is public, with you named as its author. People can look at it, copy its code, or edit their own copy; it is listed in the Community tab. */
+/** "Publish to Community" and, under it while it is on, what people can do with the project: one setting with two parts, so one block. */
 function communityToggleHtml() {
     const link = project.community ? ` <a href="/community/${project.id}" target="_blank" rel="noopener" class="underline">Open the public page</a>.` : "";
-    return switchRow("data-community-toggle", "Publish to Community", `Make this project public, with your name on it. Anyone can open it, copy its code, or edit their own copy (yours stays as it is). It appears in the Community tab of Projects.${link}`, project.community === true);
-}
-/** The "Allow copies" switch (only while the project is public): whether people can make their own copy, or only look and copy the code. */
-function communityCopyToggleHtml() {
-    if (!project.community) return "";
-    return switchRow("data-community-copy-toggle", "Allow people to edit a copy", "On: anyone can make their own copy of this project to edit (yours stays as it is). Off: people can look at it and copy its code, but not make a copy.", project.communityCopy !== false);
+    const row = switchRow("data-community-toggle", "Publish to Community", `Make this project public, with your name on it. Anyone can open it and copy its code. It appears in the Community page.${link}`, project.community === true);
+    if (!project.community) return `<div>${row}</div>`;
+    const copy = project.communityCopy !== false;
+    const opt = (v, on, label, hint) => `<button type="button" role="radio" aria-checked="${on}" data-community-access="${v}" class="flex w-full items-start gap-2.5 px-3 py-2.5 text-left hover:bg-neutral-50"><span class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${on ? "border-neutral-900" : "border-neutral-300"}">${on ? '<span class="h-2 w-2 rounded-full bg-neutral-900"></span>' : ""}</span><span class="min-w-0"><b class="block text-[13px] font-semibold text-neutral-900">${label}</b><span class="block text-[12px] leading-4 text-neutral-500">${hint}</span></span></button>`;
+    return `<div>${row}<div role="radiogroup" aria-label="What people can do" class="mb-3 mt-1 divide-y divide-neutral-200 overflow-hidden rounded-lg border border-neutral-200">${opt("view", !copy, "View only", "Look at it and copy the code")}${opt("copy", copy, "View and edit a copy", "Also make their own copy to edit")}</div></div>`;
 }
 function renderComponents(found) {
     const words = filter.q ? filter.q.split(/\s+/) : [];
@@ -523,22 +522,19 @@ document.addEventListener("change", async (e) => {
     }
 });
 
-// Allow copies: people may make their own copy of the public project, or only look at it
-document.addEventListener("change", async (e) => {
-    if (!e.target.matches || !e.target.matches("[data-community-copy-toggle]")) return;
-    const on = e.target.checked, sw = e.target.closest(".switch");
-    if (sw) sw.classList.add("busy");
+// What people can do with a public project: view only, or also make their own copy
+document.addEventListener("click", async (e) => {
+    const b = e.target.closest && e.target.closest("[data-community-access]");
+    if (!b || READONLY) return;
+    const on = b.dataset.communityAccess === "copy";
+    if (on === (project.communityCopy !== false)) return;
     try {
         const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ communityCopy: on }) });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || !json.success) throw new Error(json.message || "not saved");
         project.communityCopy = on;
         renderDetails();
-    } catch {
-        e.target.checked = !on;
-        if (sw) sw.classList.remove("busy");
-        alert("Could not change it. Try again.");
-    }
+    } catch { alert("Could not change it. Try again."); }
 });
 
 // Publish: every frame in the gallery, or none
@@ -664,7 +660,7 @@ function renderDetails() {
             </section>
             <section class="border-b border-neutral-200 p-4">
                 <p class="sec-h">Settings</p>
-                <div class="divide-y divide-neutral-100">${partsToggleHtml()}${publishToggleHtml()}${communityToggleHtml()}${communityCopyToggleHtml()}</div>
+                <div class="divide-y divide-neutral-100">${partsToggleHtml()}${publishToggleHtml()}${communityToggleHtml()}</div>
             </section>
             <p class="p-4 leading-4 text-neutral-400">Click a frame to see its details. Drag frames to arrange them. Double-click a frame to open it in the editor.</p>
         </div>`;
