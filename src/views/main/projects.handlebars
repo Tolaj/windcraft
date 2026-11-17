@@ -97,6 +97,10 @@
     <div class="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center">
         <h3 class="text-base font-semibold text-gray-900">No projects yet</h3>
         <p class="mx-auto mt-1 max-w-md text-sm text-gray-500">Create one, then ask Claude: <em>"Design a landing page and a pricing page for Acme and save them in a project called Acme website."</em></p>
+        <button type="button" onclick="newProject(this)" class="mt-5 inline-flex h-9 items-center gap-2 rounded-md bg-black px-4 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60">
+            <svg class="size-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+            New project
+        </button>
     </div>
     {{/if}}
 </main>
