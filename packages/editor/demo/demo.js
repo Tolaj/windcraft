@@ -44,3 +44,5 @@ await mountEditor(document.getElementById("root"), {
         : { theme: new URLSearchParams(location.search).has("theme") ? { brand: "#e11d48", gray: "stone", font: "Poppins", radius: "xl" } : undefined, // ?theme: a project theme, to see it applied
             title: "My design", category: new URLSearchParams(location.search).has("blank") ? "" : "demo", description: "A demo design", categories }, // ?blank: a first save asks for details, as on a new design
 });
+// the demo opens with the code panel showing (the visitor edits on the canvas and sees the code change)
+if (document.getElementById("codePanel")?.classList.contains("hidden")) document.getElementById("codeBtn")?.click();
