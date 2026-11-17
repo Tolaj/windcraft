@@ -39,7 +39,7 @@ communityApi.get("/:id/board", async (req, res) => {
     res.json({ success: true, data: {
         project: {
             id: String(project._id), name: project.name, description: project.description, brief: "", autoParts: project.autoParts === true, theme: normalizeTheme(project.theme),
-            readOnly: true, community: true, author, mine: Boolean(me && String(project.owner) === String(me.id)), signedIn: Boolean(me),
+            readOnly: true, community: true, canCopy: project.communityCopy !== false, author, mine: Boolean(me && String(project.owner) === String(me.id)), signedIn: Boolean(me),
             credit: project.remixedFrom && project.remixedFrom.author ? { author: project.remixedFrom.author, name: project.remixedFrom.name, id: String(project.remixedFrom.project) } : null,
         },
         categories: boardCategories(), projects: [],
@@ -56,6 +56,8 @@ communityApi.get("/:id/cover", async (req, res) => {
 communityApi.post("/:id/remix", async (req, res) => {
     if (!req.session?.user) return res.status(401).json({ success: false, message: "Please login to continue" });
     try {
+        const found = await communityProject(req.params.id);
+        if (found && found.project.communityCopy === false) return res.status(403).json({ success: false, message: "The author has set this project to view only." });
         const made = await remixProject(req.session.user.id, req.params.id);
         if (!made) return res.status(404).json({ success: false, message: "This project isn't in the Community (any more)." });
         res.json({ success: true, data: made });

@@ -86,7 +86,7 @@ async function boardData(userId, projectId) {
         Project.find({ owner: userId }).select("name").sort("name").lean(),
     ]);
     const data = {
-        project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", community: project.community === true, theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", autoParts: project.autoParts === true, active: Boolean(active && String(active._id) === String(project._id)) },
+        project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", community: project.community === true, communityCopy: project.communityCopy !== false, theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", autoParts: project.autoParts === true, active: Boolean(active && String(active._id) === String(project._id)) },
         categories: boardCategories(), // for each design's category
         projects: others.map((x) => ({ id: String(x._id), name: x.name })), // for "Move to project"
         items: items.map(boardItem),
@@ -193,7 +193,8 @@ projectApi.put("/:id", async (req, res) => {
     if (req.body && req.body.description !== undefined) update.description = description;
     if (req.body && req.body.brief !== undefined) update.brief = String(req.body.brief).slice(0, 4000);
     if (req.body && typeof req.body.autoParts === "boolean") update.autoParts = req.body.autoParts;
-    if (req.body && typeof req.body.community === "boolean") { update.community = req.body.community; update.communityAt = req.body.community ? new Date() : null; } // public in the Community tab, or not
+    if (req.body && typeof req.body.community === "boolean") { update.community = req.body.community; update.communityAt = req.body.community ? new Date() : null; }
+    if (req.body && typeof req.body.communityCopy === "boolean") update.communityCopy = req.body.communityCopy; // may people make their own copy of it // public in the Community tab, or not
     const before = update.autoParts === true ? await Project.findOne({ _id: req.params.id, owner: req.session.user.id }).select("autoParts").lean() : null;
     const p = await Project.findOneAndUpdate({ _id: req.params.id, owner: req.session.user.id }, update, { new: true });
     if (!p) return res.status(404).json({ success: false, message: "Not found" });
@@ -206,7 +207,7 @@ projectApi.put("/:id", async (req, res) => {
     }
     // "Publish": every frame of the project in the gallery (true), or none (false)
     const gallery = req.body && typeof req.body.published === "boolean" ? await setPublished(req.session.user.id, p._id, req.body.published) : null;
-    res.json({ success: true, data: { id: String(p._id), name: p.name, description: p.description, autoParts: p.autoParts === true, community: p.community === true, theme: normalizeTheme(p.theme), ...(gallery ? { published: gallery.published } : {}) } });
+    res.json({ success: true, data: { id: String(p._id), name: p.name, description: p.description, autoParts: p.autoParts === true, community: p.community === true, communityCopy: p.communityCopy !== false, theme: normalizeTheme(p.theme), ...(gallery ? { published: gallery.published } : {}) } });
 });
 
 // Makes this the project Claude works in by default (or clears it with { active: false }).

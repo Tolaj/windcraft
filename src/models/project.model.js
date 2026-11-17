@@ -18,6 +18,8 @@ const projectSchema = new mongoose.Schema(
         // Community: the project is public. Anyone can open /community/<id> to look at it (with its author named) and make their own copy; it is listed in the Community tab of the Projects page
         community: { type: Boolean, default: false, index: true },
         communityAt: { type: Date, default: null },
+        // whether people can make their own copy of a Community project (true), or only look at it and copy its code (false)
+        communityCopy: { type: Boolean, default: true },
         // a copy made from a Community project: where it came from, so the author keeps the credit
         remixedFrom: { type: { project: mongoose.Schema.Types.ObjectId, author: String, name: String }, default: null, _id: false },
         owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },

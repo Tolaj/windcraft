@@ -23,6 +23,7 @@
                 <button id="viewBoard" type="button" class="h-6 rounded px-2.5">Board</button>
                 <button id="viewList" type="button" class="h-6 rounded px-2.5">List</button>
             </div>
+            <span id="viewOnlyNote" class="hidden text-xs text-neutral-500" title="The author has set this project to view only">View only</span>
             <a id="ownBtn" href="/projects/{{projectId}}" class="hidden h-7 items-center rounded-md border border-neutral-200 px-2.5 text-xs hover:bg-neutral-50" title="This is your public project: open the one you can edit">Open yours</a>
             <button id="remixBtn" type="button" class="hidden h-7 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-neutral-800 disabled:opacity-60" title="Make your own copy of this project in your account">Edit a copy</button>
             <a id="remixSignIn" href="/auth/sign-in?returnTo=/community/{{projectId}}" class="hidden h-7 items-center rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-neutral-800" title="Sign in to make your own copy">Edit a copy</a>

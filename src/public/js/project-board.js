@@ -465,6 +465,11 @@ function communityToggleHtml() {
     const link = project.community ? ` <a href="/community/${project.id}" target="_blank" rel="noopener" class="underline">Open the public page</a>.` : "";
     return switchRow("data-community-toggle", "Publish to Community", `Make this project public, with your name on it. Anyone can open it, copy its code, or edit their own copy (yours stays as it is). It appears in the Community tab of Projects.${link}`, project.community === true);
 }
+/** The "Allow copies" switch (only while the project is public): whether people can make their own copy, or only look and copy the code. */
+function communityCopyToggleHtml() {
+    if (!project.community) return "";
+    return switchRow("data-community-copy-toggle", "Allow people to edit a copy", "On: anyone can make their own copy of this project to edit (yours stays as it is). Off: people can look at it and copy its code, but not make a copy.", project.communityCopy !== false);
+}
 function renderComponents(found) {
     const words = filter.q ? filter.q.split(/\s+/) : [];
     const match = (text) => words.every((w) => text.toLowerCase().includes(w));
@@ -510,6 +515,24 @@ document.addEventListener("change", async (e) => {
         const json = await res.json().catch(() => ({}));
         if (!res.ok || !json.success) throw new Error(json.message || "not saved");
         project.community = on;
+        renderDetails();
+    } catch {
+        e.target.checked = !on;
+        if (sw) sw.classList.remove("busy");
+        alert("Could not change it. Try again.");
+    }
+});
+
+// Allow copies: people may make their own copy of the public project, or only look at it
+document.addEventListener("change", async (e) => {
+    if (!e.target.matches || !e.target.matches("[data-community-copy-toggle]")) return;
+    const on = e.target.checked, sw = e.target.closest(".switch");
+    if (sw) sw.classList.add("busy");
+    try {
+        const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ communityCopy: on }) });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.success) throw new Error(json.message || "not saved");
+        project.communityCopy = on;
         renderDetails();
     } catch {
         e.target.checked = !on;
@@ -641,7 +664,7 @@ function renderDetails() {
             </section>
             <section class="border-b border-neutral-200 p-4">
                 <p class="sec-h">Settings</p>
-                <div class="divide-y divide-neutral-100">${partsToggleHtml()}${publishToggleHtml()}${communityToggleHtml()}</div>
+                <div class="divide-y divide-neutral-100">${partsToggleHtml()}${publishToggleHtml()}${communityToggleHtml()}${communityCopyToggleHtml()}</div>
             </section>
             <p class="p-4 leading-4 text-neutral-400">Click a frame to see its details. Drag frames to arrange them. Double-click a frame to open it in the editor.</p>
         </div>`;
@@ -840,8 +863,10 @@ function renderReadOnlyHeader() {
     by.innerHTML = `by <b class="text-neutral-900">${esc(project.author)}</b>${project.credit ? ` · remixed from <a class="underline" href="/community/${esc(project.credit.id)}">${esc(project.credit.name)}</a> by ${esc(project.credit.author)}` : ""}`;
     by.classList.remove("hidden");
     $("ownBtn").classList.toggle("hidden", !project.mine); $("ownBtn").classList.toggle("inline-flex", project.mine === true);
-    $("remixBtn").classList.toggle("hidden", project.mine || !project.signedIn);
-    $("remixSignIn").classList.toggle("hidden", project.mine || project.signedIn); $("remixSignIn").classList.toggle("inline-flex", !project.mine && !project.signedIn);
+    const canCopy = project.canCopy !== false && !project.mine; // the author may have set the project to view only
+    $("remixBtn").classList.toggle("hidden", !(canCopy && project.signedIn));
+    $("remixSignIn").classList.toggle("hidden", !(canCopy && !project.signedIn)); $("remixSignIn").classList.toggle("inline-flex", canCopy && !project.signedIn);
+    if (!canCopy && !project.mine) { const n = $("viewOnlyNote"); n.classList.remove("hidden"); }
 }
 function renderReadOnlyDetails() {
     const part = selectedId && extractedById(selectedId);
@@ -856,7 +881,7 @@ function renderReadOnlyDetails() {
             <p class="mt-1 text-neutral-500">by ${esc(project.author)}${project.credit ? ` · remixed from <a class="underline" href="/community/${esc(project.credit.id)}">${esc(project.credit.name)}</a> by ${esc(project.credit.author)}` : ""}</p>
             ${project.description ? `<p class="mt-3 leading-4 text-neutral-600">${esc(project.description)}</p>` : ""}
             <p class="mt-3 text-neutral-500">${real} ${real === 1 ? "frame" : "frames"} · ${elements} ${elements === 1 ? "element" : "elements"}</p>
-            <p class="mt-4 leading-4 text-neutral-400">Click a frame to see its details and copy its code. <b>Edit a copy</b> makes your own version you can change; this one stays as the author made it.</p>
+            <p class="mt-4 leading-4 text-neutral-400">Click a frame to see its details and copy its code. ${project.canCopy === false ? "The author has set this project to <b>view only</b>: you can look at it and copy its code." : "<b>Edit a copy</b> makes your own version you can change; this one stays as the author made it."}</p>
         </section></div>`;
         return;
     }
