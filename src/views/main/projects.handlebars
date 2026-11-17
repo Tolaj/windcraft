@@ -76,13 +76,13 @@
                     <h2 class="self-start rounded-[3px] text-lg font-semibold tracking-tight text-gray-900" style="background:rgba(255,255,255,.92)">{{this.name}}</h2>
                     {{#if this.active}}<span class="mt-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700"><span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>Active</span>{{/if}}
                 </div>
+                {{#if this.author}}<p class="inline-flex items-center gap-1.5 self-start rounded-[3px] text-sm font-medium text-gray-700" style="background:rgba(255,255,255,.92)" title="Author"><svg class="size-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg><span class="sr-only">by </span>{{this.author}}</p>{{/if}}
                 {{#if this.tags.length}}<div class="mt-1 flex flex-nowrap gap-1.5 overflow-hidden" style="-webkit-mask-image:linear-gradient(to right,#000 85%,transparent);mask-image:linear-gradient(to right,#000 85%,transparent)">
                     {{#each this.tags}}{{#if (lt @index 8)}}<span class="shrink-0 whitespace-nowrap rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-medium leading-4 text-gray-600">{{this}}</span>{{/if}}{{/each}}
                 </div>{{else if this.description}}<p data-desc class="mt-1 line-clamp-2 text-sm text-gray-500"><span class="rounded-[3px] box-decoration-clone" style="background:rgba(255,255,255,.92)">{{this.description}}</span></p>{{/if}}
             </div>
             <div class="relative mt-auto flex flex-col items-start gap-0.5">
                 {{#if this.description}}<span role="button" tabindex="0" data-desc-open class="mb-1.5 inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-[11px] font-medium text-gray-700 hover:border-gray-900 hover:text-gray-900"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Description</span>{{/if}}
-                {{#if this.author}}<span class="rounded-[3px] text-xs text-gray-600" style="background:rgba(255,255,255,.92)">by <span class="font-semibold text-gray-900">{{this.author}}</span></span>{{/if}}
                 <span class="rounded-[3px] text-sm font-semibold text-gray-900" style="background:rgba(255,255,255,.92)">{{this.frames}} frame{{#unless (eq this.frames 1)}}s{{/unless}}</span>
                 <span class="rounded-[3px] text-xs text-gray-500" style="background:rgba(255,255,255,.92)">{{formatDate this.updatedAt}}</span>
             </div>
