@@ -1,8 +1,21 @@
 <div class="max-w-6xl min-w-0 flex-1 mx-auto p-6">
+    {{#if community}}
+    <p class="text-xs font-medium uppercase tracking-wide text-gray-500"><a href="/community" class="hover:underline">Community</a></p>
+    <h1 class="mt-1 text-4xl font-bold text-gray-900">{{projectName}}</h1>
+    <p class="mt-1 text-sm text-gray-600">by <span class="font-semibold text-gray-900">{{author}}</span>{{#if credit}} · remixed from <a href="/community/{{credit.id}}" class="underline">{{credit.name}}</a> by {{credit.author}}{{/if}}</p>
+    {{#if description}}<p class="mt-2 max-w-2xl text-gray-600">{{description}}</p>{{/if}}
+    <p class="mt-1 text-sm text-gray-500">{{count}} design{{#unless (eq count 1)}}s{{/unless}}. View them and copy the code, or edit your own copy.</p>
+    {{else}}
     <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Shared project</p>
     <h1 class="mt-1 text-4xl font-bold text-gray-900">{{projectName}}</h1>
     <p class="mt-1 text-gray-600">{{count}} design{{#unless (eq count 1)}}s{{/unless}}. Look at them and copy the code. This link is view-only.</p>
+    {{/if}}
     <div class="mt-4 flex flex-wrap items-center gap-2">
+        {{#if community}}
+        {{#if mine}}<a href="/projects/{{projectId}}" class="inline-flex h-8 items-center rounded-md bg-black px-3 text-xs font-medium text-white hover:bg-neutral-800">Open your project</a>
+        {{else if user}}<button id="remixBtn" type="button" data-id="{{projectId}}" class="h-8 rounded-md bg-black px-3 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-60" title="Make your own copy of this project in your account">Edit a copy</button>
+        {{else}}<a href="/auth/sign-in?returnTo=/community/{{projectId}}" class="inline-flex h-8 items-center rounded-md bg-black px-3 text-xs font-medium text-white hover:bg-neutral-800" title="Sign in to make your own copy">Edit a copy</a>{{/if}}
+        {{/if}}
         <button id="themeCopy" type="button" class="h-8 rounded-md border border-gray-300 px-3 text-xs font-medium text-gray-800 hover:bg-gray-50" title="Add this after the Tailwind script so the designs look the same">Copy theme setup</button>
         {{#unless user}}<a href="/auth/sign-up" class="text-sm text-gray-600 underline">Make your own with Windcraft</a>{{/unless}}
     </div>

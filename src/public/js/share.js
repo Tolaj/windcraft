@@ -58,3 +58,15 @@ window.addEventListener("message", (e) => {
     const frame = [...document.querySelectorAll("[data-frame]")].find((f) => f.contentWindow === e.source);
     if (frame) frame.style.height = `${Math.max(120, Math.min(6000, e.data.height))}px`;
 });
+
+// Community: "Edit a copy" makes the visitor's own copy of the project, then opens it
+const remix = document.getElementById("remixBtn");
+if (remix) remix.addEventListener("click", async () => {
+    remix.disabled = true;
+    try {
+        const res = await fetch(`/api/community/${remix.dataset.id}/remix`, { method: "POST" });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.message || "Could not make the copy");
+        location.href = `/projects/${json.data.id}`;
+    } catch (err) { alert(err.message); remix.disabled = false; }
+});

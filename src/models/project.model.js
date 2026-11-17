@@ -15,6 +15,11 @@ const projectSchema = new mongoose.Schema(
         shareToken: { type: String, default: "", index: true },
         // the prototype link: anyone with /prototype/<protoToken> can click through the pages, full screen, and nothing else (no code, no editing); empty = not shared
         protoToken: { type: String, default: "", index: true },
+        // Community: the project is public. Anyone can open /community/<id> to look at it (with its author named) and make their own copy; it is listed in the Community tab of the Projects page
+        community: { type: Boolean, default: false, index: true },
+        communityAt: { type: Date, default: null },
+        // a copy made from a Community project: where it came from, so the author keeps the credit
+        remixedFrom: { type: { project: mongoose.Schema.Types.ObjectId, author: String, name: String }, default: null, _id: false },
         owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     },
     { timestamps: true }

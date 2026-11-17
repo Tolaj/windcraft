@@ -456,6 +456,11 @@ function publishToggleHtml() {
     const f = framesList(), open = f.filter((i) => i.isPublished).length;
     return switchRow("data-publish-toggle", "Publish all frames", `Show every frame in the gallery (${open} of ${f.length} are public now). Making one private turns this off; turning this off makes all of them private.`, allPublished());
 }
+/** The "Publish to Community" switch: the project is public, with you named as its author. People can look at it, copy its code, or edit their own copy; it is listed in the Community tab. */
+function communityToggleHtml() {
+    const link = project.community ? ` <a href="/community/${project.id}" target="_blank" rel="noopener" class="underline">Open the public page</a>.` : "";
+    return switchRow("data-community-toggle", "Publish to Community", `Make this project public, with your name on it. Anyone can open it, copy its code, or edit their own copy (yours stays as it is). It appears in the Community tab of Projects.${link}`, project.community === true);
+}
 function renderComponents(found) {
     const words = filter.q ? filter.q.split(/\s+/) : [];
     const match = (text) => words.every((w) => text.toLowerCase().includes(w));
@@ -488,6 +493,24 @@ document.addEventListener("change", async (e) => {
         e.target.checked = !on;
         if (sw) sw.classList.remove("busy");
         alert("Could not change the setting. Try again.");
+    }
+});
+
+// Publish to Community: the project is public, or not
+document.addEventListener("change", async (e) => {
+    if (!e.target.matches || !e.target.matches("[data-community-toggle]")) return;
+    const on = e.target.checked, sw = e.target.closest(".switch");
+    if (sw) sw.classList.add("busy");
+    try {
+        const res = await fetch(`/api/projects/${project.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ community: on }) });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.success) throw new Error(json.message || "not saved");
+        project.community = on;
+        renderDetails();
+    } catch {
+        e.target.checked = !on;
+        if (sw) sw.classList.remove("busy");
+        alert("Could not change it. Try again.");
     }
 });
 
@@ -612,7 +635,7 @@ function renderDetails() {
             </section>
             <section class="border-b border-neutral-200 p-4">
                 <p class="sec-h">Settings</p>
-                <div class="divide-y divide-neutral-100">${partsToggleHtml()}${publishToggleHtml()}</div>
+                <div class="divide-y divide-neutral-100">${partsToggleHtml()}${publishToggleHtml()}${communityToggleHtml()}</div>
             </section>
             <p class="p-4 leading-4 text-neutral-400">Click a frame to see its details. Drag frames to arrange them. Double-click a frame to open it in the editor.</p>
         </div>`;

@@ -66,7 +66,7 @@
             </span>
             {{/if}}
             {{/if}}
-            {{#if (eq activePage "projects")}}{{#if projects.length}}
+            {{#if (or (eq activePage "projects") (eq activePage "community"))}}{{#if projects.length}}
             <!-- Projects: search and count, like the gallery -->
             <div class="relative hidden md:block">
                 <input type="search" id="projSearch" placeholder="Search projects..."

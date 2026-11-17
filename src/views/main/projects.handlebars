@@ -1,11 +1,11 @@
 <main class="min-w-0 flex-1 p-6">
     <div class="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
-            <h1 class="text-4xl font-bold text-gray-900 mb-2">Projects</h1>
-            <p class="text-gray-600">Group the frames of a website or app, like a Figma file. Claude can file designs straight into a project.</p>
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">{{#if community}}Community{{else}}Projects{{/if}}</h1>
+            <p class="text-gray-600">{{#if community}}Projects people have published. Open one to look around, copy its code, or edit your own copy.{{else}}Group the frames of a website or app, like a Figma file. Claude can file designs straight into a project.{{/if}}</p>
         </div>
-        <div class="flex items-center gap-2">
-        <a href="/projects/design-guide.md?download=1" class="inline-flex h-9 items-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50" title="A markdown guide generated from your designs, for a CLAUDE.md or an agent">Design guide</a>
+        <div class="flex items-center gap-2">{{#unless community}}
+        <a href="/projects/design-guide.md?download=1" class="inline-flex h-9 items-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50" title="A markdown guide generated from your designs, for a CLAUDE.md or an agent">Design guide</a>{{/unless}}
         </div>
     </div>
 
@@ -63,9 +63,9 @@
     <p id="projNone" class="hidden rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500">No project matches.</p>
     <div id="projGrid" class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {{#each projects}}
-        <a href="/projects/{{this.id}}" data-card data-name="{{this.name}} {{this.description}}" data-cats="{{this.catSlugs}}" data-tags="{{this.tagList}}" class="group relative flex min-h-[210px] flex-col gap-4 overflow-hidden rounded-xl border border-gray-200 bg-white p-6 text-gray-900 no-underline transition hover:border-gray-400 hover:shadow-sm">
+        <a href="{{this.href}}" data-card data-name="{{this.name}} {{this.description}}" data-cats="{{this.catSlugs}}" data-tags="{{this.tagList}}" class="group relative flex min-h-[210px] flex-col gap-4 overflow-hidden rounded-xl border border-gray-200 bg-white p-6 text-gray-900 no-underline transition hover:border-gray-400 hover:shadow-sm">
             {{!-- the project's frames in the bottom-right corner: one frame as a tilted window, several as a fanned stack --}}
-            <div data-cover data-id="{{this.id}}" aria-hidden="true" class="pointer-events-none absolute inset-0">
+            <div data-cover data-id="{{this.id}}" data-url="{{this.coverUrl}}" aria-hidden="true" class="pointer-events-none absolute inset-0">
                 {{#if (gt this.frames 2)}}<div class="cv-pg a"><div class="cv-skel"><div class="sk-ln" style="width:35%"></div><div class="sk-st"><i></i><i></i><i></i></div><div class="sk-bars"><i style="height:40%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:70%"></i></div></div></div>{{/if}}
                 {{#if (gt this.frames 1)}}<div class="cv-pg b"><div class="cv-skel"><div class="sk-ln" style="width:35%"></div><div class="sk-st"><i></i><i></i><i></i></div><div class="sk-bars"><i style="height:40%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:70%"></i></div></div></div><div class="cv-pg c"><div class="cv-skel"><div class="sk-ln" style="width:35%"></div><div class="sk-st"><i></i><i></i><i></i></div><div class="sk-bars"><i style="height:40%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:70%"></i></div></div></div>
                 {{else if (eq this.frames 1)}}<div class="cv-win"><div class="cv-dots"><i></i><i></i><i></i></div><div class="cv-skel"><div class="sk-ln" style="width:35%"></div><div class="sk-st"><i></i><i></i><i></i></div><div class="sk-bars"><i style="height:40%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:90%"></i><i style="height:55%"></i><i style="height:70%"></i></div></div></div>
@@ -82,6 +82,7 @@
             </div>
             <div class="relative mt-auto flex flex-col items-start gap-0.5">
                 {{#if this.description}}<span role="button" tabindex="0" data-desc-open class="mb-1.5 inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-[11px] font-medium text-gray-700 hover:border-gray-900 hover:text-gray-900"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Description</span>{{/if}}
+                {{#if this.author}}<span class="rounded-[3px] text-xs text-gray-600" style="background:rgba(255,255,255,.92)">by <span class="font-semibold text-gray-900">{{this.author}}</span></span>{{/if}}
                 <span class="rounded-[3px] text-sm font-semibold text-gray-900" style="background:rgba(255,255,255,.92)">{{this.frames}} frame{{#unless (eq this.frames 1)}}s{{/unless}}</span>
                 <span class="rounded-[3px] text-xs text-gray-500" style="background:rgba(255,255,255,.92)">{{formatDate this.updatedAt}}</span>
             </div>
@@ -94,6 +95,12 @@
         {{/each}}
     </div>
     {{else}}
+    {{#if community}}
+    <div class="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center">
+        <h3 class="text-base font-semibold text-gray-900">Nothing in the Community yet</h3>
+        <p class="mx-auto mt-1 max-w-md text-sm text-gray-500">Open one of your projects and turn on <em>Publish to Community</em> to be the first.</p>
+    </div>
+    {{else}}
     <div class="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center">
         <h3 class="text-base font-semibold text-gray-900">No projects yet</h3>
         <p class="mx-auto mt-1 max-w-md text-sm text-gray-500">Create one, then ask Claude: <em>"Design a landing page and a pricing page for Acme and save them in a project called Acme website."</em></p>
@@ -102,6 +109,7 @@
             New project
         </button>
     </div>
+    {{/if}}
     {{/if}}
 </main>
 <script type="module">
@@ -154,7 +162,7 @@
     };
     const draw = async (box) => {
         try {
-            const res = await fetch("/api/projects/" + box.dataset.id + "/cover");
+            const res = await fetch(box.dataset.url);
             const frames = (((await res.json()).data || {}).frames || []).slice(0, 3);
             if (!frames.length) { box.classList.remove("loading"); return; }
             let pending = frames.length;

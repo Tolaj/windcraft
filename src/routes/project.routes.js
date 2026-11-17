@@ -21,6 +21,7 @@ projectPages.get("/", async (req, res) => {
             catNames: p.cats.map((c) => ({ slug: c.slug, name: categories[c.slug]?.name || c.slug, count: c.count })),
             catSlugs: p.cats.map((c) => c.slug).join(" "),
             tagList: p.tags.join("\u0001"),
+            href: `/projects/${p.id}`, coverUrl: `/api/projects/${p.id}/cover`,
             frames: p.pages + p.components, // every page and component is a frame; the parts cut from a page are not
         }));
         // every category used across the projects, with how many designs: the filter chips
@@ -76,7 +77,7 @@ async function boardData(userId, projectId) {
         Project.find({ owner: userId }).select("name").sort("name").lean(),
     ]);
     const data = {
-        project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", autoParts: project.autoParts === true, active: Boolean(active && String(active._id) === String(project._id)) },
+        project: { id: String(project._id), name: project.name, shareToken: project.shareToken || "", community: project.community === true, theme: normalizeTheme(project.theme), description: project.description, brief: project.brief || "", autoParts: project.autoParts === true, active: Boolean(active && String(active._id) === String(project._id)) },
         categories: Object.entries(Object.entries(categories).reduce((g, [slug, c]) => ((g[c.group] ||= []).push({ slug, name: c.name }), g), {})).map(([group, list]) => ({ group, items: list })), // for each design's category
         projects: others.map((x) => ({ id: String(x._id), name: x.name })), // for "Move to project"
         items: items.map((c) => ({
@@ -186,6 +187,7 @@ projectApi.put("/:id", async (req, res) => {
     if (req.body && req.body.description !== undefined) update.description = description;
     if (req.body && req.body.brief !== undefined) update.brief = String(req.body.brief).slice(0, 4000);
     if (req.body && typeof req.body.autoParts === "boolean") update.autoParts = req.body.autoParts;
+    if (req.body && typeof req.body.community === "boolean") { update.community = req.body.community; update.communityAt = req.body.community ? new Date() : null; } // public in the Community tab, or not
     const before = update.autoParts === true ? await Project.findOne({ _id: req.params.id, owner: req.session.user.id }).select("autoParts").lean() : null;
     const p = await Project.findOneAndUpdate({ _id: req.params.id, owner: req.session.user.id }, update, { new: true });
     if (!p) return res.status(404).json({ success: false, message: "Not found" });
@@ -198,7 +200,7 @@ projectApi.put("/:id", async (req, res) => {
     }
     // "Publish": every frame of the project in the gallery (true), or none (false)
     const gallery = req.body && typeof req.body.published === "boolean" ? await setPublished(req.session.user.id, p._id, req.body.published) : null;
-    res.json({ success: true, data: { id: String(p._id), name: p.name, description: p.description, autoParts: p.autoParts === true, theme: normalizeTheme(p.theme), ...(gallery ? { published: gallery.published } : {}) } });
+    res.json({ success: true, data: { id: String(p._id), name: p.name, description: p.description, autoParts: p.autoParts === true, community: p.community === true, theme: normalizeTheme(p.theme), ...(gallery ? { published: gallery.published } : {}) } });
 });
 
 // Makes this the project Claude works in by default (or clears it with { active: false }).
