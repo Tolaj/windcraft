@@ -143,8 +143,8 @@ function browse(o) {
             <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${esc(o.closeLabel || "Close")}</button></div>
         ${o.gallery || into ? `<div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-3">
             ${o.gallery ? `<div data-sources role="tablist" class="inline-flex rounded-lg border border-neutral-200 p-0.5 text-xs">
-                <button type="button" role="tab" data-source="wire" class="rounded-md px-3 py-1 font-medium">Wireframes</button>
-                <button type="button" role="tab" data-source="gallery" class="rounded-md px-3 py-1 font-medium">Gallery</button></div>` : "<span></span>"}
+                <button type="button" role="tab" data-source="wire" class="rounded-md px-3 py-1 font-medium">Layouts</button>
+                <button type="button" role="tab" data-source="gallery" class="rounded-md px-3 py-1 font-medium">Designs</button></div>` : "<span></span>"}
             ${into ? `<div data-puts role="radiogroup" aria-label="Where it goes" class="inline-flex items-center gap-1.5 text-xs text-neutral-500"><span>Put it</span>
                 <span class="inline-flex rounded-lg border border-neutral-200 p-0.5">${[["replace", "Replace selected"], ["inside", "Add inside"], ["after", "Add after"]].map(([m, l]) => `<button type="button" role="radio" data-put="${m}" class="rounded-md px-2.5 py-1 font-medium">${l}</button>`).join("")}</span></div>` : ""}
         </div>` : ""}
