@@ -72,7 +72,6 @@ const panelActions = {
     askAI: (path, outer, prompt) => askAI(path, outer, prompt),
     draftPage: (prompt) => draftPage(prompt),
     wireframes: () => openWireframes(S.selected ? { path: S.selected.path, tag: S.selected.tag, classes: S.selected.classes || "", attrs: S.selected.attrs || {}, kids: S.selected.kids || 0, ownText: Boolean(S.selected.ownText) } : null), // the wireframe popup: into the selected box, or the page
-    get canGallery() { return typeof host.listGallery === "function"; }, // an app with no gallery behind it has wireframes only
     setPageField,
     setDevice: (w) => setDevice(w),
     fit: () => { S.viewTouched = true; fitTo([S.curKey]); },
