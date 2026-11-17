@@ -138,7 +138,7 @@ function browse(o) {
     // a dialog sits over the canvas toolbars too; the empty page's card under them, so they stay usable
     box.className = o.modal ? "absolute inset-0 z-[60] flex items-center justify-center bg-black/10 p-6" : "pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-6 pb-6 pt-20";
     const chips = [["all", "All"], ...Object.entries(KIND_NAMES)];
-    box.innerHTML = `<div data-card class="pointer-events-auto flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
+    box.innerHTML = `<style>@keyframes wcShow{to{opacity:1}}</style><div data-card style="min-height:min(34rem,100%)" class="pointer-events-auto flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
         <div class="flex items-center justify-between gap-4 px-5 pt-5"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(o.title)}</h2>
             <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${esc(o.closeLabel || "Close")}</button></div>
         ${o.gallery || into ? `<div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-3">
@@ -174,7 +174,13 @@ function browse(o) {
     const gitems = new Map(), drawn = [];
     let source = "wire", gq = "", gkind = "component", gcat = "", gsort = "new", gpage = 0, gdone = false, gbusy = false, gseq = 0, gtimer = 0;
     const GW = curWidth(), GH = screenHeightFor(GW), MAX_DRAWN = 36;
-    const gtile = (it) => `<button type="button" data-gid="${esc(it.id)}" class="group text-left"><div data-gprev class="relative overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900" style="aspect-ratio:${GW} / ${GH}"></div>
+    /** What a tile shows while its design has not drawn yet: a sketch of a page, pulsing. It appears only if the wait is longer than a blink (0.3 s): a design that draws at once shows no sketch at all. */
+    const sketch = () => `<div class="h-full animate-pulse bg-neutral-50 p-3"><div class="h-1.5 w-1/3 rounded bg-neutral-200"></div><div class="mt-3 h-3 w-3/4 rounded bg-neutral-200"></div><div class="mt-2 h-2 w-2/3 rounded bg-neutral-200"></div><div class="mt-4 flex gap-2"><div class="h-5 w-16 rounded bg-neutral-200"></div><div class="h-5 w-16 rounded bg-neutral-100"></div></div><div class="mt-4 h-10 rounded bg-neutral-100"></div></div>`;
+    const LATE = "opacity:0;animation:wcShow 0s linear .3s forwards";
+    const skel = () => `<div data-skel class="absolute inset-0" style="${LATE}" aria-hidden="true">${sketch()}</div>`;
+    /** Placeholder tiles while a dozen designs are on their way (also only if they take longer than a blink). */
+    const placeholders = (n) => Array.from({ length: n }, () => `<div data-gph aria-hidden="true" style="${LATE}"><div class="relative overflow-hidden rounded-lg border border-neutral-200 bg-white" style="aspect-ratio:${GW} / ${GH}"><div class="absolute inset-0">${sketch()}</div></div><div class="mt-1.5 h-3 w-1/2 animate-pulse rounded bg-neutral-100"></div></div>`).join("");
+    const gtile = (it) => `<button type="button" data-gid="${esc(it.id)}" class="group text-left"><div data-gprev class="relative overflow-hidden rounded-lg border border-neutral-200 bg-white transition group-hover:border-neutral-900" style="aspect-ratio:${GW} / ${GH}">${skel()}</div>
         <div class="mt-1.5 flex items-center justify-between gap-2 text-xs"><span class="truncate font-medium text-neutral-800" title="${esc(it.title)}">${esc(it.title)}</span><span class="shrink-0 text-neutral-400" title="Author">${esc(it.author)}</span></div></button>`;
     /** Draws a design into its tile (once; a tile that scrolls out keeps its drawing, up to MAX_DRAWN of them). */
     const draw = (prev) => {
@@ -185,12 +191,17 @@ function browse(o) {
         f.setAttribute("sandbox", "allow-scripts");
         f.tabIndex = -1;
         f.title = it.title;
-        f.style.cssText = `position:absolute;left:0;top:0;width:${GW}px;height:${GH}px;border:0;transform-origin:0 0;transform:scale(${k});pointer-events:none;background:#fff`;
-        f.srcdoc = buildPreviewDocument(parseComponentSource(it.html), { width: GW, fixedScreen: true, still: true });
+        f.style.cssText = `position:absolute;left:0;top:0;width:${GW}px;height:${GH}px;border:0;transform-origin:0 0;transform:scale(${k});pointer-events:none;background:#fff;opacity:0;transition:opacity .25s`;
+        const parsed = parseComponentSource(it.html);
+        parsed.markup = centered(parsed.markup);
+        f.srcdoc = buildPreviewDocument(parsed, { width: GW, fixedScreen: true, still: true });
+        // the sketch stays until the design has loaded and its Tailwind has styled it (a moment after the load), then the design fades in
+        f.addEventListener("load", () => setTimeout(() => { f.style.opacity = "1"; const sk = prev.querySelector("[data-skel]"); if (sk) sk.remove(); }, 400), { once: true });
+        setTimeout(() => { f.style.opacity = "1"; const sk = prev.querySelector("[data-skel]"); if (sk) sk.remove(); }, 12000); // never a sketch for ever (a design that fails to load)
         prev.appendChild(f);
         prev.dataset.drawn = "1";
         drawn.push(prev);
-        if (drawn.length > MAX_DRAWN) { const old = drawn.shift(); old.innerHTML = ""; delete old.dataset.drawn; }
+        if (drawn.length > MAX_DRAWN) { const old = drawn.shift(); old.innerHTML = skel(); delete old.dataset.drawn; }
     };
     const gseen = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) draw(e.target); }), { root: gscroll, rootMargin: "300px" });
     const refit = () => ggrid.querySelectorAll("[data-gprev] iframe").forEach((f) => { f.style.transform = `scale(${(f.parentElement.clientWidth || 200) / GW})`; });
@@ -200,15 +211,18 @@ function browse(o) {
         if (gdone || gbusy || !box) return;
         gbusy = true;
         const mine = gseq;
+        ggrid.insertAdjacentHTML("beforeend", placeholders(gpage ? 3 : 6)); // sketches of the designs on their way
         try {
             const r = await host.listGallery({ q: gq, category: gcat, kind: gkind === "all" ? "" : gkind, sort: gsort, page: gpage + 1 });
             if (mine !== gseq || !box) return;
+            ggrid.querySelectorAll("[data-gph]").forEach((x) => x.remove());
             gpage = r.page;
             r.items.forEach((it) => { gitems.set(it.id, it); ggrid.insertAdjacentHTML("beforeend", gtile(it)); gseen.observe(ggrid.lastElementChild.querySelector("[data-gprev]")); });
             gdone = !r.hasMore;
             gmore.textContent = !gitems.size ? "No design matches." : gdone ? "That's all." : "Loading more…";
         } catch (err) {
             if (mine !== gseq) return;
+            ggrid.querySelectorAll("[data-gph]").forEach((x) => x.remove());
             gdone = true;
             gmore.textContent = `${err.message || "Could not load the gallery"}. Close this and open it again to retry.`;
         } finally { if (mine === gseq) gbusy = false; }
@@ -313,6 +327,13 @@ function browse(o) {
     show("all");
     setSource("wire");
 }
+
+/**
+ * A design for a tile: in the middle of its preview, as the gallery shows a component. The page is a column that centres its content from top
+ * to bottom; a block that turns out narrower than the screen (a card, a button) is centred across too once Tailwind has styled it, and one that
+ * fills the screen (a hero, a navbar) is left as it is.
+ */
+const centered = (markup) => `<div data-wc-center style="box-sizing:border-box;min-height:100vh;display:flex;flex-direction:column;justify-content:center">${markup}</div><script>(function(){function f(){var w=document.querySelector("[data-wc-center]");if(!w)return;var vw=document.documentElement.clientWidth;[].forEach.call(w.children,function(e){if(/^(SCRIPT|STYLE|LINK)$/.test(e.tagName))return;var c=String(e.getAttribute("class")||"");var inl=(/^(A|BUTTON|SPAN|IMG|INPUT|LABEL|SELECT|B|I|EM|STRONG|SMALL|CODE|SVG)$/.test(e.tagName)&&!/(^|\\s)(block|flex|grid)(\\s|$)/.test(c))||/(^|\\s)inline(-block|-flex|-grid)?(\\s|$)/.test(c);if(inl){e.style.alignSelf="center";return}var r=e.getBoundingClientRect();if(r.width&&r.width<vw*0.92){e.style.marginLeft="auto";e.style.marginRight="auto"}})}addEventListener("load",function(){setTimeout(f,300);setTimeout(f,900);setTimeout(f,2000)})})()<\/script>`;
 
 /** A gallery design as what goes into a page: its body markup, with its own CSS after it (a design may carry some; its scripts are not taken). */
 function designMarkup(html) {
