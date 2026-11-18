@@ -67,7 +67,7 @@ $("checkBtn").addEventListener("click", async (e) => {
         const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
         list.innerHTML =
             `<li class="font-medium ${json.allOk ? "text-green-700" : "text-red-700"}">${json.allOk ? "All checks passed. Claude can connect." : "Some checks failed."} <span class="font-normal text-gray-500">${esc(json.base)}</span></li>` +
-            json.checks.map((c) => `<li class="flex gap-2"><span class="${c.ok ? "text-green-700" : "text-red-700"} font-semibold">${c.ok ? "✓" : "✗"}</span><span><span class="text-gray-900">${esc(c.label)}</span>${c.detail ? ` <span class="text-gray-500">${esc(c.detail)}</span>` : ""}${c.fix ? `<br><span class="text-amber-800">${esc(c.fix)}</span>` : ""}</span></li>`).join("");
+            json.checks.map((c) => `<li class="flex gap-2"><span class="${c.ok ? "text-green-700" : c.optional ? "text-amber-700" : "text-red-700"} font-semibold">${c.ok ? "✓" : c.optional ? "–" : "✗"}</span><span><span class="text-gray-900">${esc(c.label)}</span>${c.detail ? ` <span class="text-gray-500">${esc(c.detail)}</span>` : ""}${c.fix ? `<br><span class="text-amber-800">${esc(c.fix)}</span>` : ""}</span></li>`).join("");
     } catch (err) {
         list.innerHTML = `<li class="text-red-700">The test could not run: ${err.message}</li>`;
     } finally {
@@ -75,3 +75,11 @@ $("checkBtn").addEventListener("click", async (e) => {
         btn.textContent = "Test connection";
     }
 });
+
+// ── recent AI activity: Undo ──
+document.querySelectorAll("[data-undo]").forEach((b) => b.addEventListener("click", async () => {
+    if (!confirm("Undo this change? The design goes back to how it was before. The AI's version stays in its history.")) return;
+    b.disabled = true;
+    const json = await post(`/connect/activity/${b.dataset.undo}/undo`);
+    if (json.success) location.reload(); else { b.disabled = false; alert(json.message || "Could not undo"); }
+}));

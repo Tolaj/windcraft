@@ -70,6 +70,14 @@ export async function userIdForAccessToken(token) {
     return row ? String(row.userId) : null;
 }
 
+/** The user and the app (its registered name) behind a valid OAuth access token, else null. */
+export async function accessTokenInfo(token) {
+    const row = await OAuthToken.findOne({ type: "access", tokenHash: sha256(token), expiresAt: { $gt: new Date() } }).select("userId clientId").lean();
+    if (!row) return null;
+    const client = await OAuthClient.findOne({ clientId: row.clientId }).select("clientName").lean();
+    return { userId: String(row.userId), name: (client && client.clientName) || "An AI app" };
+}
+
 export async function revokeClientForUser(userId, clientId) {
     await OAuthToken.deleteMany({ userId, clientId });
 }

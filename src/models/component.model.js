@@ -101,10 +101,16 @@ const componentSchema = new mongoose.Schema(
                 version: Number,
                 htmlCode: String,
                 note: String,
+                // who made the change that replaced this version: source "ai" (an AI tool through the connector), "editor" (a person) or "" (not known), and a label such as "Claude"
+                by: { source: { type: String, default: "" }, label: { type: String, default: "" } },
                 createdAt: { type: Date, default: Date.now }
             }],
             default: []
         },
+        // who made the first version (an AI tool through the connector, or nobody noted)
+        createdVia: { source: { type: String, default: "" }, label: { type: String, default: "" } },
+        // who made the current version, and when (the same source and label as above)
+        lastChange: { source: { type: String, default: "" }, label: { type: String, default: "" }, at: { type: Date, default: null } },
         isPublished: {
             type: Boolean,
             default: true

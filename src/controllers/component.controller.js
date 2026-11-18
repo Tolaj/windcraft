@@ -9,6 +9,7 @@ import { normalizeGroup } from "@windcraft/core/pages.js";
 import { fitGroup } from "../services/plane.service.js";
 import { cleanTw, hasTw } from "@windcraft/core/config-file.js";
 import { specOf } from "../services/design-spec.service.js";
+import { pushVersion } from "../services/change.service.js";
 import { buildProfile, profileToMarkdown, enrichProfileWithAI } from "../services/profile.service.js";
 import { resolveProject } from "../services/project.service.js";
 import { kindOfCategory } from "../routes/home.routes.js";
@@ -179,10 +180,7 @@ export const updateComponent = async (req, res) => {
         if (component.kind !== 'section' && (askedKind === 'page' || askedKind === 'component')) component.kind = askedKind;
 
         if (htmlCode && htmlCode !== component.htmlCode) {
-            component.versions.push({ version: component.version, htmlCode: component.htmlCode, note: note || "" });
-            component.version += 1;
-            component.htmlCode = htmlCode;
-            component.profile = buildProfile(htmlCode, component.profile);
+            pushVersion(component, htmlCode, { note: note || "", actor: { source: "editor", label: "You" } });
             codeChanged = true;
         }
         if (group !== undefined) { const g = normalizeGroup(group); component.group = g === component.group ? g : await fitGroup(req.session.user.id, component.project, g, component._id); }
@@ -259,10 +257,10 @@ export const getVersions = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         const history = [
-            { version: component.version, htmlCode: component.htmlCode, note: "Current", current: true },
+            { version: component.version, htmlCode: component.htmlCode, note: "Current", current: true, by: component.lastChange || null },
             ...[...(component.versions || [])].reverse(),
         ];
-        res.status(200).json({ success: true, data: history });
+        res.status(200).json({ success: true, data: history, createdVia: component.createdVia || null });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -278,10 +276,7 @@ export const restoreVersion = async (req, res) => {
         const target = component.versions.find((v) => v.version === Number(req.params.version));
         if (!target) return res.status(404).json({ success: false, message: 'Version not found' });
 
-        component.versions.push({ version: component.version, htmlCode: component.htmlCode, note: `Before restoring v${target.version}` });
-        component.version += 1;
-        component.htmlCode = target.htmlCode;
-        component.profile = buildProfile(component.htmlCode, component.profile);
+        pushVersion(component, target.htmlCode, { note: `Before restoring v${target.version}`, actor: { source: "editor", label: "You" } });
         await component.save();
         enrichProfileWithAI(component._id, req.session.user.id);
         res.status(200).json({ success: true, data: component });

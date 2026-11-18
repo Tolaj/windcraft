@@ -29,12 +29,15 @@ async function showTab(tab) {
         const res = await fetch(`/api/components/${current.id}/versions`);
         const json = await res.json();
         if (!json.success) { historyEl.innerHTML = `<p class="p-5 text-sm text-red-700">${esc(json.message)}</p>`; return; }
-        historyEl.innerHTML = json.data.map((v) => `
+        // who made a version: the current one is recorded on the design; an older one is recorded on the entry for the version before it (the change that replaced that one made this one)
+        const madeBy = (list, i) => (i === 0 ? list[0].by : i + 1 < list.length ? list[i + 1].by : json.createdVia || null);
+        historyEl.innerHTML = json.data.map((v, i, list) => { const by = madeBy(list, i); return `
             <div class="flex items-center justify-between gap-3 px-5 py-3">
                 <div><span class="font-mono text-sm font-medium">v${v.version}</span>
+                    ${by && by.source === "ai" ? `<span class="ml-2 rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-800" title="This version was made by an AI tool through the connector">Edited by ${esc(by.label || "AI")}</span>` : ""}
                     <span class="ml-2 text-[13px] text-gray-500">${esc(v.note || (v.current ? "Current" : "Saved version"))}</span></div>
                 ${v.current ? `<span class="text-xs text-gray-400">Current</span>` : `<button data-restore="${v.version}" class="${btn}">Restore</button>`}
-            </div>`).join("");
+            </div>`; }).join("");
         return;
     }
 

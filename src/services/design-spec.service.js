@@ -9,7 +9,8 @@ import { parse, TextNode } from "node-html-parser";
 import Component from "../models/component.model.js";
 import { toSpec, walkElements, contentRoots } from "@windcraft/core/design-spec.js";
 import { GROUPS, setGroup, BREAKPOINTS, STATES } from "@windcraft/core/class-groups.js";
-import { buildProfile, enrichProfileWithAI } from "./profile.service.js";
+import { enrichProfileWithAI } from "./profile.service.js";
+import { pushVersion } from "./change.service.js";
 
 const READ = { comment: true, blockTextElements: { script: true, noscript: true, style: true } };
 /** HTML text as a tree, the way the browser would read it (comments kept, <style>/<script> left as written). */
@@ -436,19 +437,16 @@ export function checkBaseVersion(baseVersion, current) {
     if (Number(baseVersion) !== current) throw new PatchError(null, `The design changed since you read it: it is now v${current}, the patch was made from v${Number(baseVersion)}. Read it again with get_design_spec (ids may have changed) and make the patch from that, with "baseVersion": ${current}.`);
 }
 
-export async function patchDesign(userId, { id, baseVersion, version, ops, note }) {
+export async function patchDesign(userId, { id, baseVersion, version, ops, note, actor }) {
     if (!/^[a-f0-9]{24}$/i.test(String(id))) throw new PatchError(null, "Invalid design id");
     const c = await Component.findOne({ _id: id, createdBy: userId });
     if (!c) throw new PatchError(null, "Design not found in your library");
     checkBaseVersion(baseVersion ?? version, c.version || 1);
     const { html, changed } = applyOps(c.htmlCode, ops);
     if (html !== c.htmlCode) {
-        c.versions.push(/** @type {any} */ ({ version: c.version, htmlCode: c.htmlCode, note: String(note || `Patch: ${ops.length} change${ops.length === 1 ? "" : "s"}`).slice(0, 200) }));
-        c.version += 1;
-        c.htmlCode = html;
-        c.profile = buildProfile(html, c.profile);
+        pushVersion(c, html, { note: String(note || `Patch: ${ops.length} change${ops.length === 1 ? "" : "s"}`).slice(0, 200), actor });
         await c.save();
         enrichProfileWithAI(c._id, userId);
     }
-    return { version: c.version, changed, spec: specOf(c, { svg: false }) };
+    return { version: c.version, changed, title: c.title, project: c.project, spec: specOf(c, { svg: false }) };
 }

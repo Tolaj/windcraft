@@ -79,11 +79,20 @@ And **resources**, which you can attach to a chat without a tool call: `windcraf
 |---|---|
 | Your own computer or a server with Chrome | Nothing, it finds Chrome. Set `RENDER_CHROME_PATH` for a different one. |
 | A hosted browser service | Set `RENDER_BROWSER_WS` to its DevTools address. |
-| A serverless host such as Vercel | Install `playwright-core` and `@sparticuz/chromium` as dependencies. |
+| A serverless host such as Vercel | Nothing: `playwright-core` and `@sparticuz/chromium` are dependencies and Windcraft's `vercel.json` bundles the browser. The first screenshot after a quiet spell takes a few seconds while the browser starts. |
 
-Without one of these the tool says so and everything else works. The page runs in a fresh browser context and cannot reach localhost, private networks or cloud metadata addresses.
+Each person can take 20 screenshots per 10 minutes (set `RENDER_LIMIT` to change it), so an AI stuck in a loop cannot run up a host's bill. The **Run test** button on the Connect page has a *Screenshots* row that starts the browser and says what is wrong if it cannot. That row is optional and never turns the result red. Without a browser the tool says so and everything else works. The page runs in a fresh browser context and cannot reach localhost, private networks or cloud metadata addresses.
 
 Every save also returns a `url` to the design in Windcraft, so the AI can give you the link.
+
+## Seeing and undoing what an AI did
+
+Giving an AI write access is easier when you can see what it did and take it back.
+
+- **History marks AI changes.** In a project, **History** shows a small *Edited by Claude* (or Cursor, or *Access token*) badge on each version an AI made. The client's name comes from the app that you allowed in Windcraft.
+- **Recent AI activity.** The Connect page lists the last ten things connected tools did ("Claude changed Pricing, 4 min ago") with a link to each design and an **Undo** button. Entries are kept for 30 days.
+- **Undo** puts the design back to what it was before that change and only while the design is still as the AI left it. If you edited it since, there is no Undo, so it can never wipe your own work. The AI's version stays in the history, so an undo can be undone.
+- **`revert_design`** lets the AI undo itself: with only an id it takes back the latest change, but only an AI's (never your own edit). Pass `version` to go back to a specific version, and `baseVersion` so a stale view cannot undo the wrong thing.
 
 ## Tools
 
@@ -96,6 +105,7 @@ Every save also returns a `url` to the design in Windcraft, so the AI can give y
 | `get_design_spec`, `apply_design_patch` | Read a saved design as JSON with element ids; change it with small operations instead of rewriting it. |
 | `list_projects`, `create_project`, `get_project`, `set_active_project`, `update_project` | Work with projects (groups of pages). |
 | `render_design` | A screenshot of a design, so the AI can check and fix its own work. |
+| `revert_design` | Undo the latest AI change to a design, or go back to a named version. |
 | `search`, `fetch` | The same as `search_components` and `get_component`, in the shape ChatGPT's connectors expect. |
 | `list_tags` | Every tag in your library with counts. |
 

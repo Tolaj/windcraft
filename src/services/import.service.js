@@ -1,3 +1,4 @@
+import { pushVersion, cleanActor } from "./change.service.js";
 import crypto from "node:crypto";
 import Component from "../models/component.model.js";
 import Project from "../models/project.model.js";
@@ -11,7 +12,7 @@ import { fitGroup } from "./plane.service.js";
 
 const MAX_HTML = 5_000_000;
 
-const buildDoc = (userId, { title, description, htmlCode, tags, project = null, kind = "component", parent = null, order = 0, group = "", frameW = null }) => ({
+const buildDoc = (userId, { title, description, htmlCode, tags, project = null, kind = "component", parent = null, order = 0, group = "", frameW = null, createdVia, lastChange }) => ({
         title: String(title).slice(0, 80) || "Imported design",
         description: String(description || `Imported design: ${title}`).slice(0, 200),
         category: "apps-general",
@@ -19,6 +20,7 @@ const buildDoc = (userId, { title, description, htmlCode, tags, project = null, 
         tags: normalizeTags(tags),
         profile: buildProfile(htmlCode),
         createdBy: userId,
+        ...(createdVia ? { createdVia } : {}), ...(lastChange ? { lastChange } : {}),
         project, kind, parent, order,
         group: normalizeGroup(group),
         ...(Number.isFinite(frameW) ? { frameW: Math.round(frameW) } : {}),
@@ -30,12 +32,9 @@ const createOne = (userId, fields) => Component.create(buildDoc(userId, fields))
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Saves new code as the component's next version (the old code stays in its history). Returns whether anything changed. */
-function nextVersion(c, htmlCode, note) {
+function nextVersion(c, htmlCode, note, actor) {
     if (c.htmlCode === htmlCode) return false;
-    c.versions.push({ version: c.version || 1, htmlCode: c.htmlCode, note });
-    c.version = (c.version || 1) + 1;
-    c.htmlCode = htmlCode;
-    c.profile = buildProfile(htmlCode, c.profile);
+    pushVersion(c, htmlCode, { note, actor });
     return true;
 }
 
@@ -63,7 +62,7 @@ const hashOf = (html) => crypto.createHash("sha1").update(String(html)).digest("
  * kind (hero, pricing...) and place (a hero whose heading changed is still the hero), then updated; new ones are added, ones no longer
  * there removed. A part someone changed by hand since it was made (its code no longer matches what was generated) keeps its code.
  */
-export async function syncSections(userId, page, { doc, baseTags = [], project, isNew = false }) {
+export async function syncSections(userId, page, { doc, baseTags = [], project, isNew = false, actor }) {
     const sections = [], created = [];
     const assets = [...doc.links, ...doc.styles].join("\n");
     const fresh = extractParts(doc.body).filter((s) => s.part).map((s, order) => buildDoc(userId, {
@@ -88,7 +87,7 @@ export async function syncSections(userId, page, { doc, baseTags = [], project, 
             if (!byHand) {
                 match.title = f.title;
                 match.description = f.description;
-                if (nextVersion(match, f.htmlCode, "Page saved again")) created.push(match);
+                if (nextVersion(match, f.htmlCode, "Page saved again", actor)) created.push(match);
                 match.partHash = hashOf(match.htmlCode);
             }
             await match.save();
@@ -126,7 +125,7 @@ export async function syncPartsOf(userId, page) {
  * sections are updated, added or removed to match. That save must say which version it started from (baseVersion):
  * if the page changed since (an edit in the editor), it is refused, so nothing is overwritten unseen, unless force.
  */
-export async function importDesign(userId, { title, html, description, tags = [], split = true, project = null, id = null, baseVersion, force = false, note, group, frameW, summarize = true }) {
+export async function importDesign(userId, { title, html, description, tags = [], split = true, project = null, id = null, baseVersion, force = false, note, group, frameW, summarize = true, actor }) {
     if (!html || typeof html !== "string" || !html.trim()) throw new Error("html is required");
     if (html.length > MAX_HTML) throw new Error("html is too large (limit 5 MB per design)");
 
@@ -144,7 +143,7 @@ export async function importDesign(userId, { title, html, description, tags = []
                 ? `"${page.title}" already exists (id ${page._id}, v${now}). To save this as its next version, pass baseVersion: ${now} after reading it with get_component (it may have been edited in the editor since you last saw it). To keep both, use a different title.`
                 : `"${page.title}" is now v${now}, but this design was made from v${baseVersion}: it was changed since (perhaps in the editor). Read it again with get_component and work from that, or pass force: true to replace it anyway.`);
         }
-        updated = nextVersion(page, html, String(note || "Saved again from Claude").slice(0, 200));
+        updated = nextVersion(page, html, String(note || "Saved again from Claude").slice(0, 200), actor);
         if (description) page.description = String(description).slice(0, 200);
         if (group !== undefined) { const g = normalizeGroup(group); page.group = g === page.group ? g : await fitGroup(userId, page.project, g, page._id); }
         if (Number.isFinite(frameW)) page.frameW = Math.round(frameW);
@@ -152,6 +151,7 @@ export async function importDesign(userId, { title, html, description, tags = []
         await page.save();
     } else {
         page = await createOne(userId, {
+            createdVia: cleanActor(actor), lastChange: { ...cleanActor(actor), at: new Date() },
             title: pageTitle,
             description: description || doc.description || doc.heading,
             htmlCode: html,
@@ -165,7 +165,7 @@ export async function importDesign(userId, { title, html, description, tags = []
     // sections are only linked to their page inside a project: outside one, a page saved again gets no new copies
     let sections = [], removedSections = 0;
     if (split && (isNew || project) && (await projectMakesParts(project))) {
-        const r = await syncSections(userId, page, { doc, baseTags, project, isNew });
+        const r = await syncSections(userId, page, { doc, baseTags, project, isNew, actor });
         sections = r.sections; removedSections = r.removed; created.push(...r.created);
     }
 

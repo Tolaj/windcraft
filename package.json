@@ -20,14 +20,32 @@
     "thumbs:categories": "node --env-file=.env scripts/make-category-thumbs.mjs",
     "e2e": "node --test --test-concurrency=1 test-e2e/"
   },
-  "keywords": ["tailwindcss", "tailwind", "visual-editor", "design-tool", "no-code", "website-builder", "drag-and-drop", "html", "figma-plugin", "mcp", "claude"],
+  "keywords": [
+    "tailwindcss",
+    "tailwind",
+    "visual-editor",
+    "design-tool",
+    "no-code",
+    "website-builder",
+    "drag-and-drop",
+    "html",
+    "figma-plugin",
+    "mcp",
+    "claude"
+  ],
   "homepage": "https://windcraft.swapniljadhav.com/",
-  "repository": { "type": "git", "url": "git+https://github.com/Tolaj/windcraft.git" },
-  "bugs": { "url": "https://github.com/Tolaj/windcraft/issues" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tolaj/windcraft.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Tolaj/windcraft/issues"
+  },
   "author": "Swapnil Jadhav",
   "license": "MIT",
   "type": "module",
   "dependencies": {
+    "@sparticuz/chromium": "^131.0.1",
     "bcrypt": "^6.0.0",
     "connect-mongo": "^6.0.0",
     "dotenv": "^17.2.3",

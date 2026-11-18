@@ -14,7 +14,8 @@ import { resolveProject, orderPages, listProjects, projectTree, getActiveProject
 import Project from "../models/project.model.js";
 import { pageTheme } from "@windcraft/core/theme.js";
 import { text, fail, image } from "@windcraft/mcp";
-import { documentFor, renderPage, RenderUnavailable } from "../services/render.service.js";
+import { logActivity, revertDesign, RevertError } from "../services/change.service.js";
+import { documentFor, renderPage, takeBudget, RenderUnavailable } from "../services/render.service.js";
 import { publicBase } from "../utils/publicUrl.js";
 
 export const TOOLS = [
@@ -166,6 +167,19 @@ export const TOOLS = [
         inputSchema: { type: "object", properties: { project: { type: "string", description: "Project name or id" } }, required: ["project"] },
     },
     {
+        name: "revert_design",
+        description: "Undo: take a saved design back. With only an id it goes back to what the design was before the latest change, and only if that change was made by an AI (never undoes the user's own edit). Pass version to go back to a specific version from the design's history. The code it has now is kept in its history first, so the undo can itself be undone. Pass baseVersion (the version you last read) so you do not undo something newer than you think.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                id: { type: "string", description: "The design's id" },
+                version: { type: "number", description: "Go back to this version instead of the one before the latest AI change" },
+                baseVersion: { type: "number", description: "The design's current version as you last read it" },
+            },
+            required: ["id"],
+        },
+    },
+    {
         name: "search",
         description: "Search the user's Windcraft designs by keywords. Returns a list of results with an id, a title and a link. Pass an id to fetch to read one. (The same as search_components, in the shape ChatGPT's connectors and Deep Research expect.)",
         inputSchema: { type: "object", properties: { query: { type: "string", description: "Keywords, e.g. 'pricing table'" } }, required: ["query"] },
@@ -202,6 +216,7 @@ export const INSTRUCTIONS = [
     "Windcraft: the user's private library of designs (HTML with Tailwind), grouped into projects of pages.",
     "",
     "Look: render_design draws a saved design (or HTML you have not saved yet) as a screenshot. After you save or change a page, render it at 1280 and 390 wide and fix what looks wrong before you tell the user it is done. Tool results carry a url: give the user the link to what you saved.",
+    "Undo: revert_design takes a design back to before the latest AI change (never the user's own edit), or to a version you name. Every change you make is recorded as yours in the design's history and on the user's Connect page, with an Undo button, so make small changes and say in note what you did.",
     "Shortcuts: the design guide and the active project are also resources, and prompts such as build-page, restyle-to-my-guide, audit-design, make-variations and new-section start the common jobs.",
     "Find: get_context (the active project, its brief, its pages with id and version), then get_design_guide (design tokens and an index of every component), then search_components before writing new UI so it matches what exists.",
     "Use in an app: get_component with format html, react, vue or svelte to match the codebase. Fetch only what you will use.",
@@ -224,6 +239,8 @@ async function projectFor(userId, ref) {
 const designUrl = (req, id) => (req ? `${publicBase(req)}/design/${id}` : undefined);
 const projectUrl = (req, id) => (req ? `${publicBase(req)}/projects/${id}` : undefined);
 const withUrl = (obj, url) => (url ? { ...obj, url } : obj);
+/** Who is calling (set when the token was checked): what they change is recorded as theirs. */
+const actorOf = (req) => (req && req.actor) || { source: "ai", label: "An AI client" };
 
 export async function callTool(userId, name, args = {}, req = null) {
     switch (name) {
@@ -269,7 +286,11 @@ export async function callTool(userId, name, args = {}, req = null) {
         }
         case "apply_design_patch": {
             try {
-                return { content: [{ type: "text", text: JSON.stringify(withUrl(await patchDesign(userId, args), designUrl(req, args.id))) }] };
+                const actor = actorOf(req);
+                const patched = await patchDesign(userId, { ...args, actor });
+                if (Number(patched.version) > Number(args.baseVersion)) await logActivity(userId, actor, { action: "changed", design: args.id, title: patched.title, project: patched.project, version: patched.version });
+                const { title: _t, project: _p, ...shown } = patched;
+                return { content: [{ type: "text", text: JSON.stringify(withUrl(shown, designUrl(req, args.id))) }] };
             } catch (e) {
                 return fail(e.message);
             }
@@ -288,9 +309,12 @@ export async function callTool(userId, name, args = {}, req = null) {
                 tags: normalizeTags(args.tags),
                 profile: buildProfile(args.htmlCode),
                 createdBy: userId,
+                createdVia: { source: actorOf(req).source, label: actorOf(req).label },
+                lastChange: { source: actorOf(req).source, label: actorOf(req).label, at: new Date() },
                 isPublished: false,
             });
             enrichProfileWithAI(c._id, userId);
+            await logActivity(userId, actorOf(req), { action: "created", design: c._id, title: c.title, project: c.project, version: 1 });
             const warning = tailwindWarning(args.htmlCode);
             return text({ id: String(c._id), url: designUrl(req, c._id), message: "Saved to your library (private)", ...(warning ? { warning } : {}) });
         }
@@ -303,8 +327,9 @@ export async function callTool(userId, name, args = {}, req = null) {
                     title: args.title, html: args.html, description: args.description,
                     tags: args.tags, split: args.split === true, project: proj ? proj._id : null,
                     id: args.id, baseVersion: args.baseVersion, force: args.force === true, note: args.note, group: args.group,
-                    frameW: Number.isFinite(args.width) ? args.width : undefined,
+                    frameW: Number.isFinite(args.width) ? args.width : undefined, actor: actorOf(req),
                 });
+                if (result.page.created || result.page.updated) await logActivity(userId, actorOf(req), { action: result.page.created ? "created" : "changed", design: result.page.id, title: result.page.title, project: proj._id, version: result.page.version });
                 if (proj && result.page.created) await orderPages(userId, proj._id, [{ id: result.page.id, created: true }]); // a new page goes after the others
                 const what = result.page.created ? "Saved" : result.page.updated ? `Saved v${result.page.version} of` : "No change to";
                 return text({ ...result, page: withUrl(result.page, designUrl(req, result.page.id)), project: proj ? { id: String(proj._id), name: proj.name, url: projectUrl(req, proj._id) } : null, message: `${what} "${result.page.title}"${result.sections.length ? ` and ${result.sections.length} section component(s)` : ""}${result.removedSections ? ` (${result.removedSections} section(s) no longer on the page removed)` : ""} in your library (private)${proj ? ` in project "${proj.name}"` : ""}.` });
@@ -331,8 +356,9 @@ export async function callTool(userId, name, args = {}, req = null) {
             for (const pg of pagesIn) {
                 try {
                     const html = typeof pg.html === "string" ? withSharedHead(pg.html, shared) : pg.html;
-                    const r = await importDesign(userId, { title: pg.title, html, description: pg.description, tags: args.tags, split: false, project: proj._id, id: pg.id, baseVersion: pg.baseVersion, force: pg.force === true, group: pg.group });
+                    const r = await importDesign(userId, { title: pg.title, html, description: pg.description, tags: args.tags, split: false, project: proj._id, id: pg.id, baseVersion: pg.baseVersion, force: pg.force === true, group: pg.group, actor: actorOf(req) });
                     saved.push(r.page);
+                    if (r.page.created || r.page.updated) await logActivity(userId, actorOf(req), { action: r.page.created ? "created" : "changed", design: r.page.id, title: r.page.title, project: proj._id, version: r.page.version });
                 } catch (e) {
                     failed.push({ title: pg && pg.title, error: e.message });
                 }
@@ -383,6 +409,17 @@ export async function callTool(userId, name, args = {}, req = null) {
             const { markdown } = await buildDesignGuide(userId);
             return text(markdown);
         }
+        case "revert_design": {
+            try {
+                const actor = actorOf(req);
+                const r = await revertDesign(userId, { id: args.id, toVersion: args.version, baseVersion: args.baseVersion, actor });
+                await logActivity(userId, actor, { action: "reverted", design: r.id, title: r.title, project: r.project, version: r.version });
+                return text({ id: r.id, version: r.version, message: `"${r.title}" is back to the code of v${r.to} (now v${r.version}; v${r.from} is kept in its history, so this can be undone too).`, url: designUrl(req, r.id) });
+            } catch (e) {
+                if (e instanceof RevertError) return fail(e.message);
+                throw e;
+            }
+        }
         case "search": {
             const results = await searchLibrary(userId, { query: args.query, limit: 12 });
             return text(JSON.stringify({ results: results.map((c) => ({ id: String(c._id), title: c.title, url: designUrl(req, c._id) || String(c._id) })) }));
@@ -396,6 +433,8 @@ export async function callTool(userId, name, args = {}, req = null) {
         case "render_design": {
             if (!args.id && !args.html) return fail("Give id (a saved design) or html");
             if (args.id && !/^[a-f0-9]{24}$/i.test(String(args.id))) return fail("Invalid design id");
+            const budget = takeBudget(userId);
+            if (!budget.ok) return fail(`Too many screenshots in a short time (the limit protects the server). Try again in about ${budget.retryInMin} minute${budget.retryInMin === 1 ? "" : "s"}, or look at the design in Windcraft: ${args.id ? designUrl(req, args.id) : "save it first"}.`);
             try {
                 const page = await documentFor(userId, { id: args.id, html: args.html, dark: args.dark === true });
                 const shot = await renderPage(page, { width: args.width, fullPage: args.fullPage !== false, maxHeight: args.maxHeight, dark: args.dark === true });
@@ -429,6 +468,7 @@ export const TITLES = {
     save_component: "Save a component",
     save_design: "Save a finished design",
     save_pages: "Save several pages",
+    revert_design: "Undo an AI change",
     search: "Search designs",
     fetch: "Fetch a design",
     render_design: "See a design (screenshot)",
@@ -443,4 +483,4 @@ export const TITLES = {
 export const READ_ONLY = new Set(["get_design_guide", "search_components", "get_component", "get_design_spec", "list_tags", "list_projects", "get_project", "get_context", "render_design", "search", "fetch"]);
 
 // Saving a page again replaces its code (kept in its history) and deletes sections no longer on it.
-export const DESTRUCTIVE = new Set(["save_design", "save_pages", "apply_design_patch"]);
+export const DESTRUCTIVE = new Set(["save_design", "save_pages", "apply_design_patch", "revert_design"]);

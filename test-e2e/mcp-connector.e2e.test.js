@@ -2,7 +2,8 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { missingPrerequisite, startStack, seed, within } from "./helpers.js";
+import { chromium } from "playwright-core";
+import { missingPrerequisite, chromePath, startStack, seed, within } from "./helpers.js";
 
 const skip = missingPrerequisite();
 let stack, ids, call, rpc;
@@ -24,7 +25,7 @@ test("the connector announces tools, resources and prompts", { skip: skip || fal
     assert.ok(init.capabilities.resources && init.capabilities.prompts && init.capabilities.tools);
     assert.match(init.instructions, /render_design/);
     const tools = (await rpc("tools/list")).result.tools.map((t) => t.name);
-    for (const t of ["render_design", "search", "fetch", "get_design_guide", "save_design"]) assert.ok(tools.includes(t), `${t} is a tool`);
+    for (const t of ["render_design", "search", "fetch", "get_design_guide", "save_design", "revert_design"]) assert.ok(tools.includes(t), `${t} is a tool`);
     const prompts = (await rpc("prompts/list")).result.prompts;
     assert.deepEqual(prompts.map((p) => p.name).sort(), ["audit-design", "build-page", "make-variations", "new-section", "restyle-to-my-guide"]);
     const got = (await rpc("prompts/get", { name: "build-page", arguments: { description: "a pricing page" } })).result;
@@ -107,4 +108,105 @@ test("the Connect page has Add to Cursor, a ChatGPT tab and the new tools", { sk
     assert.match(html, /data-tool="chatgpt"/);
     assert.match(html, /data-panel="chatgpt"/);
     for (const t of ["render_design", "search", "fetch"]) assert.ok(html.includes(t), `${t} is listed`);
+});
+
+test("an AI's changes are recorded as its own, shown on the Connect page and can be undone, but a person's own edit is never undone by an AI", { skip: skip || false, timeout: 180000 }, async () => {
+    const { default: Component } = await import("../src/models/component.model.js");
+    const text = (r) => JSON.parse(r.content[0].text);
+    // the AI saves a page, then saves it again changed
+    const first = text(await call("save_design", { title: "Trust page", html: '<div class="p-4"><h1>One</h1></div>', project: "E2E project" }));
+    const id = first.page.id;
+    const second = text(await call("save_design", { title: "Trust page", id, baseVersion: first.page.version, html: '<div class="p-4"><h1>Two</h1></div>', note: "Made the title say Two" }));
+    assert.equal(second.page.version, 2);
+    let doc = await Component.findById(id).lean();
+    assert.equal(doc.lastChange.source, "ai");
+    assert.equal(doc.lastChange.label, "Access token");
+    assert.equal(doc.versions[doc.versions.length - 1].by.source, "ai", "the history entry says an AI made the change");
+
+    // the Connect page lists it with an Undo
+    const signIn = await fetch(`${stack.base}/users/sign-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: ids.email, password: ids.password }) });
+    const cookie = (signIn.headers.getSetCookie() || []).map((c) => c.split(";")[0]).join("; ");
+    await new Promise((r) => setTimeout(r, 700));
+    const page = await (await fetch(`${stack.base}/connect`, { headers: { cookie } })).text();
+    assert.match(page, /Recent AI activity/);
+    assert.match(page, /Access token<\/span> changed/);
+    const undoId = /data-undo="([a-f0-9]{24})"/.exec(page);
+    assert.ok(undoId, "the latest change has an Undo button");
+
+    // the history API says who made which version
+    const versions = await (await fetch(`${stack.base}/api/components/${id}/versions`, { headers: { cookie } })).json();
+    assert.equal(versions.data[0].by.source, "ai");
+
+    // Undo from the page
+    const undone = await (await fetch(`${stack.base}/connect/activity/${undoId[1]}/undo`, { method: "POST", headers: { cookie } })).json();
+    assert.equal(undone.success, true, undone.message);
+    doc = await Component.findById(id).lean();
+    assert.match(doc.htmlCode, /One/);
+    assert.equal(doc.version, 3, "the undo is a new version, so it can be undone too");
+    assert.equal(doc.lastChange.source, "editor");
+    const again = await fetch(`${stack.base}/connect/activity/${undoId[1]}/undo`, { method: "POST", headers: { cookie } });
+    assert.equal(again.status, 409, "it cannot be undone twice");
+
+    // the AI changes it again; then the person edits it in the editor
+    await call("save_design", { title: "Trust page", id, baseVersion: 3, html: '<div class="p-4"><h1>Three</h1></div>' });
+    const edited = await (await fetch(`${stack.base}/api/components/${id}`, { method: "PUT", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ htmlCode: '<div class="p-4"><h1>My own words</h1></div>' }) })).json();
+    assert.equal(edited.success, true, edited.message);
+    doc = await Component.findById(id).lean();
+    assert.equal(doc.lastChange.source, "editor");
+    // so the AI's revert refuses, and the Connect page offers no Undo for its earlier change
+    const refused = await call("revert_design", { id });
+    assert.equal(refused.isError, true);
+    assert.match(refused.content[0].text, /not made by an AI/);
+    const page2 = await (await fetch(`${stack.base}/connect`, { headers: { cookie } })).text();
+    assert.ok(!page2.includes(`data-undo="${undoId[1]}"`), "no Undo for a change that is no longer the latest");
+    // but it may go back to a named version when asked
+    const named = await call("revert_design", { id, version: 1 });
+    assert.ok(!named.isError, named.content[0].text);
+    assert.match((await Component.findById(id).lean()).htmlCode, /One/);
+
+    // a stale baseVersion is refused
+    const stale = await call("revert_design", { id, baseVersion: 1 });
+    assert.equal(stale.isError, true);
+    assert.match(stale.content[0].text, /changed since/);
+});
+
+test("the connector self-check has an optional Screenshots row that does not turn the result red", { skip: skip || false, timeout: 180000 }, async () => {
+    const signIn = await fetch(`${stack.base}/users/sign-in`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: ids.email, password: ids.password }) });
+    const cookie = (signIn.headers.getSetCookie() || []).map((c) => c.split(";")[0]).join("; ");
+    await new Promise((r) => setTimeout(r, 700));
+    const res = await (await fetch(`${stack.base}/connect/check`, { headers: { cookie } })).json();
+    const row = res.checks.find((c) => c.id === "screenshots");
+    assert.ok(row, "the row is there");
+    assert.equal(row.optional, true);
+    assert.equal(row.ok, true, row.detail); // Chrome is on this machine
+    assert.match(row.detail, /drew a test page/);
+});
+
+test("the project's History dialog marks the versions an AI made", { skip: skip || false, timeout: 180000 }, async () => {
+    const text = (r) => JSON.parse(r.content[0].text);
+    const first = text(await call("save_design", { title: "Badge page", html: '<div class="p-4"><h1>A</h1></div>', project: "E2E project" }));
+    await call("save_design", { title: "Badge page", id: first.page.id, baseVersion: first.page.version, html: '<div class="p-4"><h1>B</h1></div>', note: "Changed the title" });
+    const browser = await chromium.launch({ executablePath: chromePath(), headless: true });
+    try {
+        const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+        await ctx.request.post(`${stack.base}/users/sign-in`, { data: { email: ids.email, password: ids.password } });
+        const page = await ctx.newPage();
+        await page.goto(`${stack.base}/projects/${ids.project}`);
+        await page.locator("#board").waitFor({ timeout: 60000 });
+        // fit the board, then click the frame (a click without a drag selects it) and open its history
+        await page.locator("#fitBtn").click();
+        await page.waitForTimeout(1500);
+        const box = await page.locator(`.fwrap[data-id="${first.page.id}"] .frame`).boundingBox();
+        assert.ok(box, "the frame is on the board");
+        await page.mouse.click(box.x + box.width / 2, box.y + Math.min(box.height / 2, 40));
+        const btn = page.locator("#historyBtn");
+        await btn.waitFor({ timeout: 20000 });
+        await btn.click();
+        await page.waitForTimeout(2500);
+        await page.waitForFunction(() => /v1/.test((document.getElementById("libModal") || {}).innerText || ""), null, { timeout: 20000 });
+        const html = await page.locator("#libModal").innerHTML();
+        assert.match(html, /Edited by Access token/, "the current version, made by the AI, carries the badge");
+        assert.equal((html.match(/Edited by/g) || []).length, 2, "both versions were made by the AI (v1 created, v2 changed)");
+        await ctx.close();
+    } finally { await browser.close(); }
 });
