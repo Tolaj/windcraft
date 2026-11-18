@@ -46,6 +46,12 @@ async function launch() {
     let args = [];
     if (!executablePath) {
         try {
+            // @sparticuz/chromium unpacks the system libraries the browser needs (libnss3 and the rest) only when it recognises an AWS Lambda
+            // runtime from AWS_EXECUTION_ENV. Vercel runs on Lambda but does not always say so, so say it before the package is loaded.
+            if (process.env.VERCEL && !/AWS_Lambda_nodejs\d+\.x/.test(process.env.AWS_EXECUTION_ENV || "")) {
+                const major = Number(process.versions.node.split(".")[0]);
+                process.env.AWS_EXECUTION_ENV = `AWS_Lambda_nodejs${major >= 22 ? 22 : 20}.x`;
+            }
             const sparticuz = (await import("@sparticuz/chromium")).default;
             executablePath = await sparticuz.executablePath();
             args = sparticuz.args;
@@ -162,6 +168,14 @@ export async function checkRenderer() {
         const shot = await renderPage("<!doctype html><html><body style=\"margin:0;background:#4f46e5\"><div style=\"height:40px\"></div></body></html>", { width: 320, fullPage: true, maxHeight: 300 });
         return { ok: shot.data.length > 100, ms: Date.now() - t0, where: process.env.RENDER_BROWSER_WS ? "a browser service" : SERVERLESS ? "this serverless function" : "this server" };
     } catch (e) {
-        return { ok: false, ms: Date.now() - t0, unavailable: e instanceof RenderUnavailable, error: e.message };
+        return { ok: false, ms: Date.now() - t0, unavailable: e instanceof RenderUnavailable, error: shortError(e) };
     }
+}
+
+/** A browser that fails to start prints a wall of launch flags; what matters is the first line, the lines the browser itself printed, and where it ran. */
+function shortError(e) {
+    const lines = String(e && e.message).split("\n");
+    const own = lines.filter((l) => /\[err\]|error while loading|cannot open|No such file|Permission denied|sandbox/i.test(l)).map((l) => l.replace(/^\s*-?\s*/, "").replace(/\[pid=\d+\]/, "").trim()).slice(0, 3);
+    const where = SERVERLESS ? ` (node ${process.versions.node}, AWS_EXECUTION_ENV=${process.env.AWS_EXECUTION_ENV || "unset"}, LD_LIBRARY_PATH=${process.env.LD_LIBRARY_PATH || "unset"}, libs extracted: ${existsSync("/tmp/al2023/lib") || existsSync("/tmp/al2/lib")})` : "";
+    return `${lines[0].slice(0, 200)}${own.length ? ` ${own.join(" ")}` : ""}${where}`.slice(0, 700);
 }
