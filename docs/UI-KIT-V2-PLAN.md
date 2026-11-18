@@ -27,7 +27,10 @@ The project **Windcraft UI Kit v2** holds all 100 designs, 10 in each category b
 | Toggles & Checkboxes (`forms-controls`) | Forms | Switches, checkboxes, radios, sliders |
 | Empty States (`ui-empty-states`) | UI Components | The screen people forget to design |
 
-### Wave 2: more UI and forms (12)
+### Built in round 2 (12 categories, 120 designs) — done
+Saved private in **Windcraft UI Kit v2**, 10 each, with their group set: Avatars (`ui-avatars`), Drawers (`ui-drawers`), Popovers & Tooltips (`ui-popovers`), Progress & Steppers (`ui-progress`), Skeleton Loaders (`ui-skeletons`), Product Detail (`ecommerce-product-detail`), Shopping Cart (`ecommerce-cart`), Checkout (`ecommerce-checkout`), Dashboards (`apps-dashboards`), Chat & Messaging (`apps-chat`), Kanban Boards (`apps-kanban`) and Calendars (`apps-calendar`). The project now holds 300 designs. Not done yet: a render of every design at 1280 and 390 px, and publishing. Chat 04 and 06 use emoji and may need a plain symbol.
+
+### Wave 2: more UI and forms (12; avatars, tooltips and popovers, drawers, progress and steppers, skeletons, and checkout are covered above)
 Avatars and avatar groups · Tooltips and popovers · Drawers (slide-overs) · Progress bars and steppers · Skeleton loaders and spinners · Search and command bars · Input groups · File uploads · Date pickers and calendars · Settings forms · Contact forms · Checkout and multi-step forms
 
 ### Wave 3: marketing (7)

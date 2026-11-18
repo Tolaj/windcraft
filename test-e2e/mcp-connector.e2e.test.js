@@ -237,5 +237,5 @@ test("designs can be filed under a gallery category and a board group when they 
     assert.equal((await call("save_component", { title: "Bad", description: "x", htmlCode: "<p>x</p>", category: "zzz", project: "E2E project" })).isError, true);
     // the new wave-1 categories exist in the app
     const { categories } = await import("../src/routes/home.routes.js");
-    for (const slug of ["navigation-sidebars", "marketing-cta", "marketing-stats", "ui-alerts", "ui-badges", "ui-tabs", "ui-accordions", "navigation-pagination", "forms-controls", "ui-empty-states", "pages-landing", "pages-about", "pages-contact", "pages-auth", "pages-dashboard", "pages-settings", "pages-blog-post", "pages-error"]) assert.ok(categories[slug], `${slug} is a category`);
+    for (const slug of ["navigation-sidebars", "marketing-cta", "marketing-stats", "ui-alerts", "ui-badges", "ui-tabs", "ui-accordions", "navigation-pagination", "forms-controls", "ui-empty-states", "pages-landing", "pages-about", "pages-contact", "pages-auth", "pages-dashboard", "pages-settings", "pages-blog-post", "pages-error", "ui-avatars", "ui-drawers", "ui-popovers", "ui-progress", "ui-skeletons", "ecommerce-product-detail", "ecommerce-cart", "ecommerce-checkout", "apps-dashboards", "apps-chat", "apps-kanban", "apps-calendar"]) assert.ok(categories[slug], `${slug} is a category`);
 });
