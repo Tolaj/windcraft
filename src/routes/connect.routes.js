@@ -8,7 +8,7 @@ import FigmaToken from "../models/figmaToken.model.js";
 import OAuthClient from "../models/oauthClient.model.js";
 import OAuthToken from "../models/oauthToken.model.js";
 import { TOOLS } from "../mcp/tools.js";
-import { buildClaudeCodeKit, buildDesignPack, mcpJson, cursorJson, claudeMdSnippet, skillMd, TOKEN_ENV } from "../services/kit.service.js";
+import { buildClaudeCodeKit, buildDesignPack, mcpJson, cursorJson, cursorInstallLink, claudeMdSnippet, skillMd, TOKEN_ENV } from "../services/kit.service.js";
 
 const router = express.Router();
 
@@ -25,6 +25,9 @@ const TOOL_BLURBS = {
     get_project: "Reads one project: its pages, groups and settings.",
     set_active_project: "Chooses which project new designs are saved to.",
     list_projects: "Lists your projects.",
+    render_design: "Takes a screenshot of a design so the AI can look at its own work and fix it.",
+    search: "Searches your designs in the shape ChatGPT expects (use with fetch).",
+    fetch: "Gets one design by the id that search returned (for ChatGPT).",
     list_tags: "Lists the tags used in your library.",
     create_project: "Creates a project.",
     update_project: "Changes a project's name, description or settings.",
@@ -64,6 +67,7 @@ router.get("/", async (req, res) => {
             tools: TOOLS.map((t) => ({ name: t.name, blurb: TOOL_BLURBS[t.name] || firstSentence(t.description), writes: WRITE_TOOLS.has(t.name) })),
             mcpJson: mcpJson(baseUrl(req)),
             cursorJson: cursorJson(baseUrl(req)),
+            cursorLink: cursorInstallLink(baseUrl(req)),
             claudeMd: claudeMdSnippet(),
             skillMd: skillMd(),
         });

@@ -22,7 +22,11 @@ claude mcp add --transport http tailwind-library https://your-windcraft-address/
   --header "Authorization: Bearer ${TAILWIND_LIBRARY_TOKEN}"
 ```
 
-**Cursor and any other MCP client:** add an HTTP (streamable) server with the address above and the header `Authorization: Bearer <your token>`:
+**Cursor: one click.** On the **Connect** page choose **Cursor** and press **Add to Cursor**. Cursor asks before it adds the server; set your access token in the environment variable shown there.
+
+**ChatGPT: sign in, no token.** In ChatGPT open Settings, Connectors, Advanced and switch on Developer mode. Create a connector with the address above, choose OAuth, sign in to Windcraft and press **Allow**. ChatGPT reads your designs with the `search` and `fetch` tools. This needs a public HTTPS address and a ChatGPT plan that offers custom connectors; the menu names change from time to time.
+
+**Cursor and any other MCP client, by hand:** add an HTTP (streamable) server with the address above and the header `Authorization: Bearer <your token>`:
 
 ```json
 {
@@ -51,6 +55,35 @@ The **Connect** page has a **Run test** button that checks the connection and sa
 | "Which project am I working on? Switch to Acme." | `get_context`, `set_active_project` |
 | "Write down the brand rules for this project: friendly tone, indigo, rounded." | `update_project` |
 | "List my projects." / "What tags do I use?" | `list_projects`, `list_tags` |
+| "Save this page, then look at it on a phone and fix anything that looks off." | `save_design`, `render_design`, `apply_design_patch` |
+
+## Prompts and resources
+
+The server also offers **prompts**: ready-made commands your client shows when you type `/` (Claude, Cursor and others).
+
+| Prompt | What it does |
+|---|---|
+| `build-page` | Designs a new page that matches your project, saves it and looks at the result |
+| `restyle-to-my-guide` | Brings a saved design in line with your design guide with small patches |
+| `audit-design` | Checks a design for contrast, headings, labels, tap targets and the phone layout; fixes it if you say so |
+| `make-variations` | Saves two to four alternatives next to the original |
+| `new-section` | Designs one section (hero, pricing, FAQ) that fits an existing page |
+
+And **resources**, which you can attach to a chat without a tool call: `windcraft://design-guide`, `windcraft://context` (the active project), `windcraft://projects`, `windcraft://project/{id}` (a project's pages), `windcraft://theme/{id}` (its Tailwind config) and `windcraft://component/{id}` (a design's HTML).
+
+## Letting the AI see its work: `render_design`
+
+`render_design` returns a screenshot of a saved design, or of HTML that has not been saved yet, drawn with the project's theme. It makes the loop "write, look, fix" possible. It needs a browser on the machine that runs Windcraft, so a server must be set up for it:
+
+| Where Windcraft runs | Setup |
+|---|---|
+| Your own computer or a server with Chrome | Nothing, it finds Chrome. Set `RENDER_CHROME_PATH` for a different one. |
+| A hosted browser service | Set `RENDER_BROWSER_WS` to its DevTools address. |
+| A serverless host such as Vercel | Install `playwright-core` and `@sparticuz/chromium` as dependencies. |
+
+Without one of these the tool says so and everything else works. The page runs in a fresh browser context and cannot reach localhost, private networks or cloud metadata addresses.
+
+Every save also returns a `url` to the design in Windcraft, so the AI can give you the link.
 
 ## Tools
 
@@ -62,5 +95,7 @@ The **Connect** page has a **Run test** button that checks the connection and sa
 | `save_design`, `save_pages`, `save_component` | Save one screen, several screens in one project, or a reusable component. |
 | `get_design_spec`, `apply_design_patch` | Read a saved design as JSON with element ids; change it with small operations instead of rewriting it. |
 | `list_projects`, `create_project`, `get_project`, `set_active_project`, `update_project` | Work with projects (groups of pages). |
+| `render_design` | A screenshot of a design, so the AI can check and fix its own work. |
+| `search`, `fetch` | The same as `search_components` and `get_component`, in the shape ChatGPT's connectors expect. |
 | `list_tags` | Every tag in your library with counts. |
 

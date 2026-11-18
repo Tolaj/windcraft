@@ -15,6 +15,12 @@ export const mcpJson = (baseUrl) =>
 export const cursorJson = (baseUrl) =>
     JSON.stringify({ mcpServers: { [SERVER_NAME]: { url: `${baseUrl}/mcp`, headers: { Authorization: `Bearer \${env:${TOKEN_ENV}}` } } } }, null, 2) + "\n";
 
+/** Cursor's one-click install link: the server's config (not the file around it), base64 in the address. Cursor asks before it adds anything. */
+export const cursorInstallLink = (baseUrl) => {
+    const config = { url: `${baseUrl}/mcp`, headers: { Authorization: `Bearer \${env:${TOKEN_ENV}}` } };
+    return `cursor://anysphere.cursor-deeplink/mcp/install?name=${encodeURIComponent(SERVER_NAME)}&config=${encodeURIComponent(Buffer.from(JSON.stringify(config)).toString("base64"))}`;
+};
+
 export const claudeMdSnippet = () => `## UI library
 
 This project uses a shared component library through the \`${SERVER_NAME}\` MCP server.

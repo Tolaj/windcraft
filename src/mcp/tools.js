@@ -13,7 +13,9 @@ import { specOf, patchDesign, tailwindWarning } from "../services/design-spec.se
 import { resolveProject, orderPages, listProjects, projectTree, getActiveProject, setActiveProject, projectContext } from "../services/project.service.js";
 import Project from "../models/project.model.js";
 import { pageTheme } from "@windcraft/core/theme.js";
-import { text, fail } from "@windcraft/mcp";
+import { text, fail, image } from "@windcraft/mcp";
+import { documentFor, renderPage, RenderUnavailable } from "../services/render.service.js";
+import { publicBase } from "../utils/publicUrl.js";
 
 export const TOOLS = [
     {
@@ -164,6 +166,31 @@ export const TOOLS = [
         inputSchema: { type: "object", properties: { project: { type: "string", description: "Project name or id" } }, required: ["project"] },
     },
     {
+        name: "search",
+        description: "Search the user's Windcraft designs by keywords. Returns a list of results with an id, a title and a link. Pass an id to fetch to read one. (The same as search_components, in the shape ChatGPT's connectors and Deep Research expect.)",
+        inputSchema: { type: "object", properties: { query: { type: "string", description: "Keywords, e.g. 'pricing table'" } }, required: ["query"] },
+    },
+    {
+        name: "fetch",
+        description: "Fetch one Windcraft design by the id that search returned: its title, its description and its HTML code.",
+        inputSchema: { type: "object", properties: { id: { type: "string", description: "The id from search" } }, required: ["id"] },
+    },
+    {
+        name: "render_design",
+        description: "Look at a design: returns a screenshot of a saved design (id) or of HTML you have written but not saved yet (html), as the browser draws it with the project's theme. Use it after saving or changing a page to check spacing, alignment, colours and the phone layout, then fix what looks wrong with apply_design_patch. Render at width 390 for a phone and 1280 for a desktop. A page taller than maxHeight is cut at maxHeight.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                id: { type: "string", description: "A saved design's id" },
+                html: { type: "string", description: "HTML to draw instead of a saved design (for a look before saving)" },
+                width: { type: "number", description: "Screen width in pixels, 320 to 2400 (default 1280; 390 is a phone)" },
+                fullPage: { type: "boolean", description: "The whole page (default) or only the first screen" },
+                maxHeight: { type: "number", description: "Cut the page at this height in pixels (default 3000, at most 6000)" },
+                dark: { type: "boolean", description: "Draw it in dark mode (adds the dark class and prefers dark)" },
+            },
+        },
+    },
+    {
         name: "list_tags",
         description: "List every tag used in the user's library with counts.",
         inputSchema: { type: "object", properties: {} },
@@ -174,6 +201,8 @@ export const TOOLS = [
 export const INSTRUCTIONS = [
     "Windcraft: the user's private library of designs (HTML with Tailwind), grouped into projects of pages.",
     "",
+    "Look: render_design draws a saved design (or HTML you have not saved yet) as a screenshot. After you save or change a page, render it at 1280 and 390 wide and fix what looks wrong before you tell the user it is done. Tool results carry a url: give the user the link to what you saved.",
+    "Shortcuts: the design guide and the active project are also resources, and prompts such as build-page, restyle-to-my-guide, audit-design, make-variations and new-section start the common jobs.",
     "Find: get_context (the active project, its brief, its pages with id and version), then get_design_guide (design tokens and an index of every component), then search_components before writing new UI so it matches what exists.",
     "Use in an app: get_component with format html, react, vue or svelte to match the codebase. Fetch only what you will use.",
     "Change a saved design: for a small change, get_design_spec (each element with an id, a role and its classes as props per breakpoint and state), then apply_design_patch with small ops on those ids and the version you read. Only what you name changes. For a redesign, save the whole page again (below).",
@@ -191,7 +220,12 @@ async function projectFor(userId, ref) {
     return getActiveProject(userId);
 }
 
-export async function callTool(userId, name, args = {}) {
+/** Where a person opens a saved design or a project in Windcraft (the tool results carry these, so an AI can hand the user a link). */
+const designUrl = (req, id) => (req ? `${publicBase(req)}/design/${id}` : undefined);
+const projectUrl = (req, id) => (req ? `${publicBase(req)}/projects/${id}` : undefined);
+const withUrl = (obj, url) => (url ? { ...obj, url } : obj);
+
+export async function callTool(userId, name, args = {}, req = null) {
     switch (name) {
         case "search_components": {
             let projectId = null;
@@ -235,7 +269,7 @@ export async function callTool(userId, name, args = {}) {
         }
         case "apply_design_patch": {
             try {
-                return { content: [{ type: "text", text: JSON.stringify(await patchDesign(userId, args)) }] };
+                return { content: [{ type: "text", text: JSON.stringify(withUrl(await patchDesign(userId, args), designUrl(req, args.id))) }] };
             } catch (e) {
                 return fail(e.message);
             }
@@ -258,7 +292,7 @@ export async function callTool(userId, name, args = {}) {
             });
             enrichProfileWithAI(c._id, userId);
             const warning = tailwindWarning(args.htmlCode);
-            return text({ id: String(c._id), message: "Saved to your library (private)", ...(warning ? { warning } : {}) });
+            return text({ id: String(c._id), url: designUrl(req, c._id), message: "Saved to your library (private)", ...(warning ? { warning } : {}) });
         }
         case "save_design": {
             if (!args.html || !args.title) return fail("title and html are required");
@@ -273,7 +307,7 @@ export async function callTool(userId, name, args = {}) {
                 });
                 if (proj && result.page.created) await orderPages(userId, proj._id, [{ id: result.page.id, created: true }]); // a new page goes after the others
                 const what = result.page.created ? "Saved" : result.page.updated ? `Saved v${result.page.version} of` : "No change to";
-                return text({ ...result, project: proj ? { id: String(proj._id), name: proj.name } : null, message: `${what} "${result.page.title}"${result.sections.length ? ` and ${result.sections.length} section component(s)` : ""}${result.removedSections ? ` (${result.removedSections} section(s) no longer on the page removed)` : ""} in your library (private)${proj ? ` in project "${proj.name}"` : ""}.` });
+                return text({ ...result, page: withUrl(result.page, designUrl(req, result.page.id)), project: proj ? { id: String(proj._id), name: proj.name, url: projectUrl(req, proj._id) } : null, message: `${what} "${result.page.title}"${result.sections.length ? ` and ${result.sections.length} section component(s)` : ""}${result.removedSections ? ` (${result.removedSections} section(s) no longer on the page removed)` : ""} in your library (private)${proj ? ` in project "${proj.name}"` : ""}.` });
             } catch (e) {
                 return fail(e.message);
             }
@@ -306,8 +340,8 @@ export async function callTool(userId, name, args = {}) {
             // the pages that went in are put in the order they were listed (the ones that failed are not in it); a new page goes last
             const order = saved.length > 1 || saved.some((p) => p.created) ? await orderPages(userId, proj._id, saved) : null;
             return text({
-                project: { id: String(proj._id), name: proj.name },
-                saved: saved.map((p) => ({ ...p, ...(order ? { position: order.indexOf(p.id) + 1 } : {}) })), failed,
+                project: { id: String(proj._id), name: proj.name, url: projectUrl(req, proj._id) },
+                saved: saved.map((p) => ({ ...p, url: designUrl(req, p.id), ...(order ? { position: order.indexOf(p.id) + 1 } : {}) })), failed,
                 message: `Saved ${saved.length} page(s) as separate components in project "${proj.name}"${shared.trim() ? `, each with the project's shared head${typeof args.shared === "string" ? "" : " (the one saved earlier)"}` : ""}${order && saved.length > 1 ? ", in the order given" : ""}${failed.length ? `; ${failed.length} failed` : ""}.`,
             });
         }
@@ -349,6 +383,29 @@ export async function callTool(userId, name, args = {}) {
             const { markdown } = await buildDesignGuide(userId);
             return text(markdown);
         }
+        case "search": {
+            const results = await searchLibrary(userId, { query: args.query, limit: 12 });
+            return text(JSON.stringify({ results: results.map((c) => ({ id: String(c._id), title: c.title, url: designUrl(req, c._id) || String(c._id) })) }));
+        }
+        case "fetch": {
+            if (!/^[a-f0-9]{24}$/i.test(String(args.id))) return fail("Invalid id");
+            const c = await Component.findOne({ _id: args.id, createdBy: userId }).select("title description htmlCode category tags version").lean();
+            if (!c) return fail("Design not found in your library");
+            return text(JSON.stringify({ id: String(c._id), title: c.title, text: c.htmlCode, url: designUrl(req, c._id) || String(c._id), metadata: { description: c.description, category: c.category, tags: c.tags, version: c.version } }));
+        }
+        case "render_design": {
+            if (!args.id && !args.html) return fail("Give id (a saved design) or html");
+            if (args.id && !/^[a-f0-9]{24}$/i.test(String(args.id))) return fail("Invalid design id");
+            try {
+                const page = await documentFor(userId, { id: args.id, html: args.html, dark: args.dark === true });
+                const shot = await renderPage(page, { width: args.width, fullPage: args.fullPage !== false, maxHeight: args.maxHeight, dark: args.dark === true });
+                const where = args.id ? ` Open it in Windcraft: ${designUrl(req, args.id)}` : "";
+                return image(shot.data, shot.mimeType, `Rendered at ${shot.width}px wide, ${shot.height}px tall${shot.cut ? ` (the page is ${shot.cut}px tall; cut at ${shot.height}px, pass a larger maxHeight to see more)` : ""}.${where}`);
+            } catch (e) {
+                if (e instanceof RenderUnavailable) return fail(e.message);
+                return fail(`Could not render: ${e.message}`);
+            }
+        }
         case "list_tags": {
             const rows = await Component.aggregate([
                 { $match: { createdBy: new mongoose.Types.ObjectId(userId) } },
@@ -372,6 +429,9 @@ export const TITLES = {
     save_component: "Save a component",
     save_design: "Save a finished design",
     save_pages: "Save several pages",
+    search: "Search designs",
+    fetch: "Fetch a design",
+    render_design: "See a design (screenshot)",
     list_tags: "List tags",
     get_context: "Read the active project",
     set_active_project: "Set the active project",
@@ -380,7 +440,7 @@ export const TITLES = {
     create_project: "Create a project",
     get_project: "Get a project",
 };
-export const READ_ONLY = new Set(["get_design_guide", "search_components", "get_component", "get_design_spec", "list_tags", "list_projects", "get_project", "get_context"]);
+export const READ_ONLY = new Set(["get_design_guide", "search_components", "get_component", "get_design_spec", "list_tags", "list_projects", "get_project", "get_context", "render_design", "search", "fetch"]);
 
 // Saving a page again replaces its code (kept in its history) and deletes sections no longer on it.
 export const DESTRUCTIVE = new Set(["save_design", "save_pages", "apply_design_patch"]);

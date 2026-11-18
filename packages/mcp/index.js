@@ -10,6 +10,8 @@ const SUPPORTED_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 /** A tool's result as text (an object is shown as JSON). */
 export const text = (value) => ({ content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }] });
+/** An image as a tool result (a client shows it to the model): `data` is base64. */
+export const image = (data, mimeType = "image/png", caption = "") => ({ content: [...(caption ? [{ type: "text", text: caption }] : []), { type: "image", data, mimeType }] });
 /** A tool's failure: the client shows the message and may retry. */
 export const fail = (message) => ({ isError: true, content: [{ type: "text", text: message }] });
 export const rpcError = (id, code, message) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
@@ -35,8 +37,13 @@ export const annotateTools = (tools) => tools.map(({ readOnly, destructive, ...t
  * @param {(ctx: any, name: string, args: object) => Promise<object>} options.callTool   returns text(...) or fail(...)
  * @param {(req: import("express").Request) => Promise<any> | any} options.authenticate   the caller (passed on as ctx), or null for none
  * @param {(req: import("express").Request) => string} [options.challenge]   the WWW-Authenticate value sent with a 401
+ * @param {{ list: (ctx: any, req: any) => Promise<object[]> | object[], templates?: object[], read: (ctx: any, uri: string, req: any) => Promise<{ text?: string, blob?: string, mimeType?: string } | null> }} [options.resources]
+ *     things a client can attach without a tool call: list() gives { uri, name, description?, mimeType? }, templates are { uriTemplate, name, description?, mimeType? },
+ *     read() gives the content of one uri (null when there is none)
+ * @param {{ list: (ctx: any) => object[], get: (ctx: any, name: string, args: object, req: any) => Promise<{ description?: string, messages: object[] } | null> }} [options.prompts]
+ *     ready-made starting messages ({ name, title?, description?, arguments?: [{ name, description?, required? }] }) a client shows as commands
  */
-export function createMcpRouter({ serverInfo, instructions, tools, callTool, authenticate, challenge }) {
+export function createMcpRouter({ serverInfo, instructions, tools, callTool, authenticate, challenge, resources, prompts }) {
     const router = Router();
     const listed = annotateTools(tools);
 
@@ -59,7 +66,7 @@ export function createMcpRouter({ serverInfo, instructions, tools, callTool, aut
     });
 
     /** Handles one JSON-RPC message. Returns the response object, or null for notifications. */
-    async function handleRpc(msg, ctx) {
+    async function handleRpc(msg, ctx, req) {
         if (!msg || typeof msg !== "object" || msg.jsonrpc !== "2.0" || typeof msg.method !== "string") {
             return rpcError(msg && msg.id, -32600, "Invalid Request");
         }
@@ -73,7 +80,7 @@ export function createMcpRouter({ serverInfo, instructions, tools, callTool, aut
                     const asked = params && params.protocolVersion;
                     return ok({
                         protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0],
-                        capabilities: { tools: { listChanged: false } },
+                        capabilities: { tools: { listChanged: false }, ...(resources ? { resources: { listChanged: false, subscribe: false } } : {}), ...(prompts ? { prompts: { listChanged: false } } : {}) },
                         serverInfo,
                         instructions: await instructions(ctx),
                     });
@@ -84,16 +91,33 @@ export function createMcpRouter({ serverInfo, instructions, tools, callTool, aut
                     return ok({ tools: listed });
                 case "tools/call":
                     if (!params || typeof params.name !== "string") return rpcError(id, -32602, "tools/call needs a tool name");
-                    return ok(await callTool(ctx, params.name, params.arguments));
+                    return ok(await callTool(ctx, params.name, params.arguments, req));
                 case "resources/list":
-                    return ok({ resources: [] });
+                    return ok({ resources: resources ? await resources.list(ctx, req) : [] });
+                case "resources/templates/list":
+                    return ok({ resourceTemplates: (resources && resources.templates) || [] });
+                case "resources/read": {
+                    if (!resources) return rpcError(id, -32601, "This server has no resources");
+                    if (!params || typeof params.uri !== "string") return rpcError(id, -32602, "resources/read needs a uri");
+                    const content = await resources.read(ctx, params.uri, req);
+                    if (!content) return rpcError(id, -32002, `Resource not found: ${params.uri}`);
+                    return ok({ contents: [{ uri: params.uri, mimeType: content.mimeType || "text/markdown", ...(content.blob !== undefined ? { blob: content.blob } : { text: content.text ?? "" }) }] });
+                }
                 case "prompts/list":
-                    return ok({ prompts: [] });
+                    return ok({ prompts: prompts ? prompts.list(ctx) : [] });
+                case "prompts/get": {
+                    if (!prompts) return rpcError(id, -32601, "This server has no prompts");
+                    if (!params || typeof params.name !== "string") return rpcError(id, -32602, "prompts/get needs a prompt name");
+                    const got = await prompts.get(ctx, params.name, params.arguments || {}, req);
+                    if (!got) return rpcError(id, -32602, `Unknown prompt: ${params.name}`);
+                    return ok(got);
+                }
                 default:
                     if (isNotification || method.startsWith("notifications/")) return null;
                     return rpcError(id, -32601, `Method not found: ${method}`);
             }
         } catch (e) {
+            if (e && e.invalid) return rpcError(id, -32602, e.message); // the caller's mistake (a missing argument), not ours
             console.error("MCP error:", e);
             return rpcError(id, -32603, "Internal error");
         }
@@ -113,11 +137,11 @@ export function createMcpRouter({ serverInfo, instructions, tools, callTool, aut
 
         if (Array.isArray(body)) {
             if (!body.length) return res.status(400).json(rpcError(null, -32600, "Empty batch"));
-            const out = (await Promise.all(body.map((m) => handleRpc(m, ctx)))).filter(Boolean);
+            const out = (await Promise.all(body.map((m) => handleRpc(m, ctx, req)))).filter(Boolean);
             return out.length ? res.json(out) : res.status(202).end();
         }
 
-        const response = await handleRpc(body, ctx);
+        const response = await handleRpc(body, ctx, req);
         return response ? res.json(response) : res.status(202).end();
     });
 
