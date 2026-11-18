@@ -29,6 +29,8 @@
                 <li><a class="toc-link -ml-px block border-l border-transparent pl-3 text-gray-600 hover:border-gray-900 hover:text-gray-900"
                         href="#agents">Connect your tools</a></li>
                 <li><a class="toc-link -ml-px block border-l border-transparent pl-3 text-gray-600 hover:border-gray-900 hover:text-gray-900"
+                        href="#npm">Use the editor on your site</a></li>
+                <li><a class="toc-link -ml-px block border-l border-transparent pl-3 text-gray-600 hover:border-gray-900 hover:text-gray-900"
                         href="#account">Your account</a></li>
                 <li><a class="toc-link -ml-px block border-l border-transparent pl-3 text-gray-600 hover:border-gray-900 hover:text-gray-900"
                         href="#glossary">Glossary</a></li>
@@ -103,6 +105,21 @@
                 <h3 class="mt-6 text-lg font-semibold text-gray-900">What the agent can do</h3>
                 <p class="mt-3">The <strong class="text-gray-900">Tools</strong> tab on the Connect page lists every tool the server offers, each marked read only or changes data. An agent can read your design guide, search and fetch your designs (as HTML, React, Vue or Svelte), edit a saved design with small precise changes, and save new components, pages and projects. Every save goes into a project. The full list:</p>
                 <div class="mt-3 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white text-sm"><div class="grid gap-1 p-3 sm:grid-cols-[200px_1fr]"><code class="font-mono text-gray-900">get_design_guide</code><span>A summary of your designs: colours, fonts, spacing and an index. Agents read it first.</span></div><div class="grid gap-1 p-3 sm:grid-cols-[200px_1fr]"><code class="font-mono text-gray-900">get_context</code><span>Which account and active project the agent is working in.</span></div><div class="grid gap-1 p-3 sm:grid-cols-[200px_1fr]"><code class="font-mono text-gray-900">list_projects, get_project, create_project, update_project, set_active_project</code><span>See, create and change projects (name, description, brief), and choose the one saves go to.</span></div><div class="grid gap-1 p-3 sm:grid-cols-[200px_1fr]"><code class="font-mono text-gray-900">search_components</code><span>Find designs by keyword or tag.</span></div><div class="grid gap-1 p-3 sm:grid-cols-[200px_1fr]"><code class="font-mono text-gray-900">get_component</code><span>Get one design as HTML, React, Vue or Svelte.</span></div><div class="grid gap-1 p-3 sm:grid-cols-[200px_1fr]"><code class="font-mono text-gray-900">get_design_spec</code><span>Look at a design as a labelled tree of elements.</span></div><div class="grid gap-1 p-3 sm:grid-cols-[200px_1fr]"><code class="font-mono text-gray-900">apply_design_patch</code><span>Make small changes to a design by element id.</span></div><div class="grid gap-1 p-3 sm:grid-cols-[200px_1fr]"><code class="font-mono text-gray-900">save_component, save_design, save_pages</code><span>Save a component, a finished page, or several pages. Every save goes into a project: name one, or set an active project.</span></div><div class="grid gap-1 p-3 sm:grid-cols-[200px_1fr]"><code class="font-mono text-gray-900">list_tags</code><span>List your tags.</span></div></div>
+            </section>
+
+            <section id="npm" class="scroll-mt-24">
+                <h2 class="text-2xl font-semibold tracking-tight text-gray-900">Use the editor on your site</h2>
+                <p class="mt-3">The editor is also a package, <a href="https://www.npmjs.com/package/windcraft-editor" target="_blank" rel="noopener" class="font-medium underline">windcraft-editor</a> on npm, that you can put in any web page. It needs no backend and no build step. Choose how much you need:</p>
+                <ul class="mt-3 list-disc space-y-1.5 pl-5"><li><strong class="text-gray-900"><code>startEditor</code></strong>: the editor as the whole page. Designs are kept in the browser.</li><li><strong class="text-gray-900"><code>mountEditor</code></strong>: the same, saving to your own server through a few functions you write (the <em>host</em>).</li><li><strong class="text-gray-900"><code>embedEditor</code></strong>: the editor in one box of a page, such as a form field. Read and set its HTML from your code.</li></ul>
+                <p class="mt-3">Try it in one file. Save this as <code>index.html</code>, run <code>npx serve</code> next to it and open the address:</p>
+                <pre class="mt-3 overflow-x-auto rounded-xl bg-gray-900 p-4 text-[13px] leading-6 text-gray-100"><code>&lt;div id="root"&gt;&lt;/div&gt;
+&lt;script type="module"&gt;
+  import { startEditor } from "https://cdn.jsdelivr.net/npm/windcraft-editor/editor/index.js";
+  startEditor(document.getElementById("root"), {
+    html: '&lt;h1 class="p-10 text-4xl font-bold"&gt;Hello&lt;/h1&gt;',
+  });
+&lt;/script&gt;</code></pre>
+                <p class="mt-3">The full guides are on GitHub: <a href="https://github.com/Tolaj/windcraft/blob/main/docs/editor/getting-started.md" target="_blank" rel="noopener" class="font-medium underline">getting started</a> (npm, React, Vue, Next, Vite), the <a href="https://github.com/Tolaj/windcraft/blob/main/docs/editor/api.md" target="_blank" rel="noopener" class="font-medium underline">API reference</a>, the <a href="https://github.com/Tolaj/windcraft/blob/main/docs/editor/host.md" target="_blank" rel="noopener" class="font-medium underline">host reference</a> with a server example, and <a href="https://github.com/Tolaj/windcraft/blob/main/docs/editor/recipes.md" target="_blank" rel="noopener" class="font-medium underline">recipes</a>.</p>
             </section>
 
             <section id="account" class="scroll-mt-24">

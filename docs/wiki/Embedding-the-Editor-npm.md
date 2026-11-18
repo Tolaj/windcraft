@@ -89,4 +89,12 @@ ed.onChange(({ html }) => console.log(html));
 ed.setHtml("<p>New</p>");   // ed.getHtml(), ed.isDirty(), ed.save(), ed.destroy()
 ```
 
-The full reference is in [`packages/editor/README.md`](https://github.com/Tolaj/windcraft/blob/main/packages/editor/README.md).
+## Full documentation
+
+- [Getting started](https://github.com/Tolaj/windcraft/blob/main/docs/editor/getting-started.md): npm, a CDN, React, Vue, Next, Vite
+- [API reference](https://github.com/Tolaj/windcraft/blob/main/docs/editor/api.md)
+- [Host reference](https://github.com/Tolaj/windcraft/blob/main/docs/editor/host.md), with an Express backend
+- [Recipes](https://github.com/Tolaj/windcraft/blob/main/docs/editor/recipes.md)
+- [Troubleshooting](https://github.com/Tolaj/windcraft/blob/main/docs/editor/troubleshooting.md)
+
+The package's own README is [`packages/editor/README.md`](https://github.com/Tolaj/windcraft/blob/main/packages/editor/README.md).
