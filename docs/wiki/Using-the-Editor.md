@@ -54,6 +54,21 @@ A **frame** is one design on the canvas, like a frame in Figma: a landing page, 
 - **Details:** name, category, tags, description, project, and two switches. **This is a page** (on) or a component (off): a page is a screen of your project, so Preview plays it and its parts are saved as components; a component is a reusable piece. **Public in the gallery** (on) or private (off).
 - **With no element selected** the panel shows the frame's own settings and its body styling (**Frame styling**).
 
+## Add a layout or a design
+
+Select an element and open the add popup: the **layouts** icon in the element's small floating toolbar, or **Add a wireframe** (and **Inside this** *tag*) in the Properties panel. It has two tabs:
+
+- **Layouts:** empty wireframes (sidebar, navbar, a card grid...) to build a page's structure.
+- **Designs:** published designs from the gallery, drawn as they will look. Search them, filter by category, page or component, sort by new or liked.
+
+**Where it goes.** Choose **Replace selected**, **Add inside** or **Add after**. When the selected element is a slot of a layout (the sidebar of a wireframe, say), a replacement keeps the slot's place in that layout: its size, its order and how it shrinks or grows, while the design keeps its own look. So a sidebar from the gallery dropped on a layout's sidebar takes the layout's width and position. After a pick, a short note says what happened and offers the other way (**Add inside instead** or **Replace instead**). The note stays while you hover it.
+
+**Suited designs.** Opened from the layouts icon of a selected element, the popup starts on the **Designs** tab and both tabs show a **Suited for** row: the element's own role first (a sidebar, a card, a navbar...), then roles it could also be. Pick one to narrow the list to designs that fit, and pick it again to remove the filter.
+
+**A closer look.** The expand icon on each tile opens a large preview over the popup, with a Back button, so you can judge a design before you put it in.
+
+A design comes with its own Tailwind config when it has one, so its colours may differ from your project's. Where it came from is shown in the design's details, never in your code. Undo (**Ctrl/Cmd + Z**) takes the addition back.
+
 ## The code panel
 
 Open it with the code button. Its tabs split the design into parts, and a dock button moves the panel beside the design or below it.

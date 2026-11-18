@@ -29,6 +29,15 @@ Principles: the classes are the only source of truth, and nothing Windcraft-only
 2. **Which half?** Staying in the box is the slot drag (`reorderGesture`); anything else is the ghost drag (`intent*`). A switch needs the other half to hold for 60 ms.
 3. **What does it write?** `dropSmart` removes what the old place gave the element and gives it the rhythm of its new neighbours; the host (`packages/core/intent.js`) writes the result for the right screen size.
 
+## The AI connector
+
+`packages/mcp` is the protocol (tools, resources, prompts, image results). The app's side is in `src/mcp`: `tools.js` (what each tool does and what a client is told on connecting), `resources.js` (the design guide, projects, themes and a design's code as documents) and `prompts.js` (the ready-made commands). Around them:
+
+- **Who is calling.** `services/bearer.service.js` accepts a personal token, a Figma sign-in or an OAuth token and says which (`req.actor`), so what a tool changes is recorded as the AI client's.
+- **Changes and undo.** `services/change.service.js` writes every new version (`pushVersion`: who made it goes on the history entry and on the design), reverts a design (`revertDesign`) and logs AI activity for the Connect page (30 days). A person's own edit is never undone by an AI.
+- **Screenshots.** `services/render.service.js` draws a design in a headless browser (a local Chrome, a browser service, or `@sparticuz/chromium` on Vercel). It runs the page in a fresh context, blocks requests to localhost and private networks, draws one or two pages at a time and limits each person's screenshots.
+- **Suited designs.** `core/roles.js` gives every element and every design a role (sidebar, navbar, card...), so the editor's layouts icon can offer the designs that fit the selected element.
+
 ## Interactions, animations and the config
 
 - **Interactions** are data on the element and one shared script. A rule is `data-wc-do="click classes menu +w-full|-w-0"` (when, do, target id, and for classes what to add or remove), and `data-wc-start="hidden"` marks an element that starts closed. `packages/core/interactions.js` reads and writes the rules and holds the script (`INTERACT_SCRIPT`, marked `/*wc-interact*/`), which the editor adds to a page once. The script is a copy saved inside the page, so whenever a page is read, an older copy is replaced by the current one.

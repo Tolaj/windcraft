@@ -22,8 +22,15 @@ For production, `npm start`. A `vercel.json` is included for Vercel.
 | `PUBLIC_URL` | Public HTTPS address of the server. Needed for Claude on the web to connect over MCP; leave empty for local work | For MCP on the web |
 | `ANTHROPIC_API_KEY` | Server-side key for Claude (people can also add their own in Settings) | For AI |
 | `LLM_URL` | Endpoint of a local OpenAI-compatible model (Ollama, LM Studio, vLLM) | For a local model |
+| `RENDER_CHROME_PATH` | A Chrome or Chromium for the AI's screenshots (`render_design`). Found on its own on a Mac or Linux machine that has Chrome | For screenshots, if Chrome is elsewhere |
+| `RENDER_BROWSER_WS` | The DevTools address of a browser that is already running (a hosted browser service), used instead of starting one | For screenshots without Chrome on the server |
+| `RENDER_LIMIT` | Screenshots per person per 10 minutes (default `20`) | No |
 | `ADMIN_EMAILS` | Who can open the admin pages | No |
 | `GMAIL_ID`, `EMAIL_*` | Gmail OAuth, used to send sign-in verification codes | For sign-up emails |
+
+## Screenshots for the AI
+
+The `render_design` tool draws a design in a browser on the server. On a machine with Chrome it needs nothing. On Vercel the browser is bundled (`@sparticuz/chromium`, listed in `vercel.json`), and the first screenshot after a quiet spell takes a few seconds. The **Run test** button on the Connect page has a *Screenshots* row that checks it. Without a browser the tool says so and nothing else is affected. The page being drawn cannot reach localhost or private networks.
 
 ## Without a database
 

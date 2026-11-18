@@ -56,6 +56,18 @@ It needs a public HTTPS address. Set `PUBLIC_URL` and see [Self-Hosting](Self-Ho
 **Claude Code says the server is unauthorised.**
 Create an access token on the Connect page (it is shown once) and use it in the `Authorization: Bearer` header. See [MCP Server](MCP-Server).
 
+**ChatGPT cannot add my copy as a connector.**
+ChatGPT needs a public HTTPS address (not localhost) and a plan with custom connectors or developer mode. Set `PUBLIC_URL` to the address, press **Run test** on the Connect page, and add the connector with OAuth. See [MCP Server](MCP-Server).
+
+**`render_design` says screenshots are not set up.**
+The server has no browser. Install Chrome on the machine (or set `RENDER_CHROME_PATH`), set `RENDER_BROWSER_WS` to a browser service, or on Vercel make sure `@sparticuz/chromium` and `playwright-core` are dependencies. The *Screenshots* row of **Run test** on the Connect page says what is missing. See [Self-Hosting](Self-Hosting).
+
+**`render_design` says too many screenshots.**
+Each person can take 20 per 10 minutes, so an AI in a loop cannot run up a bill. Wait the minutes it names, or raise `RENDER_LIMIT` on your own copy.
+
+**There is no Undo next to an AI change on the Connect page.**
+Undo is offered only while the design is still as the AI left it. If you or another AI changed it since, there is nothing safe to undo. Open the design's **History** (it marks the AI's versions) and restore the one you want.
+
 ## Running it
 
 **Which ports?**

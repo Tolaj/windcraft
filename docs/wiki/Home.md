@@ -8,7 +8,7 @@ New here? Start with **[Getting Started](Getting-Started)**.
 |---|---|
 | Use the editor well | [Using the Editor](Using-the-Editor) |
 | Put the editor in my own site | [Embedding the Editor (npm)](Embedding-the-Editor-npm) |
-| Let Claude, Claude Code or Cursor build pages | [MCP Server](MCP-Server) |
+| Let Claude, Claude Code, Cursor or ChatGPT build pages | [MCP Server](MCP-Server) |
 | Turn a Figma design into HTML and Tailwind | [Figma Plugin](Figma-Plugin) |
 | Run my own copy | [Self-Hosting](Self-Hosting) |
 | Understand how it is built | [Architecture](Architecture) |

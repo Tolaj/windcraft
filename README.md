@@ -82,8 +82,10 @@ Guides live in the **[wiki](https://github.com/Tolaj/windcraft/wiki)**:
 - **Properties and code:** every field is a Tailwind class. HTML, CSS, JS and Config tabs.
 - **Interactions and animations:** show, hide, scroll, change classes, presets, scroll effects.
 - **Figma plugin:** free, runs on your computer, no LLM, no network.
+- **Add from the gallery:** in the editor, pick a layout or a published design and put it in place of, inside or after the selected element.
 - **AI:** describe a page and let Claude or a local model draft it.
-- **MCP server** for Claude, Claude Code and Cursor.
+- **MCP server** for Claude, Claude Code, Cursor and ChatGPT. An AI can read your designs and design guide, save pages, look at a screenshot of its own work, and undo its changes.
+- **Community:** publish a project so anyone can view it (no sign-in) or take a copy to edit.
 - **Share and export:** share links, version history, export to HTML, React, Vue or Svelte.
 
 ## Installation and usage
@@ -130,9 +132,11 @@ The app serves an [MCP](https://modelcontextprotocol.io) server at `/mcp` (live:
 |---|---|
 | **Claude** (claude.ai) | Settings → Connectors → Add custom connector → paste the address → sign in to Windcraft → Allow. |
 | **Claude Code** | Create a token on the Connect page (`/connect`), then `claude mcp add --transport http tailwind-library <address> --header "Authorization: Bearer <token>"` |
-| **Cursor** and others | Add an HTTP server with the address and the header `Authorization: Bearer <token>`. |
+| **Cursor** | **Add to Cursor** on the Connect page (one click; the token stays in an environment variable), or add an HTTP server with the address and the header `Authorization: Bearer <token>`. |
+| **ChatGPT** | Settings → Connectors → Advanced → Developer mode, then create a connector with the address and choose OAuth. Needs a public HTTPS address. |
+| Others | Add an HTTP server with the address and the header `Authorization: Bearer <token>`. |
 
-Then ask: *"Search my library for a pricing table and use it."* The [MCP guide](https://github.com/Tolaj/windcraft/wiki/MCP-Server) has the tool list.
+Then ask: *"Search my library for a pricing table and use it."* Besides tools, the server offers **prompts** (`/build-page`, `/restyle-to-my-guide`, `/audit-design`, `/make-variations`, `/new-section`) and **resources** (your design guide, the active project, a project's pages). `render_design` gives the AI a screenshot of what it built, and `revert_design` plus **Recent AI activity** on the Connect page let you see and undo what it did. Screenshots need a browser on the server: see [Self-Hosting](https://github.com/Tolaj/windcraft/wiki/Self-Hosting). The [MCP guide](https://github.com/Tolaj/windcraft/wiki/MCP-Server) has the full tool list.
 
 ### Figma plugin
 
@@ -150,7 +154,7 @@ cp .env.example .env     # fill in MONGO_URI and SESSION_SECRET at least
 npm run dev              # http://localhost:3000
 ```
 
-`ANTHROPIC_API_KEY` or `LLM_URL` turns on AI, and `PUBLIC_URL` lets Claude on the web reach your MCP server. `.env.example` lists the rest. Use `npm start` for production; `vercel.json` is included.
+`ANTHROPIC_API_KEY` or `LLM_URL` turns on AI, `PUBLIC_URL` lets Claude and ChatGPT on the web reach your MCP server, and a Chrome on the machine (or `RENDER_CHROME_PATH`) lets the AI take screenshots. `.env.example` lists the rest. Use `npm start` for production; `vercel.json` is included.
 
 ### Run the editor locally (no database)
 
