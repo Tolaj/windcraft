@@ -5,6 +5,7 @@
 export const GAP_X = 320;
 export const SECTION_GAP = 200;
 export const ROW_GAP = 360; // between the bottom of one group's row and the labels of the next
+export const WRAP_AT = 8200; // a row of pages wraps to a new line once the next one would pass this x (about five 1280 px pages)
 export const PAGE_H = 900;
 export const SEC_H = 480;
 
@@ -16,7 +17,7 @@ const CLEAR = 60; // the least air between two frames
  * Nothing placed automatically lands on another frame: a spot that is taken (by a frame with a saved position, or one placed before)
  * is moved past it, a page to the right and a section below. Saved positions are never moved.
  */
-export function computeLayout(items, { frameW, heightOf, widthOf = () => frameW }) {
+export function computeLayout(items, { frameW, heightOf, widthOf = () => frameW, wrapAt = WRAP_AT }) {
     const pos = {};
     const box = (it, p) => ({ x: p.x, y: p.y - LABEL_H, r: p.x + widthOf(it), b: p.y + heightOf(it) });
     const taken = []; // the boxes of what has a place: the saved ones first, then each one placed
@@ -52,12 +53,14 @@ export function computeLayout(items, { frameW, heightOf, widthOf = () => frameW 
         // the lowest edge of this row, so the next row starts below it. A page moved by hand keeps its slot, its height included:
         // dragging a page never moves another one (a row below doesn't move up when a tall page is picked up)
         let bottom = rowY;
+        let lineY = rowY; // a long row wraps: each line starts below the lowest edge of the one before
         row.pages.forEach((p) => {
-            pos[p.id] = place(p, { x: nextX, y: rowY }, false);
+            if (nextX > 0 && nextX + widthOf(p) > wrapAt) { nextX = 0; lineY = bottom + ROW_GAP; }
+            pos[p.id] = place(p, { x: nextX, y: lineY }, false);
             nextX = (p.board ? nextX : pos[p.id].x) + widthOf(p) + GAP_X;
             let y = pos[p.id].y + heightOf(p) + 260;
-            let slot = rowY + heightOf(p) + 260; // the same stack, as it stands in the slot
-            bottom = Math.max(bottom, rowY + heightOf(p));
+            let slot = lineY + heightOf(p) + 260; // the same stack, as it stands in the slot
+            bottom = Math.max(bottom, lineY + heightOf(p));
             items.filter((i) => i.kind === "section" && i.parent === p.id).forEach((s) => {
                 pos[s.id] = place(s, { x: pos[p.id].x, y }, true);
                 bottom = Math.max(bottom, slot + heightOf(s));

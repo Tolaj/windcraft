@@ -51,3 +51,12 @@ test("same input, same output", () => {
     const items = [{ id: "a", board: { x: 0, y: 0 } }, { id: "b" }, { id: "c", board: { x: 1000, y: 100 } }, { id: "d" }];
     assert.deepEqual(computeLayout(items, size), computeLayout(items, size));
 });
+
+test("a long row wraps to a new line, and the next group starts below it", () => {
+    const items = [...Array(7)].map((_, i) => ({ id: "a" + i, group: "One" })).concat([{ id: "z", group: "Two" }]);
+    const pos = computeLayout(items, size);
+    assert.equal(pos.a0.y, 0);
+    assert.ok(pos.a5.y > 900 && pos.a5.x === 0, "the sixth page starts a new line");
+    assert.ok(pos.z.y > pos.a6.y + 900, "the next group is below the wrapped line");
+    assert.equal(overlap(pos, items), false);
+});

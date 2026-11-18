@@ -35,8 +35,9 @@ const TOOL_BLURBS = {
     list_tags: "Lists the tags used in your library.",
     create_project: "Creates a project.",
     update_project: "Changes a project's name, description or settings.",
+    arrange_project: "Tidies a project's board: sets each design's group and puts the frames back in automatic layout.",
 };
-const WRITE_TOOLS = new Set(["apply_design_patch", "save_component", "save_design", "save_pages", "create_project", "update_project", "set_active_project", "revert_design"]);
+const WRITE_TOOLS = new Set(["apply_design_patch", "save_component", "save_design", "save_pages", "create_project", "update_project", "arrange_project", "set_active_project", "revert_design"]);
 const firstSentence = (t = "") => (t.split(/(?<=[.!?])\s/)[0] || "").slice(0, 160);
 const baseUrl = publicBase;
 

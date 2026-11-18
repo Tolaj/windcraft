@@ -104,6 +104,7 @@ Giving an AI write access is easier when you can see what it did and take it bac
 | `save_design`, `save_pages`, `save_component` | Save one screen, several screens in one project, or a reusable component. Each takes an optional gallery `category` (a slug such as `ui-alerts`, checked against the app's list) and, for one design, a board `group`. |
 | `get_design_spec`, `apply_design_patch` | Read a saved design as JSON with element ids; change it with small operations instead of rewriting it. |
 | `list_projects`, `create_project`, `get_project`, `set_active_project`, `update_project` | Work with projects (groups of pages). |
+| `arrange_project` | Tidy the board: groups every design by its title ("Sidebars 04 · ..." goes in "Sidebars"), clears hand-placed positions and lets the board lay out each group as wrapped rows. Run it after saving many designs. |
 | `render_design` | A screenshot of a design, so the AI can check and fix its own work. |
 | `revert_design` | Undo the latest AI change to a design, or go back to a named version. |
 | `search`, `fetch` | The same as `search_components` and `get_component`, in the shape ChatGPT's connectors expect. |

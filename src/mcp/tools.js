@@ -157,6 +157,11 @@ export const TOOLS = [
         inputSchema: { type: "object", properties: { project: { type: "string", description: "Project name or id. Defaults to the active project." }, description: { type: "string" }, brief: { type: "string", description: "Longer notes for designers and AI, up to 4000 characters" } } },
     },
     {
+        name: "arrange_project",
+        description: "Tidy a project's board: give every design a group (taken from its title, e.g. \"Sidebars 04 · Grouped\" goes in \"Sidebars\", else from its category) and clear the hand-placed positions, so the board lays each group out as its own block of rows instead of one long line. Run it after saving many designs. Set keep_positions to leave positions the user dragged where they are.",
+        inputSchema: { type: "object", properties: { project: { type: "string", description: "Project name or id. Defaults to the active project." }, keep_positions: { type: "boolean", description: "Keep designs the user placed by hand (default false: every design goes back to automatic layout)" }, regroup: { type: "boolean", description: "Set each design's group from its title or category (default true)" } } },
+    },
+    {
         name: "list_projects",
         description: "List the user's projects (groups of pages and sections, like a Figma file) with page and section counts.",
         inputSchema: { type: "object", properties: {} },
@@ -406,6 +411,29 @@ export async function callTool(userId, name, args = {}, req = null) {
             if (args.brief !== undefined) p.brief = String(args.brief).slice(0, 4000);
             await p.save();
             return text({ id: String(p._id), name: p.name, message: "Project updated" });
+        }
+        case "arrange_project": {
+            const p = args.project ? await resolveProject(userId, args.project) : await getActiveProject(userId);
+            if (!p) return fail("No such project and no active project. Pass project or call set_active_project first.");
+            const comps = await Component.find({ createdBy: userId, project: p._id, kind: { $ne: "section" } }).select("title category group board").lean();
+            const regroup = args.regroup !== false, keep = args.keep_positions === true;
+            const groupOf = (c) => {
+                const m = /^(.+?)\s+\d{1,3}\s+[·.:-]/.exec(String(c.title || ""));
+                if (m) return normalizeGroup(m[1]);
+                const cat = GALLERY_CATEGORIES[c.category];
+                return normalizeGroup(cat && cat.name ? cat.name : c.group);
+            };
+            const ops = [];
+            let regrouped = 0, reset = 0;
+            for (const c of comps) {
+                const $set = {};
+                if (regroup) { const g = groupOf(c); if (g && g !== (c.group || "")) { $set.group = g; regrouped++; } }
+                if (!keep && c.board) { $set.board = null; reset++; }
+                if (Object.keys($set).length) ops.push({ updateOne: { filter: { _id: c._id }, update: { $set } } });
+            }
+            if (ops.length) await Component.bulkWrite(ops);
+            const groups = [...new Set(comps.map((c) => (regroup ? groupOf(c) : c.group) || "(no group)"))];
+            return text({ id: String(p._id), name: p.name, url: projectUrl(req, p._id), designs: comps.length, groups: groups.length, regrouped, positionsReset: reset, message: `Board tidied: ${comps.length} designs in ${groups.length} groups${regrouped ? `, ${regrouped} regrouped` : ""}${reset ? `, ${reset} positions reset to automatic layout` : ""}. Reload the board to see it.` });
         }
         case "list_projects":
             return text(await listProjects(userId));
