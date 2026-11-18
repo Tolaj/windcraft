@@ -74,6 +74,8 @@ const CATEGORY_ROLES = {
     "footer-contact": ["footer"], "footer-footers": ["footer"],
     "navigation-sidebars": ["sidebar"], "marketing-cta": ["cta"], "marketing-stats": ["stats"], "ui-alerts": ["banner"], "ui-accordions": ["list", "faq"],
     "navigation-pagination": ["list"], "forms-controls": ["field"], "ui-empty-states": ["section"],
+    "ui-drawers": ["modal", "sidebar"], "ui-popovers": ["dropdown"], "ecommerce-product-detail": ["section"], "ecommerce-cart": ["list"], "ecommerce-checkout": ["form"],
+    "apps-dashboards": ["stats", "card"], "apps-chat": ["list", "form"], "apps-kanban": ["card", "list"], "apps-calendar": ["section"],
 };
 
 // Words in a title or a tag. The first words listed for a role are the ones a person would search for.
