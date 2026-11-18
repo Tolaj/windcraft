@@ -48,6 +48,15 @@ Built, 10 pages each, in the project **Windcraft UI Kit v2**: Landing Pages, Abo
 Planned list:
 Landing · About · Contact · Sign in and sign up · Dashboard · Settings · Profile · Blog post · Product page · Checkout · 404 and 500 · Documentation. Projects are made of pages, and v1 has only one page type, so this wave matters more than its place in the list suggests. Each is built from earlier waves' parts where it can.
 
+## Images pass (2026-11-18)
+
+The first v2 designs used grey blocks and initials where v1's older designs use photos. About 180 of the 300 designs now use real images: Unsplash photos for products, offices, team and covers, portraits for avatars, and the Windcraft logo where a logo belongs. Every image address was checked to load. Each change is a new version of the design, so the earlier one is in its history.
+
+- **Sidebars are sidebars only.** All ten no longer wrap a mock page; Sidebars 09 is the drawer panel alone. They are meant to be dropped into a wireframe.
+- **Left as they were**, because there is nothing natural to show: code and typographic pages (Landing 02 and 08, About 07, Blog 03, Contact 03, 05, 07, 08 and 10, all Error pages), most forms and sign-in pages, Skeletons, Progress, Badges, Tabs, Toggles and Pagination.
+- **Not yet done:** a look at every design in a browser at 1280 and 390 px (they live on the connector's account, so this needs that account), and Drawers, Popovers and Dashboards beyond the ones with avatars or products.
+- **Rule for new designs:** use a real image wherever a picture is the point (products, people, places, covers) and keep grey blocks only for unfinished placeholders. Free Unsplash photos only; check that an address loads before using it.
+
 ## Rules for every design
 
 - **Same look as v1.** Black and white only; white, neutral-50 or neutral-950 backgrounds; neutral borders; radius lg or xl for controls, 2xl for cards, full for pills and avatars. No accent colours: emphasis comes from weight, size and contrast. Status uses black fill for active and outline for pending.
@@ -77,4 +86,4 @@ Landing · About · Contact · Sign in and sign up · Dashboard · Settings · P
 ## Not planned
 
 - No colour themes in v2: it is a black-and-white kit like v1. A themed variant can be made later from the same designs.
-- No photos beyond what v1 already uses (free Unsplash images, grey blocks elsewhere).
+- No photos beyond free Unsplash images and the Windcraft logo (see the images pass above).
