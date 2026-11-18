@@ -608,7 +608,20 @@ function note(text, actions = []) {
     });
     ["wheel", "pointerdown"].forEach((t) => noteEl.addEventListener(t, (e) => e.stopPropagation()));
     $("canvas").appendChild(noteEl);
-    noteTimer = setTimeout(() => { if (noteEl) { noteEl.remove(); noteEl = null; } }, 10000);
+    // it goes by itself after a while, but never from under the pointer or the keyboard: it stays while it is hovered or focused, and goes a few seconds after
+    const arm = (ms) => { clearTimeout(noteTimer); noteTimer = setTimeout(() => { if (noteEl) { noteEl.remove(); noteEl = null; } }, ms); };
+    let over = false;
+    const leave = () => { if (!over) return; over = false; arm(4000); };
+    noteEl.addEventListener("mouseenter", () => { over = true; clearTimeout(noteTimer); });
+    noteEl.addEventListener("mouseleave", leave);
+    noteEl.addEventListener("focusin", () => { over = true; clearTimeout(noteTimer); });
+    noteEl.addEventListener("focusout", leave);
+    // moving from the note straight onto the canvas (a frame of its own) does not always say "leave": the hover state is looked at too
+    const watch = setInterval(() => { if (!noteEl) return clearInterval(watch); if (over && !noteEl.matches(":hover, :focus-within")) leave(); }, 400);
+    // and the pointer on the canvas (the frame tells the editor about it) means it is not on the note
+    const onFrame = (e) => { if (!noteEl) return window.removeEventListener("message", onFrame); if (over && e.source === $("frame").contentWindow && !noteEl.matches(":focus-within")) leave(); };
+    window.addEventListener("message", onFrame);
+    arm(10000);
 }
 
 const OTHER = { replace: ["inside", "Add inside instead"], inside: ["replace", "Replace instead"] };

@@ -88,6 +88,10 @@ test("a gallery sidebar fills a wireframe's sidebar slot: the slot keeps its siz
     for (const gone of ["fixed", "h-screen", "w-64", "bg-gray-300"]) assert.doesNotMatch(cls, new RegExp(`\\b${gone}\\b`), `${gone} is not on it`);
     assert.ok((await frame.locator("div.flex.gap-4 > div").count()) >= 1, "the layout around it stays");
     assert.match(await page.locator("#pickNote").innerText(), /Replaced it/);
+    assert.equal(await page.locator("#pickNote").evaluate((e) => getComputedStyle(e).whiteSpace), "nowrap", "the note is one line");
+    await page.locator("#pickNote").hover();
+    await page.waitForTimeout(11000); // longer than it stays by itself
+    assert.equal(await page.locator("#pickNote").count(), 1, "the note stays while the pointer is on it");
 
     // the other way: inside the slot
     await page.locator("#pickNote [data-act]").click();
