@@ -33,7 +33,9 @@ const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
 const page = await ctx.newPage();
 const composer = await ctx.newPage();
 const ASP = 1.5, OUT_W = 1000, OUT_H = Math.round(OUT_W / ASP); // the window on a card is 1.4 to 2.1 times wider than high, and the picture fills it (cut at the sides or the top and bottom): drawn at 1.5, with room around what matters, little of it is cut at any width
-const wrap = (html) => `<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:#fff">${html}</body></html>`;
+// a design saved as a fragment (no Tailwind of its own, as the connector saves them) gets the Tailwind script so it is drawn with its classes
+const TW = '<script src="https://cdn.tailwindcss.com/3.4.1"></script>';
+const wrap = (html) => `<!doctype html><html><head><meta charset="utf-8">${/tailwindcss|cdn\.tailwind|tailwind\.config|<link[^>]+stylesheet/i.test(html) ? "" : TW}</head><body style="margin:0;background:#fff">${html}</body></html>`;
 
 /** In the page: on a dark background, a dark border is invisible at the size of a thumbnail: it is drawn lighter. */
 const boostBorders = () => page.evaluate(() => {
