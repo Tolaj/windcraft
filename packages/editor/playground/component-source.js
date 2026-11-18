@@ -2,6 +2,7 @@ import { themeHead } from "../../core/theme.js";
 import { tailwindTag } from "../../core/config-file.js";
 import { INTERACT_MARK, INTERACT_SCRIPT } from "../../core/interactions.js";
 import { MOTION_MARK, MOTION_SCRIPT } from "../../core/animation-triggers.js";
+import { MODEL_MARK, MODEL_SCRIPT, withModelScript } from "../../core/model3d.js";
 const TAILWIND_RE = /tailwindcss|@tailwindcss\/browser/i;
 
 const isTailwindScript = (s) => s.src && TAILWIND_RE.test(s.src);
@@ -39,7 +40,7 @@ export function parseComponentSource(code) {
     dom.querySelectorAll("script").forEach((el) => {
         const src = el.getAttribute("src") || "";
         // the editor's own scripts (interactions, animation triggers) are copies saved inside the page: whichever version a page has, it gets the current one
-        const mine = !src && [[INTERACT_MARK, INTERACT_SCRIPT], [MOTION_MARK, MOTION_SCRIPT]].find(([mark]) => el.textContent.includes(mark));
+        const mine = !src && [[INTERACT_MARK, INTERACT_SCRIPT], [MOTION_MARK, MOTION_SCRIPT], [MODEL_MARK, MODEL_SCRIPT]].find(([mark]) => el.textContent.includes(mark));
         scripts.push({
             src,
             type: el.getAttribute("type") || "",
@@ -126,7 +127,7 @@ export function buildPreviewDocument(parsed, { width, fixedScreen = false, theme
         .map(([k, v]) => ` ${k}="${escapeAttr(v)}"`)
         .join("");
 
-    const scripts = parsed.scripts
+    const scripts = withModelScript(parsed.scripts, parsed.markup)
         .map((s) => {
             const attrs =
                 (s.src ? ` src="${escapeAttr(s.src)}"` : "") +

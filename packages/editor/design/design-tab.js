@@ -8,6 +8,7 @@ import { TAG_KINDS, variant } from "./panel-model.js";
 import { useUi } from "./panel-state.js";
 import { TextInput, TextArea, SelectInput, Field } from "./controls.js";
 import { I, IconBtn } from "./figma-sections.js";
+import { ModelSection } from "./model-section.js";
 
 const Crumbs = ({ s, actions }) => html`<div class="crumbs">${s.crumbs.map((c, i) => html`${i > 0 && html`<span class="sl">/</span>`}<button type="button" class=${i === s.crumbs.length - 1 ? "cur" : ""} onClick=${() => actions.select(c.path || [])}>${c.tag}</button>`)}</div>`;
 
@@ -105,6 +106,7 @@ const Content = ({ s, actions }) => {
     if (s.tag === "img") fields.push(["src", "Image URL"], ["alt", "Alt text"]);
     if (s.tag === "a") fields.push(["href", "Link"], ["target", "Target"]);
     if (["input", "textarea"].includes(s.tag)) fields.push(["placeholder", "Placeholder"], ["type", "Type"], ["value", "Value"]);
+    if (s.tag === "wc-model") return html`<${ModelSection} s=${s} actions=${actions} />`;
     const text = s.leaf && !["img", "input", "hr", "br"].includes(s.tag);
     if (!text && !fields.length) return null;
     return html`<div class="sec"><div class="secb nopad"><p class="sub first">Content</p>

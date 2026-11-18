@@ -125,6 +125,7 @@ export function agentMain() {
         line: { tag: "div", cls: "absolute bg-neutral-900 text-neutral-900", w: 160, h: 2 },
         arrow: { tag: "div", cls: "absolute bg-neutral-900 text-neutral-900", w: 160, h: 2, html: '<i class="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 border-y-[5px] border-y-transparent border-l-[9px] border-l-current"></i>' },
         text: { tag: "p", cls: "absolute text-base text-neutral-900 whitespace-nowrap", text: "Text", auto: true },
+        model: { tag: "wc-model", cls: "absolute rounded-md bg-neutral-100", w: 320, h: 320, attrs: { src: "", controls: "", "auto-rotate": "" } },
         image: { tag: "img", cls: "absolute object-cover rounded-md bg-neutral-200", w: 240, h: 160, attrs: { src: PLACEHOLDER, alt: "Image" } },
         button: { tag: "button", cls: "absolute rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white whitespace-nowrap", text: "Button", auto: true },
     };
@@ -2742,11 +2743,20 @@ export function agentMain() {
     document.addEventListener("drop", (e) => {
         e.preventDefault();
         const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (!file || !/^image\//.test(file.type) || file.size > 1500000) return;
+        if (!file || file.size > 1500000) return;
+        const isModel = /\.(glb|gltf)$/i.test(file.name) || /^model\/gltf/i.test(file.type);
+        if (!isModel && !/^image\//.test(file.type)) return;
         const reader = new FileReader();
         reader.onload = () => {
             const container = containerAt(e.clientX, e.clientY);
             const o = originOf(container);
+            if (isModel) { // a 3D model file becomes a <wc-model> with the file inside the page (like an image)
+                const m = createAt("model", container, e.clientX + window.scrollX - o.x, e.clientY + window.scrollY - o.y);
+                m.setAttribute("src", reader.result);
+                setSelection([m]);
+                changed();
+                return;
+            }
             const el = createAt("image", container, e.clientX + window.scrollX - o.x, e.clientY + window.scrollY - o.y);
             el.setAttribute("src", reader.result);
             el.setAttribute("alt", file.name.replace(/\.[^.]+$/, ""));
@@ -2811,7 +2821,8 @@ export function agentMain() {
                 applyAnimation(g, m);
             });
         },
-        setAttr: (el, m) => { m.value === null ? el.removeAttribute(m.name) : el.setAttribute(m.name, m.value); },
+        // value null: off; true: a bare attribute (<wc-model controls>); a string: its value
+        setAttr: (el, m) => { m.value === null ? el.removeAttribute(m.name) : el.setAttribute(m.name, m.value === true ? "" : m.value); },
         remove: (el) => { const p = el.parentElement; el.remove(); sels = p && p !== root ? [p] : []; },
         duplicate: (el) => { const c = el.cloneNode(true); el.after(c); if (made.has(el)) markMade(c); sels = [c]; },
         move: (el, m) => {
