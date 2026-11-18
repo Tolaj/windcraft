@@ -5,6 +5,10 @@
     "fill": "#ffffff",
     "mode": "card"
   },
+  "apps-dashboards": {
+    "design": "Dashboards 02",
+    "mode": "center"
+  },
   "apps-general": {
     "design": "Application Components 02",
     "mode": "center"
@@ -15,6 +19,10 @@
   },
   "apps-stats": "Stats 03",
   "apps-tables": "Tables 03",
+  "ecommerce-checkout": {
+    "design": "Checkout 05",
+    "mode": "center"
+  },
   "ecommerce-products": {
     "design": "Product Listings 04",
     "mode": "center"
@@ -72,9 +80,17 @@
   "marketing-timeline": "Timeline 09",
   "navigation-mega-menu": "Mega Menu 10",
   "navigation-navbars": "Navbars / Headers 08",
+  "navigation-sidebars": {
+    "design": "Sidebars 04",
+    "mode": "center"
+  },
   "pages-pricing": {
     "boost": true,
     "design": "Pricing Page 02",
+    "mode": "center"
+  },
+  "ui-avatars": {
+    "design": "Avatars 07",
     "mode": "center"
   },
   "ui-buttons": {
@@ -85,6 +101,11 @@
     "design": "Cookie Banners 04",
     "mode": "center"
   },
+  "ui-drawers": {
+    "design": "Drawers 04",
+    "mode": "top",
+    "fill": "#ffffff"
+  },
   "ui-dropdowns": {
     "design": "Dropdowns 09",
     "mode": "center"
@@ -93,5 +114,13 @@
     "design": "Modals 09",
     "mode": "center"
   },
-  "ui-selects": "Selects 05"
+  "ui-popovers": {
+    "design": "Popovers & Tooltips 04",
+    "mode": "center"
+  },
+  "ui-selects": "Selects 05",
+  "ui-skeletons": {
+    "design": "Skeleton Loaders 01",
+    "mode": "center"
+  }
 }
