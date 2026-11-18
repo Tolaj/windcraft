@@ -183,7 +183,25 @@ $("fitBtn").addEventListener("click", fitAll);
 const MAX_LIVE = 40, KEEP_MAX = Number(window.__KEEP_MAX) || 80, LIVE_MIN_Z = 0.05, BATCH = 6, BATCH_GAP = 250;
 let mountTimer = 0, mountRun = 0, batchTimer = 0, seenClock = 0;
 function scheduleMounts(delay = 140) { clearTimeout(mountTimer); mountTimer = setTimeout(refreshMounts, delay); }
-function unmount(entry) { if (entry.iframe) { entry.iframe.remove(); entry.iframe = null; } }
+// A drawn frame that has to give way keeps its picture: a static copy of the styled page (no scripts, no Tailwind to run), so it never goes blank.
+// The snapshot comes from the live page once Tailwind has written its CSS and it has stopped changing.
+const SNAP_SCRIPT = `<script>(function(){var s=0;function go(){if(s)return;var n=0,last=-1,same=0,t=setInterval(function(){var len=0,made=false;[].forEach.call(document.querySelectorAll("style"),function(x){len+=x.textContent.length;if(/tailwindcss v\\d/.test(x.textContent))made=true});same=len===last?same+1:0;last=len;n++;var tw=!!document.querySelector('script[src*="tailwindcss"]');if((!tw||(typeof window.tailwind!=="undefined"&&made))&&len>0&&same>=6){clearInterval(t);s=1;try{var c=document.documentElement.cloneNode(true);[].forEach.call(c.querySelectorAll("script"),function(x){x.remove()});parent.postMessage({type:"preview-snapshot",html:"<!doctype html>"+c.outerHTML},"*")}catch(e){}}else if(n>600)clearInterval(t)},100)}addEventListener("load",go)})()<\/script>`;
+const docFor = (it) => buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it), fixedScreen: true, still: true, theme: themeFor(it) }).replace(/<\/body>\s*<\/html>\s*$/, SNAP_SCRIPT + "</body></html>");
+function unmount(entry) {
+    if (!entry.iframe) return;
+    const live = entry.iframe;
+    if (entry.snap && !entry.frozen) { // swap the live page for its picture
+        const f = document.createElement("iframe");
+        f.setAttribute("sandbox", ""); f.setAttribute("tabindex", "-1"); f.title = live.title;
+        f.style.cssText = live.style.cssText;
+        f.srcdoc = entry.snap;
+        entry.frame.appendChild(f);
+        f.addEventListener("load", () => live.remove(), { once: true });
+        entry.iframe = f; entry.frozen = true;
+        return;
+    }
+    live.remove(); entry.iframe = null; entry.frozen = false;
+}
 function refreshMounts() {
     const run = ++mountRun;
     clearTimeout(batchTimer);
@@ -204,7 +222,7 @@ function refreshMounts() {
     const keep = new Set(plan.keep);
     const stamp = ++seenClock;
     keep.forEach((id) => { const entry = wraps.get(id); if (entry) entry.seen = stamp; }); // what is wanted now was seen now
-    const drawn = [...wraps].filter(([, entry]) => entry.iframe);
+    const drawn = [...wraps].filter(([, entry]) => entry.iframe && !entry.frozen); // only live pages count: a picture costs almost nothing
     const over = drawn.length + [...keep].filter((id) => wraps.has(id) && !wraps.get(id).iframe).length - KEEP_MAX;
     if (over > 0) drawn.filter(([id]) => !keep.has(id)).sort((a, b) => (a[1].seen || 0) - (b[1].seen || 0)).slice(0, over).forEach(([, entry]) => unmount(entry)); // only the ones seen longest ago, only as many as needed
     plan.now.forEach(mount);
@@ -226,12 +244,16 @@ function mount(id) {
     f.setAttribute("tabindex", "-1");
     f.title = it.title;
     f.style.cssText = `position:absolute;left:0;top:0;width:${widthOf(it)}px;height:100%;border:0;pointer-events:none;background:#fff;`;
-    f.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true, still: true, theme: themeFor(it) });
+    f.srcdoc = docFor(it);
     entry.frame.appendChild(f);
     entry.iframe = f;
 }
 
 window.addEventListener("message", (e) => {
+    if (e.data && e.data.type === "preview-snapshot" && typeof e.data.html === "string") {
+        for (const [, entry] of wraps) if (entry.iframe && !entry.frozen && entry.iframe.contentWindow === e.source) { entry.snap = e.data.html; return; }
+        return;
+    }
     if (!e.data || e.data.type !== "preview-height") return;
     for (const [id, entry] of wraps) {
         if (entry.iframe && entry.iframe.contentWindow === e.source) {
@@ -568,7 +590,8 @@ let theme = normalizeTheme(project.theme);
 function redrawPreviews() {
     wraps.forEach((entry, id) => {
         const it = byId(id);
-        if (entry.iframe && it) entry.iframe.srcdoc = buildPreviewDocument(parseComponentSource(it.htmlCode), { width: widthOf(it) , fixedScreen: true, still: true, theme: themeFor(it) });
+        if (entry.frozen) { entry.snap = null; entry.iframe.remove(); entry.iframe = null; entry.frozen = false; scheduleMounts(0); } // a picture of the old theme: drawn again
+        else if (entry.iframe && it) entry.snap = null, entry.iframe.srcdoc = docFor(it);
     });
 }
 let cfgSection = "tailwind";
