@@ -12,10 +12,10 @@ import { fitGroup } from "./plane.service.js";
 
 const MAX_HTML = 5_000_000;
 
-const buildDoc = (userId, { title, description, htmlCode, tags, project = null, kind = "component", parent = null, order = 0, group = "", frameW = null, createdVia, lastChange }) => ({
+const buildDoc = (userId, { title, description, htmlCode, tags, project = null, kind = "component", parent = null, order = 0, group = "", frameW = null, category, createdVia, lastChange }) => ({
         title: String(title).slice(0, 80) || "Imported design",
         description: String(description || `Imported design: ${title}`).slice(0, 200),
-        category: "apps-general",
+        category: category || "apps-general",
         htmlCode,
         tags: normalizeTags(tags),
         profile: buildProfile(htmlCode),
@@ -125,7 +125,7 @@ export async function syncPartsOf(userId, page) {
  * sections are updated, added or removed to match. That save must say which version it started from (baseVersion):
  * if the page changed since (an edit in the editor), it is refused, so nothing is overwritten unseen, unless force.
  */
-export async function importDesign(userId, { title, html, description, tags = [], split = true, project = null, id = null, baseVersion, force = false, note, group, frameW, summarize = true, actor }) {
+export async function importDesign(userId, { title, html, description, tags = [], split = true, project = null, id = null, baseVersion, force = false, note, group, frameW, summarize = true, actor, category }) {
     if (!html || typeof html !== "string" || !html.trim()) throw new Error("html is required");
     if (html.length > MAX_HTML) throw new Error("html is too large (limit 5 MB per design)");
 
@@ -147,11 +147,12 @@ export async function importDesign(userId, { title, html, description, tags = []
         if (description) page.description = String(description).slice(0, 200);
         if (group !== undefined) { const g = normalizeGroup(group); page.group = g === page.group ? g : await fitGroup(userId, page.project, g, page._id); }
         if (Number.isFinite(frameW)) page.frameW = Math.round(frameW);
+        if (category) page.category = category; // saved again under a gallery category
         page.tags = [...new Set([...(page.tags || []), ...baseTags, "page"])];
         await page.save();
     } else {
         page = await createOne(userId, {
-            createdVia: cleanActor(actor), lastChange: { ...cleanActor(actor), at: new Date() },
+            createdVia: cleanActor(actor), lastChange: { ...cleanActor(actor), at: new Date() }, category,
             title: pageTitle,
             description: description || doc.description || doc.heading,
             htmlCode: html,

@@ -14,9 +14,11 @@ import { resolveProject, orderPages, listProjects, projectTree, getActiveProject
 import Project from "../models/project.model.js";
 import { pageTheme } from "@windcraft/core/theme.js";
 import { text, fail, image } from "@windcraft/mcp";
+import { normalizeGroup } from "@windcraft/core/pages.js";
 import { logActivity, revertDesign, RevertError } from "../services/change.service.js";
 import { documentFor, renderPage, takeBudget, RenderUnavailable } from "../services/render.service.js";
 import { publicBase } from "../utils/publicUrl.js";
+import { categories as GALLERY_CATEGORIES } from "../routes/home.routes.js";
 
 export const TOOLS = [
     {
@@ -79,6 +81,7 @@ export const TOOLS = [
                 htmlCode: { type: "string" },
                 tags: { type: "array", items: { type: "string" } },
                 category: { type: "string", description: "Gallery category slug, default apps-general" },
+                group: { type: "string", description: "The group this design belongs to on its project's board, e.g. \"Sidebars\" (optional; up to 60 characters)" },
                 project: { type: "string", description: "Project name or id to file this under (created if new). Optional: defaults to the user's active project." },
             },
             required: ["title", "description", "htmlCode"],
@@ -98,6 +101,7 @@ export const TOOLS = [
                 project: { type: "string", description: "Project name or id to file this under (created if new). Optional: defaults to the user's active project." },
                 id: { type: "string", description: "The saved page to replace with this version (optional: a page with the same title in the project is found anyway)" },
                 group: { type: "string", description: "The group this page belongs to in its project, e.g. \"Public site\" (optional)" },
+                category: { type: "string", description: "The gallery category slug this design belongs to, e.g. navigation-sidebars (optional; default apps-general for a new page)" },
                 baseVersion: { type: "number", description: "When saving an existing page again: the version you started from" },
                 force: { type: "boolean", description: "Replace the page even if it changed since baseVersion (only when the user says so)" },
                 note: { type: "string", description: "What changed, for the version history" },
@@ -132,6 +136,7 @@ export const TOOLS = [
                     },
                 },
                 tags: { type: "array", items: { type: "string" } },
+                category: { type: "string", description: "The gallery category slug for every page in this call (optional), e.g. ui-alerts" },
             },
             required: ["pages"],
         },
@@ -235,6 +240,14 @@ async function projectFor(userId, ref) {
     return getActiveProject(userId);
 }
 
+/** A gallery category slug the caller named, checked against the app's list; "" when none was given. Throws a message the tool shows. */
+const categoryFrom = (value) => {
+    const slug = String(value || "").trim();
+    if (!slug) return "";
+    if (!GALLERY_CATEGORIES[slug]) throw new Error(`"${slug}" is not a gallery category. Use one of: ${Object.keys(GALLERY_CATEGORIES).join(", ")}`);
+    return slug;
+};
+
 /** Where a person opens a saved design or a project in Windcraft (the tool results carry these, so an AI can hand the user a link). */
 const designUrl = (req, id) => (req ? `${publicBase(req)}/design/${id}` : undefined);
 const projectUrl = (req, id) => (req ? `${publicBase(req)}/projects/${id}` : undefined);
@@ -297,6 +310,8 @@ export async function callTool(userId, name, args = {}, req = null) {
         }
         case "save_component": {
             if (!args.title || !args.description || !args.htmlCode) return fail("title, description and htmlCode are required");
+            let category = "";
+            try { category = categoryFrom(args.category); } catch (e) { return fail(e.message); }
             const proj = await projectFor(userId, args.project);
             if (!proj) return fail("Choose a project: every design belongs to one. Pass project (a name creates it), or set an active project.");
             const c = await Component.create({
@@ -305,7 +320,8 @@ export async function callTool(userId, name, args = {}, req = null) {
                 title: args.title,
                 description: args.description,
                 htmlCode: args.htmlCode,
-                category: args.category || "apps-general",
+                category: category || "apps-general",
+                group: normalizeGroup(args.group),
                 tags: normalizeTags(args.tags),
                 profile: buildProfile(args.htmlCode),
                 createdBy: userId,
@@ -326,7 +342,7 @@ export async function callTool(userId, name, args = {}, req = null) {
                 const result = await importDesign(userId, {
                     title: args.title, html: args.html, description: args.description,
                     tags: args.tags, split: args.split === true, project: proj ? proj._id : null,
-                    id: args.id, baseVersion: args.baseVersion, force: args.force === true, note: args.note, group: args.group,
+                    id: args.id, baseVersion: args.baseVersion, force: args.force === true, note: args.note, group: args.group, category: categoryFrom(args.category),
                     frameW: Number.isFinite(args.width) ? args.width : undefined, actor: actorOf(req),
                 });
                 if (result.page.created || result.page.updated) await logActivity(userId, actorOf(req), { action: result.page.created ? "created" : "changed", design: result.page.id, title: result.page.title, project: proj._id, version: result.page.version });
@@ -351,12 +367,14 @@ export async function callTool(userId, name, args = {}, req = null) {
                 await proj.save();
             }
             const shared = proj.sharedHead || "";
+            let category = "";
+            try { category = categoryFrom(args.category); } catch (e) { return fail(e.message); }
             const saved = [];
             const failed = [];
             for (const pg of pagesIn) {
                 try {
                     const html = typeof pg.html === "string" ? withSharedHead(pg.html, shared) : pg.html;
-                    const r = await importDesign(userId, { title: pg.title, html, description: pg.description, tags: args.tags, split: false, project: proj._id, id: pg.id, baseVersion: pg.baseVersion, force: pg.force === true, group: pg.group, actor: actorOf(req) });
+                    const r = await importDesign(userId, { title: pg.title, html, description: pg.description, tags: args.tags, split: false, project: proj._id, id: pg.id, baseVersion: pg.baseVersion, force: pg.force === true, group: pg.group, category, actor: actorOf(req) });
                     saved.push(r.page);
                     if (r.page.created || r.page.updated) await logActivity(userId, actorOf(req), { action: r.page.created ? "created" : "changed", design: r.page.id, title: r.page.title, project: proj._id, version: r.page.version });
                 } catch (e) {

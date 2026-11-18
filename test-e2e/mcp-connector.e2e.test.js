@@ -210,3 +210,32 @@ test("the project's History dialog marks the versions an AI made", { skip: skip 
         await ctx.close();
     } finally { await browser.close(); }
 });
+
+test("designs can be filed under a gallery category and a board group when they are saved", { skip: skip || false, timeout: 120000 }, async () => {
+    const { default: Component } = await import("../src/models/component.model.js");
+    const text = (r) => JSON.parse(r.content[0].text);
+    // save_component: a category and a group
+    const a = text(await call("save_component", { title: "Alert one", description: "x", htmlCode: "<div class='p-4'>one</div>", category: "ui-alerts", group: "Alerts & Toasts", project: "E2E project" }));
+    let doc = await Component.findById(a.id).lean();
+    assert.equal(doc.category, "ui-alerts");
+    assert.equal(doc.group, "Alerts & Toasts");
+    // save_design: a category for a new page, and a second save under another one
+    const b = text(await call("save_design", { title: "Sidebar one", html: "<aside class='p-4'>side</aside>", project: "E2E project", category: "navigation-sidebars", group: "Sidebars" }));
+    doc = await Component.findById(b.page.id).lean();
+    assert.equal(doc.category, "navigation-sidebars");
+    assert.equal(doc.group, "Sidebars");
+    await call("save_design", { title: "Sidebar one", id: b.page.id, baseVersion: 1, html: "<aside class='p-6'>side 2</aside>", category: "ui-tabs" });
+    assert.equal((await Component.findById(b.page.id).lean()).category, "ui-tabs", "saved again under another category");
+    // save_pages: one category for every page
+    const c = text(await call("save_pages", { project: "E2E project", category: "marketing-cta", pages: [{ title: "Cta one", html: "<section class='p-6'>a</section>" }, { title: "Cta two", html: "<section class='p-6'>b</section>" }] }));
+    for (const p of c.saved) assert.equal((await Component.findById(p.id).lean()).category, "marketing-cta");
+    // a category that does not exist is refused with the list, and nothing is saved
+    const bad = await call("save_design", { title: "Nope", html: "<p>x</p>", project: "E2E project", category: "not-a-category" });
+    assert.equal(bad.isError, true);
+    assert.match(bad.content[0].text, /not a gallery category/);
+    assert.equal(await Component.countDocuments({ title: "Nope" }), 0);
+    assert.equal((await call("save_component", { title: "Bad", description: "x", htmlCode: "<p>x</p>", category: "zzz", project: "E2E project" })).isError, true);
+    // the new wave-1 categories exist in the app
+    const { categories } = await import("../src/routes/home.routes.js");
+    for (const slug of ["navigation-sidebars", "marketing-cta", "marketing-stats", "ui-alerts", "ui-badges", "ui-tabs", "ui-accordions", "navigation-pagination", "forms-controls", "ui-empty-states", "pages-landing", "pages-about", "pages-contact", "pages-auth", "pages-dashboard", "pages-settings", "pages-blog-post", "pages-error"]) assert.ok(categories[slug], `${slug} is a category`);
+});

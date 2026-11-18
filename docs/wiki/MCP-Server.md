@@ -101,7 +101,7 @@ Giving an AI write access is easier when you can see what it did and take it bac
 | `get_design_guide` | Your design tokens, conventions and an index of every component. Read first. |
 | `get_context` | The active project: its brief and the pages already designed. Read first in a new chat. |
 | `search_components`, `get_component` | Find components by keyword or tag; get one's code (HTML, or React, Vue, Svelte). |
-| `save_design`, `save_pages`, `save_component` | Save one screen, several screens in one project, or a reusable component. |
+| `save_design`, `save_pages`, `save_component` | Save one screen, several screens in one project, or a reusable component. Each takes an optional gallery `category` (a slug such as `ui-alerts`, checked against the app's list) and, for one design, a board `group`. |
 | `get_design_spec`, `apply_design_patch` | Read a saved design as JSON with element ids; change it with small operations instead of rewriting it. |
 | `list_projects`, `create_project`, `get_project`, `set_active_project`, `update_project` | Work with projects (groups of pages). |
 | `render_design` | A screenshot of a design, so the AI can check and fix its own work. |
