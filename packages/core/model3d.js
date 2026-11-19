@@ -657,13 +657,17 @@ function modelRuntime() {
         // ── Scroll story: the steps are the sections with data-wc-view in the nearest ancestor that has any (and no other model). As the page scrolls the
         // model glides from one step's pose to the next, and steps with data-wc-words dim or fade while they are away from the middle of the screen. ──
         _findSteps() {
-            for (var p = this.parentElement; p; p = p.parentElement) {
-                if (p.querySelectorAll("wc-model").length > 1) return [];
-                var f = p.querySelectorAll("[data-wc-view]");
-                // in the order they are down the page (in a free layout that need not be the order of the code)
-                if (f.length) return [].slice.call(f).map(function (e) { return [e, e.getBoundingClientRect().top + scrollY]; }).sort(function (a, b) { return a[1] - b[1]; }).map(function (x) { return x[0]; });
+            var id = this.id, list = [];
+            // linked to it by its id (data-wc-for="its id"): any number of models on a page, each with its own steps anywhere in it
+            if (id) list = [].slice.call(document.querySelectorAll("[data-wc-view]")).filter(function (e) { return e.getAttribute("data-wc-for") === id; });
+            // not linked: the steps in the nearest box around it that has any and no other model (the Scroll story block, pages made before links)
+            if (!list.length) for (var p = this.parentElement; p; p = p.parentElement) {
+                if (p.querySelectorAll("wc-model").length > 1) break;
+                var f = [].slice.call(p.querySelectorAll("[data-wc-view]")).filter(function (e) { return !e.hasAttribute("data-wc-for"); });
+                if (f.length) { list = f; break; }
             }
-            return [];
+            // in the order they are down the page (in a free layout that need not be the order of the code)
+            return list.map(function (e) { return [e, e.getBoundingClientRect().top + scrollY]; }).sort(function (a, b) { return a[1] - b[1]; }).map(function (x) { return x[0]; });
         }
         _steps() {
             var now = performance.now();
@@ -884,6 +888,8 @@ function modelRuntime() {
     customElements.define("wc-model", WcModel);
     // The model an element acts on: the one it is (or is inside: a hotspot), else the one in the nearest ancestor that has only one.
     function modelFor(t) {
+        var link = t.getAttribute("data-wc-for");
+        if (link) { var lm = document.getElementById(link); return lm && lm._act ? lm : null; } // linked to its model by id
         var m = t.tagName === "WC-MODEL" ? t : t.closest("wc-model");
         for (var p = t.parentElement; !m && p; p = p.parentElement) {
             var ms = p.querySelectorAll("wc-model");

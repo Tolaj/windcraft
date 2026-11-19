@@ -129,7 +129,7 @@ export function agentMain() {
         line: { tag: "div", cls: "absolute bg-neutral-900 text-neutral-900", w: 160, h: 2 },
         arrow: { tag: "div", cls: "absolute bg-neutral-900 text-neutral-900", w: 160, h: 2, html: '<i class="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 border-y-[5px] border-y-transparent border-l-[9px] border-l-current"></i>' },
         text: { tag: "p", cls: "absolute text-base text-neutral-900 whitespace-nowrap", text: "Text", auto: true },
-        model: { tag: "wc-model", cls: "absolute rounded-md bg-neutral-100", w: 320, h: 320, attrs: { src: "", controls: "", "auto-rotate": "" } },
+        model: { tag: "wc-model", cls: "absolute rounded-md bg-neutral-100", w: 320, h: 320, attrs: { src: "", controls: "" } }, // (no effect on to begin with)
         image: { tag: "img", cls: "absolute object-cover rounded-md bg-neutral-200", w: 240, h: 160, attrs: { src: PLACEHOLDER, alt: "Image" } },
         button: { tag: "button", cls: "absolute rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white whitespace-nowrap", text: "Button", auto: true },
     };
@@ -813,7 +813,11 @@ export function agentMain() {
         if (text) st.setAttribute(KIND_ATTR[storyKind], text); else st.removeAttribute(KIND_ATTR[storyKind]);
     };
     // the model an element acts on (as the page script finds it)
+    // An element chosen for a model is linked to it by the model's id (data-wc-for), so a page can have any number of models, each with its own elements
+    // anywhere on it (as the page script finds them). Elements without a link (the Scroll story block, older pages) go by where they are.
     const modelOfEl = (t) => {
+        const link = t.getAttribute("data-wc-for");
+        if (link) { const lm = document.getElementById(link); return lm && lm.tagName === "WC-MODEL" ? lm : null; }
         let m = t.tagName === "WC-MODEL" ? t : t.closest("wc-model");
         for (let p = t.parentElement; !m && p; p = p.parentElement) {
             const ms = p.querySelectorAll("wc-model");
@@ -822,15 +826,25 @@ export function agentMain() {
         }
         return m;
     };
-    const scrollStepsOf = (m) => {
+    const scrollStepsOf = (m) => { // as the page script's _findSteps
         if (!m || m.tagName !== "WC-MODEL") return [];
-        for (let p = m.parentElement; p; p = p.parentElement) {
-            if (p.querySelectorAll("wc-model").length > 1) return [];
-            const f = p.querySelectorAll("[data-wc-view]");
-            if (f.length) return [...f].map((e) => [e, e.getBoundingClientRect().top + scrollY]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
+        let list = m.id ? [...document.querySelectorAll("[data-wc-view]")].filter((e) => e.getAttribute("data-wc-for") === m.id) : [];
+        if (!list.length) for (let p = m.parentElement; p; p = p.parentElement) {
+            if (p.querySelectorAll("wc-model").length > 1) break;
+            const f = [...p.querySelectorAll("[data-wc-view]")].filter((e) => !e.hasAttribute("data-wc-for"));
+            if (f.length) { list = f; break; }
         }
-        return [];
+        return list.map((e) => [e, e.getBoundingClientRect().top + scrollY]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
     };
+    // the model's id, given one if it has none ("model", "model-2"...): what its elements link to
+    const modelId = (m) => {
+        if (!m.id) { let n = 1; while (document.getElementById(n === 1 ? "model" : `model-${n}`)) n++; m.id = n === 1 ? "model" : `model-${n}`; }
+        return m.id;
+    };
+    // is this element one of the open model's, for the kind being set up? (one linked to another model is not: choosing it moves it to this one)
+    const isMine = (t) => t.hasAttribute(KIND_ATTR[storyKind]) && storyStepsOf(storyModel).includes(t);
+    // an element's link goes once it does nothing for any model any more
+    const unlinkIfIdle = (t) => { if (!Object.values(KIND_ATTR).some((a) => t !== storyModel && t.hasAttribute(a))) t.removeAttribute("data-wc-for"); };
     // the elements of a kind that act on this model, top to bottom of the page
     const eventStepsOf = (m, kind) => !m ? [] : [...document.querySelectorAll(`[${KIND_ATTR[kind]}]`)].filter((e) => modelOfEl(e) === m).map((e) => [e, e.getBoundingClientRect().top + scrollY]).sort((a, b) => a[1] - b[1]).map((x) => x[0]);
     const storyStepsOf = (m, kind = storyKind) => (kind === "scroll" ? scrollStepsOf(m) : eventStepsOf(m, kind));
@@ -948,14 +962,18 @@ export function agentMain() {
     document.addEventListener("pointermove", (e) => {
         const t = storyPicking && storyModel ? pickTarget(e.target) : null;
         if (!t) { pickHover.style.display = "none"; return; }
-        const b = t.getBoundingClientRect(), on = t.hasAttribute(KIND_ATTR[storyKind]), k = 1 / (zoom || 1);
+        const b = t.getBoundingClientRect(), on = isMine(t), k = 1 / (zoom || 1);
         pickHover.style.cssText += `;display:block;left:${b.left + scrollX}px;top:${b.top + scrollY}px;width:${b.width}px;height:${b.height}px;border:${2 * k}px solid ${on ? "#e5484d" : "#2f4fdd"};background:${on ? "rgba(229,72,77,.08)" : "rgba(47,79,221,.08)"};`;
     }, true);
     function storyToggle(t) {
         const attr = KIND_ATTR[storyKind];
-        if (t.hasAttribute(attr)) { t.removeAttribute(attr); if (storyKind === "scroll") { t.removeAttribute("data-wc-words"); t.style.removeProperty("opacity"); if (!t.getAttribute("style")) t.removeAttribute("style"); } }
-        else if (storyKind === "scroll") t.setAttribute(attr, poseFor(storyModel, storyStepsOf(storyModel).length));
-        else t.setAttribute(attr, "view " + poseFor(storyModel, storyStepsOf(storyModel).length + 1)); // each new one gets a pose of its own, so it does something at once
+        if (isMine(t)) { t.removeAttribute(attr); if (storyKind === "scroll") { t.removeAttribute("data-wc-words"); t.style.removeProperty("opacity"); if (!t.getAttribute("style")) t.removeAttribute("style"); } unlinkIfIdle(t); }
+        else {
+            const n = storyStepsOf(storyModel).length;
+            if (storyKind === "scroll") t.setAttribute(attr, poseFor(storyModel, n));
+            else t.setAttribute(attr, "view " + poseFor(storyModel, n + 1)); // each new one gets a pose of its own, so it does something at once
+            if (t !== storyModel) t.setAttribute("data-wc-for", modelId(storyModel)); // linked to this model (the model itself needs no link)
+        }
         storyCur = -1;
         changed();
     }
@@ -3278,8 +3296,8 @@ export function agentMain() {
         }
         if (m.cmd === "storyRemove") {
             const steps = storyStepsOf(storyModel);
-            if (steps[m.i] && storyKind !== "scroll") { steps[m.i].removeAttribute(KIND_ATTR[storyKind]); storyCur = -1; changed(); return; }
-            if (steps[m.i]) { steps[m.i].removeAttribute("data-wc-view"); steps[m.i].removeAttribute("data-wc-words"); steps[m.i].style.removeProperty("opacity"); if (!steps[m.i].getAttribute("style")) steps[m.i].removeAttribute("style"); storyCur = -1; changed(); } // out of the story; the element stays on the page
+            if (steps[m.i] && storyKind !== "scroll") { steps[m.i].removeAttribute(KIND_ATTR[storyKind]); unlinkIfIdle(steps[m.i]); storyCur = -1; changed(); return; }
+            if (steps[m.i]) { steps[m.i].removeAttribute("data-wc-view"); steps[m.i].removeAttribute("data-wc-words"); unlinkIfIdle(steps[m.i]); steps[m.i].style.removeProperty("opacity"); if (!steps[m.i].getAttribute("style")) steps[m.i].removeAttribute("style"); storyCur = -1; changed(); } // out of the story; the element stays on the page
             return;
         }
         if (m.cmd === "mpart") { const el = primary(); if (el && el.tagName === "WC-MODEL") setPart(part === el ? null : el, "move"); return; } // the 3D bar's model button: pick it (or let it go)
