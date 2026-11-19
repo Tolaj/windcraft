@@ -12,6 +12,47 @@ export const THREE_CDN = "https://cdn.jsdelivr.net/npm/";
 /** A free model to start from: the Fox of the Khronos sample assets (CC0 model), a few hundred KB with three animations. */
 export const SAMPLE_MODEL = "https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/Fox/glTF-Binary/Fox.glb";
 
+/** The kinds of sample model, in the order the dialog's chips list them. */
+export const SAMPLE_KINDS = Object.freeze([["products", "Products"], ["furniture", "Furniture"], ["lighting", "Lighting"], ["home", "Home and food"], ["vehicles", "Vehicles"], ["art", "Art and characters"]]);
+/**
+ * Free models the editor offers, for the kinds of page people build: a shop (a shoe, a watch, a speaker), a furniture or lighting store,
+ * a landing page hero. They are the Khronos glTF sample assets, served by jsDelivr; each one's page there (sourceUrl) says who made it and
+ * under what licence. `license`: what the author gave (CC BY needs a credit line on the page); `kb`: the file's size; `credit`: who made it.
+ */
+export const SAMPLE_MODELS = Object.freeze([
+    { id: "MaterialsVariantsShoe", name: "Sneaker", kind: "products", about: "A trainer, good for a shop's product page", license: "CC BY 4.0", credit: "Shopify", kb: 7834, shot: "jpg" },
+    { id: "ChronographWatch", name: "Chronograph watch", kind: "products", about: "A wristwatch with dials", license: "CC BY 4.0", credit: "Eric Chadwick, Darmstadt Graphics Group", kb: 7446, shot: "jpg" },
+    { id: "WaterBottle", name: "Water bottle", kind: "products", about: "A reusable bottle", license: "CC0", credit: "Microsoft", kb: 8967, shot: "jpg" },
+    { id: "BoomBox", name: "Boom box", kind: "products", about: "A retro stereo speaker", license: "CC0", credit: "Microsoft", kb: 10614, shot: "jpg" },
+    { id: "ChairDamaskPurplegold", name: "Damask chair", kind: "furniture", about: "A chair in purple and gold damask", license: "CC BY 4.0", credit: "Eric Chadwick, Wayfair", kb: 2029, shot: "jpg" },
+    { id: "GlamVelvetSofa", name: "Velvet sofa", kind: "furniture", about: "A velvet sofa", license: "CC BY 4.0", credit: "Eric Chadwick, Wayfair", kb: 3150, shot: "jpg" },
+    { id: "SheenChair", name: "Sheen chair", kind: "furniture", about: "An armchair that shows off fabric sheen", license: "CC0", credit: "Eric Chadwick, Wayfair", kb: 4126, shot: "jpg" },
+    { id: "IridescenceLamp", name: "Iridescent lamp", kind: "lighting", about: "A table lamp with an iridescent shade", license: "CC BY 4.0", credit: "Eric Chadwick, Wayfair", kb: 4084, shot: "jpg" },
+    { id: "LightsPunctualLamp", name: "Desk lamp", kind: "lighting", about: "A lamp that lights its own scene", license: "CC BY 4.0", credit: "Darmstadt Graphics Group", kb: 4341, shot: "png" },
+    { id: "AnisotropyBarnLamp", name: "Barn lamp", kind: "lighting", about: "A brushed-metal barn light", license: "CC BY 4.0", credit: "Eric Chadwick, Wayfair", kb: 7833, shot: "jpg", rawShot: true },
+    { id: "Lantern", name: "Lantern", kind: "lighting", about: "A street lantern", license: "CC0", credit: "sbtron, Frank Galligan", kb: 9564, shot: "jpg" },
+    { id: "GlassVaseFlowers", name: "Vase of flowers", kind: "home", about: "A glass vase with flowers", license: "CC0", credit: "Eric Chadwick, Rico Cilliers", kb: 1820, shot: "jpg" },
+    { id: "DiffuseTransmissionTeacup", name: "Teacup", kind: "home", about: "A porcelain teacup", license: "CC0", credit: "Polyhaven, Eric Chadwick", kb: 4795, shot: "jpg" },
+    { id: "IridescentDishWithOlives", name: "Olive dish", kind: "home", about: "An iridescent dish with olives", license: "CC BY 4.0", credit: "Eric Chadwick, Wayfair", kb: 5743, shot: "jpg" },
+    { id: "ScatterPlant", name: "Potted plant", kind: "home", about: "A leafy houseplant", license: "CC BY 4.0", credit: "Eric Chadwick, Darmstadt Graphics Group", kb: 9409, shot: "jpg" },
+    { id: "Avocado", name: "Avocado", kind: "home", about: "A halved avocado", license: "CC0", credit: "Microsoft", kb: 8110, shot: "jpg" },
+    { id: "ToyCar", name: "Toy car", kind: "vehicles", about: "A toy car", license: "CC0", credit: "Guido Odendahl, Eric Chadwick", kb: 5422, shot: "jpg" },
+    { id: "CarConcept", name: "Concept car", kind: "vehicles", about: "A car for an automotive landing page", license: "CC BY 4.0", credit: "Eric Chadwick, Darmstadt Graphics Group", kb: 11779, shot: "jpg" },
+    { id: "CesiumMilkTruck", name: "Milk truck", kind: "vehicles", about: "A delivery truck with turning wheels", license: "CC BY 4.0", credit: "Cesium", kb: 370, shot: "gif", animated: true },
+    { id: "Fox", name: "Fox", kind: "art", about: "A low-poly fox with walk and run animations", license: "CC0 · CC BY 4.0", credit: "PixelMannen, tomkranis (rigging)", kb: 163, shot: "jpg", animated: true },
+    { id: "CarbonFibre", name: "Carbon fibre ball", kind: "art", about: "A sphere in woven carbon fibre: a light hero shape", license: "CC BY 4.0", credit: "Eric Chadwick, Wayfair", kb: 430, shot: "jpg" },
+    { id: "ClearCoatCarPaint", name: "Car paint ball", kind: "art", about: "A glossy car-paint sphere: a light hero shape", license: "CC0", credit: "Eric Chadwick", kb: 117, shot: "jpg" },
+    { id: "ScatteringSkull", name: "Skull", kind: "art", about: "A translucent skull for dark or gaming pages", license: "CC0", credit: "Vladimir Petkovic", kb: 8959, shot: "jpg", rawShot: true },
+]);
+const SAMPLE_BASE = "https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/";
+/** The .glb of a sample, its picture, and the page about it (the author, the licence and what it is). */
+export const sampleUrl = (m) => `${SAMPLE_BASE}${m.id}/glTF-Binary/${m.id}.glb`;
+// (jsDelivr refuses a few of the pictures, `rawShot`: those come from GitHub's own file server)
+export const sampleThumb = (m) => `${m.rawShot ? "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/" : SAMPLE_BASE}${m.id}/screenshot/screenshot.${m.shot}`;
+export const sourceUrl = (m) => `https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/${m.id}`;
+/** Does a model need a credit line on the page (a CC BY licence)? */
+export const needsCredit = (m) => /\bBY\b/.test(m.license);
+
 /** The attributes, in the order the panel lists them: { name, type: "text"|"bool"|"number"|"select", def, min, max, step, options, label, hint }. `def` is what the script does without it. */
 export const MODEL_ATTRS = Object.freeze([
     { name: "src", type: "text", def: "", label: "Model (.glb)", hint: "A URL, or a file embedded in the page" },

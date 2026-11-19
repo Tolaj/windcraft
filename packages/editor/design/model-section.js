@@ -5,7 +5,7 @@
 import { html, useState, useRef } from "../vendor/preact-htm.js";
 import { TextInput, SelectInput, ColorInput } from "./controls.js";
 import { FSection, NumField, IconBtn, I } from "./figma-sections.js";
-import { MODEL_ATTRS, boolAttr, numberAttr, parseRotation, isModelFile, MAX_EMBED_BYTES, SAMPLE_MODEL, hotspotMarkup, nextHotspot } from "../../core/model3d.js";
+import { MODEL_ATTRS, boolAttr, numberAttr, parseRotation, isModelFile, MAX_EMBED_BYTES, hotspotMarkup, nextHotspot } from "../../core/model3d.js";
 
 const mb = (n) => (n / 1e6).toFixed(1);
 const A = Object.fromEntries(MODEL_ATTRS.map((a) => [a.name, a]));
@@ -107,7 +107,7 @@ export function ModelSection({ s, actions }) {
             <div class="fbtns">
                 <button type="button" title="A .glb or .gltf from your computer, embedded in the page" onClick=${() => file.current && file.current.click()}>Choose file…</button>
                 <input ref=${file} type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" style="display:none" onChange=${pick} />
-                <button type="button" title="A free sample model (CC0), loaded from a CDN" onClick=${() => set("src", SAMPLE_MODEL)}>Use a sample</button>
+                <button type="button" title="Free 3D models to start from, loaded from a CDN" onClick=${() => actions.openSamples()}>Use a sample</button>
             </div>
         </${FSection}>
         <${FSection} title="Model in the scene">

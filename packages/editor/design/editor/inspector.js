@@ -18,6 +18,7 @@ import { $, S, data, model, send } from "./base.js";
 import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameSize, setPageGroup } from "./designs.js";
 import { curWidth, fitTo, heightOfDoc, layout, positions, remeasureHeight, widthOf } from "./plane.js";
 import { draftPage } from "./add-menu.js";
+import { openSamples } from "./model-samples.js";
 import { openWireframes, wireframeTarget } from "./layout-picker.js";
 import { cmd } from "./frame-messages.js";
 import { setPanel } from "./color-ui.js";
@@ -287,6 +288,8 @@ const panelActions = {
     arrange: (kind) => { if (S.selected) arrange(kind); },
     toggleSection,
     /** Puts new markup inside the selected element (a hotspot into a 3D model). */
+    // the free 3D models dialog (over the canvas, like the wireframes): a pick becomes the selected model's file
+    openSamples: () => { if (!S.selected) return; const path = S.selected.path; openSamples({ current: (S.selected.attrs || {}).src, onPick: (url) => cmd({ cmd: "setAttr", path, name: "src", value: url }) }); },
     addChild: (make) => { if (S.selected) cmd({ cmd: "insert", path: S.selected.path, html: make(model.markup), position: "inside" }); },
     setAttr: (name, value) => { if (S.selected) cmd({ cmd: "setAttr", path: S.selected.path, name, value: value === "" ? null : value }, `attr-${name}`); },
     // the classes, inline CSS and attributes below the element's code (classes-section.js)

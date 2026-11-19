@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MODEL_ATTRS, MODEL_MARK, MODEL_SCRIPT, THREE_VERSION, usesModel, hasModelScript, withModelScript, parseRotation, numberAttr, boolAttr, modelMarkup, isModelFile, hotspotMarkup, nextHotspot } from "../model3d.js";
+import { MODEL_ATTRS, MODEL_MARK, MODEL_SCRIPT, THREE_VERSION, usesModel, hasModelScript, withModelScript, parseRotation, numberAttr, boolAttr, modelMarkup, isModelFile, hotspotMarkup, nextHotspot, SAMPLE_MODEL, SAMPLE_MODELS, sampleUrl, sampleThumb, sourceUrl, SAMPLE_KINDS, needsCredit } from "../model3d.js";
 import { exportComponent } from "../exporters.js";
 
 test("a design uses a model when it has the element", () => {
@@ -72,4 +72,22 @@ test("hotspots are plain buttons pinned by data-position, numbered one after ano
     assert.equal(nextHotspot(""), 1);
     assert.equal(nextHotspot(`<wc-model>${hotspotMarkup(1)}${hotspotMarkup(4)}</wc-model>`), 5);
     for (const a of ["scroll-rotate", "shadow", "clip"]) assert.ok(MODEL_ATTRS.some((m) => m.name === a));
+});
+
+test("the sample list: each model has a file, a picture, a licence and a credit", () => {
+    assert.ok(SAMPLE_MODELS.length >= 20);
+    const kinds = new Set(SAMPLE_KINDS.map(([k]) => k));
+    assert.ok(SAMPLE_MODELS.every((m) => kinds.has(m.kind)), "every model is in a kind the dialog lists");
+    assert.ok(SAMPLE_KINDS.every(([k]) => SAMPLE_MODELS.some((m) => m.kind === k)), "and every kind has models");
+    assert.equal(new Set(SAMPLE_MODELS.map((m) => m.id)).size, SAMPLE_MODELS.length);
+    for (const m of SAMPLE_MODELS) {
+        assert.match(sampleUrl(m), /^https:\/\/cdn\.jsdelivr\.net\/gh\/KhronosGroup\/glTF-Sample-Assets@main\/Models\/\w+\/glTF-Binary\/\w+\.glb$/);
+        assert.match(sampleThumb(m), /screenshot\.(jpg|png|gif)$/);
+        assert.ok(m.name && m.license && m.credit && m.kb > 0, m.id);
+        assert.ok(isModelFile(sampleUrl(m), ""), m.id);
+        assert.equal(sourceUrl(m), `https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/${m.id}`);
+    }
+    assert.equal(sampleUrl(SAMPLE_MODELS.find((m) => m.id === "Fox")), SAMPLE_MODEL, "the Add menu's sample is in the list");
+    assert.equal(needsCredit({ license: "CC BY 4.0" }), true);
+    assert.equal(needsCredit({ license: "CC0" }), false);
 });
