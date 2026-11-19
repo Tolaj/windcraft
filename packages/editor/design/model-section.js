@@ -98,7 +98,7 @@ export function ModelSection({ s, actions }) {
         <${TextInput} class="nfi" value=${tidy(pos[i])} placeholder="0" onInput=${(x) => { if (x.trim() !== "" && Number.isFinite(Number(x))) setPos(i, x); }} onCommit=${(x) => setPos(i, x)} /></label>`;
     const light = at.environment === "none" ? "none" : "studio";
     const clips = s.clips || [];
-    return html`${s.storyPick ? html`<p class="vnote on" style="margin:6px 10px">Posing for ${s.storyKind === "click" ? "click" : s.storyKind === "hover" ? "hover" : "section"} ${s.storyPick}${s.storyKind === "scroll" || !s.storyKind ? " of the Scroll story" : ""}: size, place and camera here are saved there.</p>` : null}
+    return html`${s.storyPick ? html`<p class="vnote on" style="margin:6px 10px">Posing for ${s.storyKind === "click" ? "click" : s.storyKind === "hover" ? "hover" : "section"} ${s.storyPick}${s.storyKind === "scroll" || !s.storyKind ? " of the 3D scroll story" : ""}: size, place and camera here are saved there.</p>` : null}
         <${FSection} title="3D model" extra=${src && html`<${IconBtn} icon=${I.close} title="Remove the model (the element stays)" onClick=${() => set("src", null)} />`}>
             <label class="nf" title="A .glb/.gltf URL, or a file embedded in the page"><span class="nfl">File</span>
                 ${embedded

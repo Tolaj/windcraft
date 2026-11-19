@@ -18,7 +18,7 @@ const BLOCKS = [
     ["Button", '<a href="#" class="inline-block rounded-md bg-black px-5 py-2.5 text-sm font-medium text-white">Button</a>'],
     ["Image", '<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=60" alt="Image" class="rounded-lg">'],
     ["3D model", modelMarkup({ controls: true, shadow: true }, "block h-80 w-full rounded-lg bg-neutral-100")], // no effect is on to begin with: they are chosen in its Effects menu
-    ["Scroll story", storyMarkup()],
+    ["3D scroll story", storyMarkup()],
     ["Card", '<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"><h3 class="font-semibold">Card title</h3><p class="mt-1 text-sm text-gray-600">Card text.</p></div>'],
     ["Input", '<input type="text" placeholder="Type here" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">'],
 ];

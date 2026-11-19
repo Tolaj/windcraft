@@ -145,14 +145,14 @@ export function poseWords(view) {
 export function stepMarkup(title, text, view = "rotation:0 0 0", words = "dim") {
     return `<section ${VIEW_ATTR}="${esc(view)}"${words ? ` ${WORDS_ATTR}="${esc(words)}"` : ""} class="flex min-h-screen items-center px-8 py-16 md:px-16"><div class="max-w-md"><h2 class="text-3xl font-semibold tracking-tight text-neutral-900">${esc(title)}</h2><p class="mt-3 text-neutral-600">${esc(text)}</p></div></section>`;
 }
-/** The Scroll story block: the model pinned beside three sections; the model glides to each section's pose, the other sections' words dim. */
+/** The 3D scroll story block: the model pinned beside three sections; the model glides to each section's pose, the other sections' words dim. */
 export function storyMarkup() {
     return `<div class="grid md:grid-cols-2">` +
         `<div class="sticky top-0 z-10 h-[45vh] bg-white md:order-2 md:h-screen md:self-start">${modelMarkup({ shadow: true }, "block h-full w-full")}</div>` +
         `<div class="md:order-1">` +
         stepMarkup("Meet the design", "Start with the big picture. The model sits still while you read.", "rotation:0 -25 0; camera-angle:10") +
         stepMarkup("Every detail", "Scrolling turns the model and moves the camera in close.", "rotation:0 70 0; camera-angle:25; camera-distance:0.75") +
-        stepMarkup("From every side", "Open the Scroll drawer to pose the model for each section.", "rotation:0 200 0; camera-angle:5; camera-distance:1.15") +
+        stepMarkup("From every side", "Select the model and use Motion to pose it for each section.", "rotation:0 200 0; camera-angle:5; camera-distance:1.15") +
         `</div></div>`;
 }
 
