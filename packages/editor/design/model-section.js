@@ -1,14 +1,67 @@
-// The Properties panel's 3D model section: shown on a <wc-model> (core/model3d.js). Every control writes one plain attribute on the element
-// (setAttr), so what is in the panel is what is in the HTML; a value left at its default is taken off again. The size, position, rounding and
-// background (a bg- class: the scene itself is see-through) are the panel's other sections, like for any element.
-import { html } from "../vendor/preact-htm.js";
-import { TextInput, SelectInput, Field } from "./controls.js";
-import { MODEL_ATTRS, boolAttr, isModelFile, MAX_EMBED_BYTES, SAMPLE_MODEL } from "../../core/model3d.js";
+// The Properties panel's 3D model sections: shown on a <wc-model> (core/model3d.js). Every control writes one plain attribute on the element
+// (setAttr), so what is in the panel is what is in the HTML; a value left at its default is taken off again (and shows faint, like any
+// unset field). The size, position, rounding and background (a bg- class: the scene itself is see-through) are the panel's other sections.
+// Built from the same pieces as Position and Layout: FSection, NumField (drag its letter to scrub), toggle buttons, .fbtns.
+import { html, useState, useRef } from "../vendor/preact-htm.js";
+import { TextInput, SelectInput, ColorInput } from "./controls.js";
+import { FSection, NumField, IconBtn, I } from "./figma-sections.js";
+import { MODEL_ATTRS, boolAttr, numberAttr, parseRotation, isModelFile, MAX_EMBED_BYTES, SAMPLE_MODEL, hotspotMarkup, nextHotspot } from "../../core/model3d.js";
 
 const mb = (n) => (n / 1e6).toFixed(1);
-const GROUPS = [["Camera", ["rotation", "camera-angle", "camera-distance", "fov"]], ["Light", ["environment", "exposure", "light", "light-color"]], ["Motion", ["controls", "zoom", "auto-rotate", "rotate-speed", "animate"]], ["Scene", ["background"]]];
+const A = Object.fromEntries(MODEL_ATTRS.map((a) => [a.name, a]));
+const tidy = (n) => String(Math.round(n * 1000) / 1000);
 
-/** `s.attrs`: the element's attributes. `actions.setAttr(name, value)` with "" takes one off. */
+/** A number attribute as a field: faint when it is at its default, type a value (empty resets) or drag its label sideways to scrub it. */
+function NumAttr({ name, label, unit, at, set, title }) {
+    const a = A[name], raw = at[name];
+    const [live, setLive] = useState(/** @type {number | null} */ (null));
+    const store = (n) => set(name, n === a.def ? null : tidy(n));
+    const scrub = (e) => {
+        e.preventDefault();
+        const x0 = e.clientX, base = numberAttr(name, raw), box = e.currentTarget;
+        let cur = base, moved = false;
+        box.setPointerCapture(e.pointerId);
+        const move = (ev) => {
+            const steps = Math.round((ev.clientX - x0) / 4);
+            if (steps) moved = true;
+            cur = numberAttr(name, base + steps * a.step);
+            setLive(cur);
+            store(cur); // live: the model follows the drag (the writes merge into one undo step)
+        };
+        const up = () => {
+            box.removeEventListener("pointermove", move);
+            box.removeEventListener("pointerup", up);
+            setLive(null);
+        };
+        box.addEventListener("pointermove", move);
+        box.addEventListener("pointerup", up);
+    };
+    const shown = live != null ? tidy(live) : raw ?? "";
+    return html`<label class=${`nf ${raw == null && live == null ? "unset" : ""}`} title=${title || a.hint || a.label}>
+        <span class="nfl" style="cursor:ew-resize;touch-action:none" onPointerDown=${scrub}>${label}</span>
+        <${TextInput} class="nfi" value=${shown} placeholder=${String(a.def)}
+            onInput=${(x) => { if (x.trim() !== "" && Number.isFinite(Number(x))) store(numberAttr(name, x)); }}
+            onCommit=${(x) => (x.trim() === "" ? set(name, null) : store(numberAttr(name, x)))} />
+        ${unit && html`<span class="nfu">${unit}</span>`}</label>`;
+}
+
+/** An on/off setting as a button that is pressed when it is on. */
+const Toggle = ({ name, label, at, set }) => {
+    const on = boolAttr(at[name]);
+    return html`<button type="button" class=${`ib txt ${on ? "on" : ""}`} title=${A[name].hint || A[name].label} aria-pressed=${on} onClick=${() => set(name, on ? null : true)}>${label}</button>`;
+};
+
+/** A colour attribute: a swatch that opens the picker, the colour typed (any CSS colour), and a clear button. */
+function ColorAttr({ name, label, at, set }) {
+    const a = A[name], v = at[name];
+    const hex = /^#[0-9a-f]{6}$/i.test(v || "") ? v : /^#[0-9a-f]{6}$/i.test(a.def) ? a.def : "#ffffff";
+    return html`<label class=${`nf ${v ? "" : "unset"}`} title=${a.hint || a.label}><span class="nfl">${label}</span>
+        <${ColorInput} class="cin" value=${hex} onLive=${(x) => set(name, x === a.def ? null : x)} onDone=${(x) => set(name, x === a.def ? null : x)} />
+        <${TextInput} class="nfi" value=${v ?? ""} placeholder=${a.def || "see-through"} onInput=${(x) => { if (/^#[0-9a-f]{6}$/i.test(x.trim())) set(name, x.trim() === a.def ? null : x.trim()); }} onCommit=${(x) => set(name, x.trim() === "" || x.trim() === a.def ? null : x.trim())} />
+        ${v && html`<${IconBtn} icon=${I.close} title="Back to the default" onClick=${() => set(name, null)} />`}</label>`;
+}
+
+/** `s.attrs`: the element's attributes; `s.clips`: names of the model's animations. `actions.setAttr(name, value)` with null takes one off. */
 export function ModelSection({ s, actions }) {
     const at = s.attrs || {};
     const set = (name, v) => actions.setAttr(name, v);
@@ -24,24 +77,72 @@ export function ModelSection({ s, actions }) {
         r.onload = () => set("src", r.result);
         r.readAsDataURL(f);
     };
-    const control = (a) => {
-        const v = at[a.name];
-        const label = html`<span title=${a.hint || undefined}>${a.label}</span>`;
-        if (a.type === "bool") return html`<label class="row" title=${a.hint || undefined}><span class="lbl">${a.label}</span>
-            <input type="checkbox" checked=${boolAttr(v)} onChange=${(e) => set(a.name, e.target.checked ? true : null)} /></label>`;
-        if (a.type === "select") return html`<${Field} label=${a.label} title=${a.hint}><${SelectInput} value=${v || a.def} options=${a.options.map((o) => [o, o])} onChange=${(x) => set(a.name, x === a.def ? null : x)} /></${Field}>`;
-        return html`<${Field} label=${label} title=${a.hint}><${TextInput} value=${v ?? ""} placeholder=${String(a.def)} onCommit=${(x) => set(a.name, x.trim() === "" || x.trim() === String(a.def) ? null : x.trim())} /></${Field}>`;
+    // rotation is one attribute, "x y z": each field changes its own turn
+    const rot = parseRotation(at.rotation);
+    const setRot = (i, x) => {
+        const n = rot.slice();
+        n[i] = Number.isFinite(Number(x)) && String(x).trim() !== "" ? Number(x) : 0;
+        set("rotation", n.every((d) => d === 0) ? null : n.map(tidy).join(" "));
     };
-    return html`<div class="sec"><div class="secb nopad"><p class="sub first">3D model</p>
-        <${Field} label="Model" title="A .glb/.gltf URL, or a file embedded in the page">
-            ${embedded
-                ? html`<span class="fi" title="The file is inside the page's HTML">Embedded file (${mb(src.length * 0.75)} MB)</span>`
-                : html`<${TextInput} value=${src} placeholder="https://…/model.glb" onCommit=${(x) => set("src", x.trim() || null)} />`}</${Field}>
-        <div class="row"><span class="lbl"></span>
-            <label class="fi" style="cursor:pointer;text-align:center">Choose .glb file…<input type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" style="display:none" onChange=${pick} /></label></div>
-        <div class="row"><span class="lbl"></span>
-            <button type="button" class="fi" onClick=${() => set("src", SAMPLE_MODEL)} title="A free sample model (CC0), loaded from a CDN">Use a sample model</button>
-            ${src && html`<button type="button" class="fi" onClick=${() => set("src", null)}>Remove</button>`}</div>
-        ${GROUPS.map(([title, names]) => html`<p class="sub">${title}</p>${names.map((n) => control(MODEL_ATTRS.find((a) => a.name === n)))}`)}
-    </div></div>`;
+    const rotField = (i, l) => html`<label class=${`nf ${at.rotation == null ? "unset" : ""}`} title=${`Turn about ${l} (°): where the model starts`}><span class="nfl">${l}</span>
+        <${TextInput} class="nfi" value=${tidy(rot[i])} placeholder="0" onInput=${(x) => { if (x.trim() !== "" && Number.isFinite(Number(x))) setRot(i, x); }} onCommit=${(x) => setRot(i, x)} /><span class="nfu">°</span></label>`;
+    const file = useRef(null);
+    const light = at.environment === "none" ? "none" : "studio";
+    const clips = s.clips || [];
+    return html`
+        <${FSection} title="3D model" extra=${src && html`<${IconBtn} icon=${I.close} title="Remove the model (the element stays)" onClick=${() => set("src", null)} />`}>
+            <label class="nf" title="A .glb/.gltf URL, or a file embedded in the page"><span class="nfl">File</span>
+                ${embedded
+                    ? html`<span class="nfi" style="line-height:24px;color:#555" title="The file is inside the page's HTML">Embedded (${mb(src.length * 0.75)} MB)</span>`
+                    : html`<${TextInput} class="nfi" value=${src} placeholder="https://…/model.glb" onCommit=${(x) => set("src", x.trim() || null)} />`}</label>
+            <div class="fbtns">
+                <button type="button" title="A .glb or .gltf from your computer, embedded in the page" onClick=${() => file.current && file.current.click()}>Choose file…</button>
+                <input ref=${file} type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" style="display:none" onChange=${pick} />
+                <button type="button" title="A free sample model (CC0), loaded from a CDN" onClick=${() => set("src", SAMPLE_MODEL)}>Use a sample</button>
+            </div>
+        </${FSection}>
+        <${FSection} title="Camera">
+            <div class="frow">${rotField(0, "X")}${rotField(1, "Y")}${rotField(2, "Z")}</div>
+            <div class="frow"><${NumAttr} name="camera-angle" label="Tilt" unit="°" at=${at} set=${set} /><${NumAttr} name="camera-distance" label="Zoom" at=${at} set=${set} title="Camera distance: 1 fits the whole model, less is closer" /></div>
+            <div class="frow"><${NumAttr} name="fov" label="FOV" unit="°" at=${at} set=${set} title="Field of view" /></div>
+        </${FSection}>
+        <${FSection} title="Light">
+            <label class="nf" title="Lighting"><span class="nfl">Lighting</span>
+                <${SelectInput} class="nfs wide" value=${light} options=${[["studio", "Studio"], ["none", "None (key light only)"]]} onChange=${(x) => set("environment", x === "studio" ? null : x)} /></label>
+            <div class="frow"><${NumAttr} name="exposure" label="Exposure" at=${at} set=${set} /><${NumAttr} name="light" label="Key" at=${at} set=${set} title="Key light strength" /></div>
+            <${ColorAttr} name="light-color" label="Colour" at=${at} set=${set} />
+        </${FSection}>
+        <${FSection} title="Motion">
+            <div class="ibrow"><div class="ibg wide"><${Toggle} name="auto-rotate" label="Spin" at=${at} set=${set} /><${Toggle} name="controls" label="Orbit" at=${at} set=${set} />
+                <${Toggle} name="zoom" label="Zoom" at=${at} set=${set} /><${Toggle} name="animate" label="Play" at=${at} set=${set} /></div></div>
+            <div class="frow"><${NumAttr} name="rotate-speed" label="Speed" unit="°/s" at=${at} set=${set} title="Spin speed (degrees per second)" /><${NumAttr} name="scroll-rotate" label="Scroll" unit="°" at=${at} set=${set} title="Degrees the model turns while it crosses the screen" /></div>
+            <label class="nf" title="Which of the model's animations play (all by default)"><span class="nfl">Clip</span>
+                ${clips.length
+                    ? html`<${SelectInput} class="nfs wide" value=${at.clip || ""} options=${[["", "All animations"], ...clips.map((c, i) => [c, c || `Animation ${i + 1}`])]} onChange=${(x) => set("clip", x || null)} />`
+                    : html`<${TextInput} class="nfi" value=${at.clip ?? ""} placeholder="all" onInput=${(x) => set("clip", x.trim() || null)} onCommit=${(x) => set("clip", x.trim() || null)} />`}</label>
+        </${FSection}>
+        <${FSection} title="Scene">
+            <div class="ibrow"><div class="ibg wide"><${Toggle} name="shadow" label="Ground shadow" at=${at} set=${set} /></div></div>
+            <${ColorAttr} name="background" label="Colour" at=${at} set=${set} />
+        </${FSection}>
+        <${FSection} title="Hotspots" extra=${html`<${IconBtn} icon=${I.plus} title="Add a button pinned to a point of the model (plain HTML you can restyle and link)"
+            onClick=${() => actions.addChild((markup) => hotspotMarkup(nextHotspot(markup), "0 0 0", "Label"))} />`}>
+            <p class="fsub">Buttons or labels pinned to a point of the model. Add one, then move it with its X Y Z.</p>
+        </${FSection}>`;
+}
+
+/** A hotspot (a child of a model with a data-position): where on the model it is pinned. */
+export function HotspotSection({ s, actions }) {
+    const three = String(s.attrs["data-position"] || "").trim().split(/[\s,]+/).map(Number).map((n) => (Number.isFinite(n) ? n : 0)).concat([0, 0, 0]).slice(0, 3);
+    const write = (i, x) => {
+        const n = three.slice();
+        n[i] = Number.isFinite(Number(x)) && String(x).trim() !== "" ? Number(x) : 0;
+        actions.setAttr("data-position", n.map(tidy).join(" "));
+    };
+    const field = (i, l) => html`<label class="nf" title=${`${l} on the model, in its own units: its bounding sphere has radius 1, so 0 is the middle and 1 the edge`}><span class="nfl">${l}</span>
+        <${TextInput} class="nfi" value=${tidy(three[i])} placeholder="0" onInput=${(x) => { if (x.trim() !== "" && Number.isFinite(Number(x))) write(i, x); }} onCommit=${(x) => write(i, x)} /></label>`;
+    return html`<${FSection} title="Hotspot">
+        <div class="frow">${field(0, "X")}${field(1, "Y")}${field(2, "Z")}</div>
+        <p class="fsub">It stays on that point as the model turns. Style it like any element; give it a link or an interaction.</p>
+    </${FSection}>`;
 }

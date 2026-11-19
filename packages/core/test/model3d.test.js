@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MODEL_ATTRS, MODEL_MARK, MODEL_SCRIPT, THREE_VERSION, usesModel, hasModelScript, withModelScript, parseRotation, numberAttr, boolAttr, modelMarkup, isModelFile } from "../model3d.js";
+import { MODEL_ATTRS, MODEL_MARK, MODEL_SCRIPT, THREE_VERSION, usesModel, hasModelScript, withModelScript, parseRotation, numberAttr, boolAttr, modelMarkup, isModelFile, hotspotMarkup, nextHotspot } from "../model3d.js";
 import { exportComponent } from "../exporters.js";
 
 test("a design uses a model when it has the element", () => {
@@ -64,4 +64,12 @@ test("exports carry the script, and React keeps class on the custom element", ()
     assert.ok(react.includes("useEffect") && react.includes(MODEL_MARK));
     assert.ok(exportComponent("<p>hi</p>", "html") === "<p>hi</p>", "no model, no script");
     assert.equal((exportComponent(`${code}<script>${MODEL_SCRIPT}</script>`, "html").match(/wc-model\*\//g) || []).length, 1, "never twice");
+});
+
+test("hotspots are plain buttons pinned by data-position, numbered one after another", () => {
+    const h = hotspotMarkup(2, "0.5 0 0", 'Say "hi"');
+    assert.ok(h.includes('slot="hotspot-2"') && h.includes('data-position="0.5 0 0"') && h.includes("&quot;hi&quot;"));
+    assert.equal(nextHotspot(""), 1);
+    assert.equal(nextHotspot(`<wc-model>${hotspotMarkup(1)}${hotspotMarkup(4)}</wc-model>`), 5);
+    for (const a of ["scroll-rotate", "shadow", "clip"]) assert.ok(MODEL_ATTRS.some((m) => m.name === a));
 });

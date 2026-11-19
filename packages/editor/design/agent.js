@@ -714,6 +714,7 @@ export function agentMain() {
             ownText: Array.prototype.some.call(el.childNodes, (n) => n.nodeType === 3 && n.textContent.trim() !== ""), // text of its own: Typography shows
             text: el.children.length === 0 ? el.textContent : null,
             attrs, crumbs,
+            clips: el._clips ? el._clips.map((c) => c.name) : undefined, // a <wc-model>'s animations, for the panel's picker
             geom: geomOf(el),
             rect: el === document.body ? null : pageRect(el),
             computed: computedOf(el),

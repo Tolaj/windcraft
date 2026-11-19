@@ -286,6 +286,8 @@ const panelActions = {
     resetProp: (prop) => { if (S.selected) setProp(prop, ""); },
     arrange: (kind) => { if (S.selected) arrange(kind); },
     toggleSection,
+    /** Puts new markup inside the selected element (a hotspot into a 3D model). */
+    addChild: (make) => { if (S.selected) cmd({ cmd: "insert", path: S.selected.path, html: make(model.markup), position: "inside" }); },
     setAttr: (name, value) => { if (S.selected) cmd({ cmd: "setAttr", path: S.selected.path, name, value: value === "" ? null : value }, `attr-${name}`); },
     // the classes, inline CSS and attributes below the element's code (classes-section.js)
     addClasses: (text) => {
