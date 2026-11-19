@@ -109,12 +109,16 @@ export function numberAttr(name, raw) {
     return a && a.min != null ? Math.min(a.max, Math.max(a.min, n)) : n;
 }
 
-// ── Scroll story: elements marked data-wc-view are steps; the model glides between their views as the page scrolls ──
+// ── Scroll story: the sections beside a pinned model are its steps. Each holds the model's pose for while it is on screen (data-wc-view) and how its
+// own words behave when it is not the one in the middle of the screen (data-wc-words: dim or fade). The editor sets both from its Scroll drawer. ──
 export const VIEW_ATTR = "data-wc-view";
-/** The model attributes a step can set. */
-export const VIEW_KEYS = ["rotation", "model-position", "model-size", "camera-angle", "camera-distance"];
+export const WORDS_ATTR = "data-wc-words";
+/** The model attributes a step's pose can set. */
+export const VIEW_KEYS = Object.freeze(["rotation", "model-position", "model-size", "camera-angle", "camera-distance"]);
+/** The choices for a step's words. */
+export const WORDS = Object.freeze([["", "Always"], ["dim", "Dim when away"], ["fade", "Fade when away"]]);
 
-/** `"rotation:0 90 0; model-size:420"` as an object (only the keys a step can set). */
+/** `"rotation:0 90 0; model-size:420"` as an object (only the keys a pose can set). */
 export function parseView(text) {
     const out = {};
     for (const part of String(text || "").split(";")) {
@@ -125,11 +129,86 @@ export function parseView(text) {
     }
     return out;
 }
-/** The view text for a step from a model's attributes (what the model looks like now); an untouched model gives its start view. */
-export function viewFromAttrs(attrs = {}) {
-    const parts = VIEW_KEYS.filter((k) => attrs[k] != null && String(attrs[k]).trim() !== "").map((k) => `${k}:${String(attrs[k]).trim()}`);
-    return parts.length ? parts.join("; ") : "rotation:0 0 0";
+/** A pose in a few plain words, for the drawer and the chips on the canvas: "side, closer", "back, from above". */
+export function poseWords(view) {
+    const v = parseView(view), out = [];
+    const r = String(v.rotation || "0").trim().split(/[\s,]+/).map(Number), y = (r.length === 1 ? r[0] : r[1]) || 0; // one number is a turn about the vertical
+    const a = ((Math.round(y) % 360) + 360) % 360;
+    out.push(a <= 45 || a >= 315 ? "front" : a < 135 ? "side" : a <= 225 ? "back" : "other side");
+    const d = Number(v["camera-distance"] || 1), tilt = Number(v["camera-angle"] ?? 10);
+    if (d < 0.9) out.push("closer"); else if (d > 1.1) out.push("farther");
+    if (tilt >= 30) out.push("from above"); else if (tilt <= -15) out.push("from below");
+    if (v["model-position"] && String(v["model-position"]).trim().split(/[\s,]+/).some((n) => Math.abs(Number(n)) > 0.05)) out.push("moved");
+    return out.join(", ");
 }
+/** One step of a story: a section with a heading and words, the pose, and dimming. */
+export function stepMarkup(title, text, view = "rotation:0 0 0", words = "dim") {
+    return `<section ${VIEW_ATTR}="${esc(view)}"${words ? ` ${WORDS_ATTR}="${esc(words)}"` : ""} class="flex min-h-screen items-center px-8 py-16 md:px-16"><div class="max-w-md"><h2 class="text-3xl font-semibold tracking-tight text-neutral-900">${esc(title)}</h2><p class="mt-3 text-neutral-600">${esc(text)}</p></div></section>`;
+}
+/** The Scroll story block: the model pinned beside three sections; the model glides to each section's pose, the other sections' words dim. */
+export function storyMarkup() {
+    return `<div class="grid md:grid-cols-2">` +
+        `<div class="sticky top-0 z-10 h-[45vh] bg-white md:order-2 md:h-screen md:self-start">${modelMarkup({ shadow: true }, "block h-full w-full")}</div>` +
+        `<div class="md:order-1">` +
+        stepMarkup("Meet the design", "Start with the big picture. The model sits still while you read.", "rotation:0 -25 0; camera-angle:10") +
+        stepMarkup("Every detail", "Scrolling turns the model and moves the camera in close.", "rotation:0 70 0; camera-angle:25; camera-distance:0.75") +
+        stepMarkup("From every side", "Open the Scroll drawer to pose the model for each section.", "rotation:0 200 0; camera-angle:5; camera-distance:1.15") +
+        `</div></div>`;
+}
+
+// ── Where a model sits and what it does: the two questions of its panel ──
+// Placement (data-wc-place): "background" fills its section behind the content and stays on screen while the section scrolls; "across" does the same
+// behind a group of sections; none is an ordinary box. The layout is plain Tailwind classes; the staying on screen is the runtime's (in any layout).
+export const PLACE_ATTR = "data-wc-place";
+export const PLACES = Object.freeze([["", "In a box"], ["background", "Section background"], ["across", "Across sections"]]);
+const LAYOUT_TOKEN = /^(?:[a-z0-9]+:)*(?:-?(?:m[trblxyse]?|inset(?:-[xy])?|top|left|right|bottom|z|translate-[xy])-.+|[wh]-.+|size-.+|(?:min|max)-[wh]-.+|aspect-.+|absolute|relative|fixed|sticky|static|block|inline|inline-block|hidden|isolate|self-.+|order-.+|place-self-.+|justify-self-.+)$/;
+/** The model's classes for a placement: its own layout classes (size, place, position) give way to the placement's; the rest (rounding, colours) stay. */
+export function placeClasses(cls, place) {
+    const keep = String(cls || "").split(/\s+/).filter((t) => t && !LAYOUT_TOKEN.test(t));
+    const add = place === "background" || place === "across" ? ["absolute", "inset-x-0", "top-0", "-z-10", "block", "h-screen", "max-h-full", "w-full"] : ["block", "h-80", "w-full"];
+    return [...add, ...keep].join(" ");
+}
+
+// Effects (data-wc-fx="spin-scroll:1 tilt-mouse:15 float:6"): each a name and an amount. Turntable is the model's own auto-rotate and rotate-speed.
+export const FX_ATTR = "data-wc-fx";
+/** The gallery: [name, label, default, min, max, step, unit, kind]. `attr`: an effect that is an attribute of its own (turntable). */
+export const EFFECTS = Object.freeze([
+    { name: "spin-scroll", label: "Spin on scroll", def: 1, min: -3, max: 3, step: 0.25, unit: "turns", kind: "scroll", hint: "Turns while its box (or section) is scrolled through" },
+    { name: "zoom-scroll", label: "Zoom on scroll", def: 40, min: -60, max: 150, step: 5, unit: "%", kind: "scroll", hint: "Grows (or shrinks) while it is scrolled through" },
+    { name: "tilt-mouse", label: "Tilt to mouse", def: 15, min: 0, max: 45, step: 1, unit: "°", kind: "mouse", hint: "Leans toward the pointer" },
+    { name: "float", label: "Float", def: 6, min: 1, max: 30, step: 1, unit: "", kind: "always", hint: "Bobs gently up and down" },
+    { name: "turntable", label: "Turntable", def: 30, min: 5, max: 180, step: 5, unit: "°/s", kind: "always", attr: true, hint: "Spins all the time" },
+]);
+/** `"spin-scroll:1 float:6"` as { "spin-scroll": 1, float: 6 } (only known effects, amounts kept inside their limits). */
+export function parseFx(text) {
+    const out = {};
+    for (const tk of String(text || "").trim().split(/\s+/)) {
+        const [n, v] = tk.split(":"), e = EFFECTS.find((x) => x.name === n && !x.attr);
+        if (!e) continue;
+        const num = v === undefined || v === "" ? e.def : Number(v);
+        if (Number.isFinite(num)) out[n] = Math.min(e.max, Math.max(e.min, num));
+    }
+    return out;
+}
+/** The other way, in the gallery's order (empty when there are none). */
+export const writeFx = (fx) => EFFECTS.filter((e) => !e.attr && fx && fx[e.name] != null && Number.isFinite(Number(fx[e.name]))).map((e) => `${e.name}:${Number(fx[e.name])}`).join(" ");
+
+// ── Click actions: data-wc-act="color #e11d48 | view rotation:0 90 0 | clip Run | model https://…glb" on any element near a model ──
+export const ACT_ATTR = "data-wc-act";
+export const ACT_KINDS = Object.freeze([["color", "Change colour"], ["view", "Go to a view"], ["clip", "Play an animation"], ["model", "Swap the model"]]);
+/** The actions in an attribute value: [{ kind, value }] (anything that isn't a known action with a value is left out). */
+export function parseAct(text) {
+    const out = [];
+    for (const part of String(text || "").split("|")) {
+        const a = part.trim(), i = a.indexOf(" ");
+        if (i < 1) continue;
+        const kind = a.slice(0, i), value = a.slice(i + 1).trim();
+        if (ACT_KINDS.some(([k]) => k === kind) && value) out.push({ kind, value });
+    }
+    return out;
+}
+/** The attribute value for some actions (empty when there are none). */
+export const writeAct = (list) => (list || []).filter((a) => a && a.kind && String(a.value || "").trim() && !String(a.value).includes("|")).map((a) => `${a.kind} ${String(a.value).trim()}`).join(" | ");
 
 /** A boolean attribute is on when it is there, unless it says "false". */
 export const boolAttr = (raw) => raw != null && String(raw).trim().toLowerCase() !== "false";
@@ -149,18 +228,6 @@ export function modelMarkup(attrs = {}, cls = "block h-80 w-full") {
 }
 const esc = (v) => String(v).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
-/** A scroll story: the model stays pinned while three text sections scroll by; the model turns and moves to each section's view. */
-export function storyMarkup() {
-    const step = (view, title, text, side) => `<section ${VIEW_ATTR}="${esc(view)}" class="flex min-h-screen items-center px-8 py-16 md:px-16"><div class="max-w-md"><h2 class="text-3xl font-semibold tracking-tight text-neutral-900">${esc(title)}</h2><p class="mt-3 text-neutral-600">${esc(text)}</p></div></section>`;
-    return `<div class="grid md:grid-cols-2">` +
-        `<div class="sticky top-0 z-10 h-[45vh] bg-white md:order-2 md:h-screen md:self-start">${modelMarkup({ controls: false, shadow: true }, "block h-full w-full")}</div>` +
-        `<div class="md:order-1">` +
-        step("rotation:0 -25 0; camera-angle:10", "Meet the design", "Start with the big picture. The model sits still while you read.") +
-        step("rotation:0 70 0; camera-angle:25; camera-distance:0.75", "Every detail", "Scrolling turns the model and moves the camera in close.") +
-        step("rotation:0 200 0; camera-angle:5; camera-distance:1.15", "From every side", "Select a section and press Use this view to set where the model goes.") +
-        `</div></div>`;
-}
-
 /** A hotspot: ordinary HTML pinned to a point of the model. `pos` "x y z" is in the model's own units (its bounding sphere has radius 1). */
 export function hotspotMarkup(n = 1, pos = "0 0 0", label = "Label") {
     return `<button type="button" slot="hotspot-${n}" data-position="${esc(pos)}" class="rounded-full bg-white px-3 py-1 text-xs font-medium text-neutral-900 shadow-md">${esc(label)}</button>`;
@@ -177,6 +244,15 @@ export const MAX_EMBED_BYTES = 1500000;
 // Runs in the page. Written as a function so it stays readable; it is saved as text (MODEL_SCRIPT). It must not use anything outside itself.
 function modelRuntime() {
     if (window.customElements && customElements.get("wc-model")) return;
+    var editingNow = function () { return !!document.querySelector("script[data-wc-agent]"); };
+    // where the scroll is among a story's steps: j the last step whose middle is above the middle of the screen (-1 before the first), t how far it is to
+    // the next (eased), and `u` that as a step number (1 is the first)
+    function place(els) {
+        var line = innerHeight / 2, cs = els.map(function (e) { var b = e.getBoundingClientRect(); return b.top + b.height / 2; }), j = -1, i, t = 0;
+        for (i = 0; i < cs.length; i++) if (cs[i] <= line) j = i;
+        if (j >= 0 && j < els.length - 1) { t = Math.min(1, Math.max(0, (line - cs[j]) / Math.max(1, cs[j + 1] - cs[j]))); t = t * t * (3 - 2 * t); }
+        return { j: j, t: t, u: Math.max(j, 0) + 1 + t };
+    }
     var VERSION = "__THREE_VERSION__";
     var CDN = "__THREE_CDN__";
     var libs = null;
@@ -249,9 +325,18 @@ function modelRuntime() {
             this._io.observe(this);
             this._visible = true;
             // scroll-rotate follows the page's scroll; hotspots are the element's own children that have a data-position
-            this._onScroll = this._onScroll || function () { if (num(self, "scroll-rotate", 0, -720, 720) || self._steps().length) self._frame(); };
+            this._onScroll = this._onScroll || function () { if (self.hasAttribute("data-wc-place")) self._pinTick(); if (num(self, "scroll-rotate", 0, -720, 720) || self._fxv("spin-scroll") || self._fxv("zoom-scroll") || self._steps().length) self._frame(); };
             window.addEventListener("scroll", this._onScroll, { passive: true });
             window.addEventListener("resize", this._onScroll);
+            // tilt to mouse: where the pointer is over the model's box, -1..1 each way
+            this._onMove = this._onMove || function (e) {
+                if (!self._fxv("tilt-mouse")) return;
+                var b = self.getBoundingClientRect();
+                self._mx = Math.max(-1, Math.min(1, (e.clientX - (b.left + b.width / 2)) / Math.max(1, b.width / 2)));
+                self._my = Math.max(-1, Math.min(1, (e.clientY - (b.top + b.height / 2)) / Math.max(1, b.height / 2)));
+                self._frame();
+            };
+            window.addEventListener("pointermove", this._onMove, { passive: true });
             this._mo = this._mo || new MutationObserver(function () { self._hotspots(); self._frame(); });
             this._mo.observe(this, { childList: true, attributes: true, attributeFilter: ["data-position", "slot"], subtree: true });
             this._hotspots();
@@ -262,6 +347,7 @@ function modelRuntime() {
             if (this._ro) { this._ro.disconnect(); this._io.disconnect(); }
             window.removeEventListener("scroll", this._onScroll);
             window.removeEventListener("resize", this._onScroll);
+            window.removeEventListener("pointermove", this._onMove);
             if (this._mo) this._mo.disconnect();
             this._dispose();
         }
@@ -284,7 +370,7 @@ function modelRuntime() {
             });
             if (this._renderer) { this._renderer.dispose(); this._renderer.domElement.remove(); }
             this._renderer = this._scene = this._camera = this._controls = this._pivot = this._spinner = this._mixer = this._ground = null;
-            this._ov = null; this._ovKey = "";
+            this._ov = null; this._twm = {};
             this._clipOn = false;
             if (this._tc) { this._tc.dispose(); }
             this._tc = null; this._tcWait = false;
@@ -384,6 +470,8 @@ function modelRuntime() {
             var fit = this._radius * 0.72 / Math.sin(half), ms = num(this, "model-size", 0, 0, 8000), cd = num(this, "camera-distance", 1, 0.3, 4);
             var dist = (ms ? this._radius * 0.72 / Math.sin(c.fov * Math.PI / 360) : fit) * cd;
             c.zoom = ms ? ms * cd / (0.72 * H) : 1; // in a set size `camera-distance` only changes the perspective, not the size
+            this._zoom0 = c.zoom;
+            c.zoom *= this._zf || 1; // zoom on scroll
             var el = num(this, "camera-angle", 10, -80, 80) * Math.PI / 180;
             c.position.set(0, Math.sin(el) * dist, Math.cos(el) * dist);
             c.near = dist / 100; c.far = dist * 100;
@@ -508,7 +596,7 @@ function modelRuntime() {
             if (!this._moved || !this._camera) return null;
             var T = this._T, p = this._camera.position, d = p.length() || 1;
             var el = Math.max(-80, Math.min(80, Math.asin(Math.max(-1, Math.min(1, p.y / d))) * 180 / Math.PI));
-            var az = Math.atan2(p.x, p.z), r3 = turns(this.getAttribute("rotation")), D = Math.PI / 180;
+            var az = Math.atan2(p.x, p.z), r3 = turns(this._a("rotation")), D = Math.PI / 180;
             var q = new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), -az).multiply(new T.Quaternion().setFromEuler(new T.Euler(r3[0] * D, r3[1] * D, r3[2] * D, "XYZ")));
             var e = new T.Euler().setFromQuaternion(q, "XYZ");
             var r = function (v) { v = Math.round(v / D * 10) / 10; return v === 0 ? 0 : v; };
@@ -550,38 +638,58 @@ function modelRuntime() {
                 s.w.style.transform = "translate(" + ((v.x * 0.5 + 0.5) * W) + "px," + ((-v.y * 0.5 + 0.5) * H) + "px) translate(-50%,-50%)";
             }
         }
-        // ── Scroll story: elements with data-wc-view="rotation:0 90 0; model-size:420; …" are the steps. As the page scrolls the model glides
-        // from the view of one step to the next (a step whose middle is at the middle of the screen is "at" its view). Views are plain
-        // attributes of the steps, so the page needs no script of its own. Off while editing (the editor shows the model as it is set).
-        _a(name) { return this._ov && this._ov[name] != null ? this._ov[name] : this.getAttribute(name); }
-        // the steps this model belongs to: those in the nearest ancestor that has any, as long as no other model is in it
+        // what a click action's glide to a view (`_ov`) says while it runs, else the attribute
+        _a(name) { var o = this._peek || this._ov; return o && o[name] != null ? o[name] : this.getAttribute(name); }
+        // ── Scroll story: the steps are the sections with data-wc-view in the nearest ancestor that has any (and no other model). As the page scrolls the
+        // model glides from one step's pose to the next, and steps with data-wc-words dim or fade while they are away from the middle of the screen. ──
+        _findSteps() {
+            for (var p = this.parentElement; p; p = p.parentElement) {
+                if (p.querySelectorAll("wc-model").length > 1) return [];
+                var f = p.querySelectorAll("[data-wc-view]");
+                if (f.length) return [].slice.call(f);
+            }
+            return [];
+        }
         _steps() {
             var now = performance.now();
             if (this._sc && now - this._sct < 300) return this._sc;
             this._sct = now;
-            var list = [];
-            if (!document.querySelector("script[data-wc-agent]")) {
-                for (var p = this.parentElement; p; p = p.parentElement) {
-                    if (p.querySelectorAll("wc-model").length > 1) break;
-                    var f = p.querySelectorAll("[data-wc-view]");
-                    if (f.length) { list = [].slice.call(f); break; }
-                }
-            }
-            return (this._sc = list);
+            return (this._sc = editingNow() ? [] : this._findSteps());
         }
-        // a view as numbers: the model's own attributes, with what the step sets laid over them
-        _pose(step) {
+        _story() {
+            var els = this._steps();
+            if (!els.length || !this._ground) return;
+            var pl = place(els), a = this._pose(els[Math.max(pl.j, 0)].getAttribute("data-wc-view")), b = pl.j >= 0 && pl.j < els.length - 1 ? this._pose(els[pl.j + 1].getAttribute("data-wc-view")) : a;
+            var ov = this._blend(a, b, pl.t), key = JSON.stringify(ov);
+            els.forEach(function (st, i) {
+                var w = st.getAttribute("data-wc-words");
+                if (w !== "dim" && w !== "fade") return;
+                var d = Math.min(1, Math.abs(pl.u - (i + 1)));
+                st.style.opacity = String(Math.round((w === "fade" ? 1 - d : 1 - 0.7 * d) * 1000) / 1000);
+            });
+            if (key === this._storyKey) return;
+            this._storyKey = key; this._ov = ov;
+            this._apply();
+        }
+        // the editor's Scroll drawer: show one step's pose (`step`), the pose at `u` along the steps (1 is the first), or the model as it is set (neither)
+        _showStep(step) { this._peek = step && this._ground ? this._blend(this._pose(step.getAttribute("data-wc-view")), this._pose(step.getAttribute("data-wc-view")), 0) : null; this._apply(); }
+        _showU(u) {
+            var els = this._findSteps();
+            if (!els.length || !this._ground) return;
+            var j = Math.min(els.length - 1, Math.max(0, Math.floor(u - 1))), t = Math.min(1, Math.max(0, u - 1 - j)), k = Math.min(els.length - 1, j + 1);
+            this._peek = this._blend(this._pose(els[j].getAttribute("data-wc-view")), this._pose(els[k].getAttribute("data-wc-view")), t);
+            this._apply();
+        }
+        // a view as numbers: the model's own attributes, with what a view text ("rotation:0 90 0; model-size:420", a click action's) sets laid over them
+        _pose(view) {
             var g = function (n) { return this.getAttribute(n); }.bind(this), three = function (v) { var q = turns(v); return [q[0], q[1], q[2]]; };
             var fitPx = 0.72 * Math.min(this.clientWidth || 1, this.clientHeight || 1);
+            var own = function (n, d, lo, hi) { var v = g(n); if (v == null || String(v).trim() === "" || !isFinite(Number(v))) return d; return Math.min(hi, Math.max(lo, Number(v))); };
             var o = {
                 rotation: three(g("rotation")), "model-position": g("model-position") ? three(g("model-position")) : [0, 0, 0],
-                "model-size": num(this, "model-size", 0, 0, 8000) || fitPx, "camera-angle": num(this, "camera-angle", 10, -80, 80), "camera-distance": num(this, "camera-distance", 1, 0.3, 4)
+                "model-size": own("model-size", 0, 0, 8000) || fitPx, "camera-angle": own("camera-angle", 10, -80, 80), "camera-distance": own("camera-distance", 1, 0.3, 4)
             };
-            if (this._ov) { // `num` reads through the override: the model's own values are the attributes
-                var own = function (n, d) { var v = g(n); return v == null || String(v).trim() === "" || !isFinite(Number(v)) ? d : Number(v); };
-                o["model-size"] = own("model-size", 0) || fitPx; o["camera-angle"] = own("camera-angle", 10); o["camera-distance"] = own("camera-distance", 1);
-            }
-            String(step ? step.getAttribute("data-wc-view") || "" : "").split(";").forEach(function (part) {
+            String(view || "").split(";").forEach(function (part) {
                 var i = part.indexOf(":");
                 if (i < 0) return;
                 var k = part.slice(0, i).trim(), v = part.slice(i + 1).trim();
@@ -590,29 +698,93 @@ function modelRuntime() {
             });
             return o;
         }
-        _story() {
-            var els = this._steps(), ov = null;
-            if (els.length && this._ground) {
-                var line = innerHeight / 2, cs = els.map(function (e) { var b = e.getBoundingClientRect(); return b.top + b.height / 2; }), j = -1, i;
-                for (i = 0; i < cs.length; i++) if (cs[i] <= line) j = i;
-                var a = this._pose(els[Math.max(j, 0)]), b = a, t = 0;
-                if (j >= 0 && j < els.length - 1) {
-                    b = this._pose(els[j + 1]);
-                    t = Math.min(1, Math.max(0, (line - cs[j]) / Math.max(1, cs[j + 1] - cs[j])));
-                    t = t * t * (3 - 2 * t);
-                }
-                var mix = function (x, y) { return x + (y - x) * t; }, r3 = function (x, y) { return [0, 1, 2].map(function (k) { return Math.round(mix(x[k], y[k]) * 1000) / 1000; }).join(" "); };
-                ov = {
-                    rotation: r3(a.rotation, b.rotation), "model-position": r3(a["model-position"], b["model-position"]),
-                    "model-size": String(Math.round(mix(a["model-size"], b["model-size"]))),
-                    "camera-angle": String(Math.round(mix(a["camera-angle"], b["camera-angle"]) * 100) / 100),
-                    "camera-distance": String(Math.round(mix(a["camera-distance"], b["camera-distance"]) * 1000) / 1000)
-                };
+        // two poses mixed (t 0..1) as the attribute strings `_a` hands out
+        _blend(a, b, t) {
+            var mix = function (x, y) { return x + (y - x) * t; }, r3 = function (x, y) { return [0, 1, 2].map(function (k) { return Math.round(mix(x[k], y[k]) * 1000) / 1000; }).join(" "); };
+            return {
+                rotation: r3(a.rotation, b.rotation), "model-position": r3(a["model-position"], b["model-position"]),
+                "model-size": String(Math.round(mix(a["model-size"], b["model-size"]))),
+                "camera-angle": String(Math.round(mix(a["camera-angle"], b["camera-angle"]) * 100) / 100),
+                "camera-distance": String(Math.round(mix(a["camera-distance"], b["camera-distance"]) * 1000) / 1000)
+            };
+        }
+        // ── Click actions: any element with data-wc-act="color #e11d48 | view rotation:0 90 0 | clip Run | model url" does that to its model on a click ──
+        // an eased run of `fn(t)` for t 0..1 over `ms`
+        _tween(key, ms, fn) { // (one run per `key`: a colour and a view can glide together, a second colour replaces the first)
+            var self = this, t0 = performance.now(), tw = this._twm = this._twm || {}, id = tw[key] = (tw[key] || 0) + 1;
+            (function step(now) {
+                if (id !== self._twm[key] || !self._renderer) return;
+                var t = Math.min(1, (now - t0) / ms);
+                fn(t * t * (3 - 2 * t));
+                if (t < 1) requestAnimationFrame(step);
+            })(t0);
+        }
+        // every material's colour goes to `hex` (a colour the browser knows), or back to the file's own for "reset"
+        _paint(hex) {
+            if (!this._spinner || !this._T) return;
+            var T = this._T, to = null, mats = [];
+            if (hex !== "reset") { try { to = new T.Color(hex); } catch (e) { return; } }
+            this._spinner.traverse(function (o) { if (o.isMesh) [].concat(o.material).forEach(function (m) { if (m && m.color && mats.indexOf(m) < 0) mats.push(m); }); });
+            var from = mats.map(function (m) { if (!m.userData.wcC) m.userData.wcC = m.color.clone(); return m.color.clone(); }), self = this;
+            this._tween("paint", 350, function (t) {
+                mats.forEach(function (m, i) { m.color.copy(from[i]).lerp(to || m.userData.wcC, t); });
+                self._frame();
+            });
+        }
+        // the model glides to the view in `text` ("rotation:0 90 0; model-size:420"), and keeps it: the attributes take over when it arrives
+        _goView(text) {
+            if (!this._ground) return;
+            var a = this._pose(null), b = this._pose(text), self = this;
+            this._tween("view", 700, function (t) {
+                self._ov = self._blend(a, b, t);
+                if (t < 1) return self._apply();
+                var o = self._ov; self._ov = null;
+                String(text).split(";").forEach(function (part) {
+                    var i = part.indexOf(":"), k = part.slice(0, i).trim();
+                    if (i > 0 && o[k] != null) self.setAttribute(k, o[k]);
+                });
+                self._apply();
+            });
+        }
+        _act(kind, value) {
+            if (kind === "color") this._paint(value);
+            else if (kind === "view") this._goView(value);
+            else if (kind === "clip") { this.setAttribute("clip", value); this.setAttribute("animate", ""); }
+            else if (kind === "model") this.setAttribute("src", value);
+        }
+        // ── Placement: a background (data-wc-place) is scrolled through with its section, or group of sections, and stays on the screen meanwhile
+        _area() { return this.hasAttribute("data-wc-place") ? this.parentElement || document.documentElement : this; }
+        // how far along its range the page is scrolled, 0..100: a range taller than the screen is scrolled through from its top at the top of the screen to its
+        // bottom at the bottom; a shorter one from entering the screen to leaving it
+        _scrollPct() {
+            var a = this._area(), vh = innerHeight, p;
+            if (a === document.documentElement) p = scrollY / Math.max(1, document.documentElement.scrollHeight - vh);
+            else { var r = a.getBoundingClientRect(); p = r.height > vh ? -r.top / (r.height - vh) : (vh - r.top) / (vh + r.height); }
+            return Math.min(1, Math.max(0, p)) * 100;
+        }
+        // ── Effects (data-wc-fx="spin-scroll:1 tilt-mouse:15 float:6"): read once per change of the attribute ──
+        _fxAll() {
+            var t = this.getAttribute("data-wc-fx") || "";
+            if (t !== this._fxTxt) {
+                var o = {};
+                t.trim().split(/\s+/).forEach(function (tk) { var kv = tk.split(":"); if (kv[0] && kv[1] !== undefined && kv[1] !== "" && isFinite(Number(kv[1]))) o[kv[0]] = Number(kv[1]); });
+                this._fxTxt = t; this._fxObj = o;
             }
-            var key = ov ? JSON.stringify(ov) : "";
-            if (key === (this._ovKey || "")) return;
-            this._ovKey = key; this._ov = ov;
-            this._apply();
+            return this._fxObj;
+        }
+        _fxv(n) { var v = this._fxAll()[n]; return v == null ? 0 : v; }
+        // the editor turns them on for the selected model (`_fxPreview`), with the scroll at `_fxScrub` (0..100) instead of the real one
+        _fxOn() { return !editingNow() || !!this._fxPreview; }
+        _fxPct() { return editingNow() ? this._fxScrub || 0 : this._scrollPct(); }
+        _pinTick() {
+            var on = this.hasAttribute("data-wc-place") && !editingNow(), cur = this._pinned || 0;
+            if (!on) { if (cur) { this.style.removeProperty("translate"); this._pinned = 0; } return; }
+            var b = this.getBoundingClientRect(), nat = b.top - cur, a = this._area(), bottom = a === document.documentElement ? document.documentElement.scrollHeight - scrollY : a.getBoundingClientRect().bottom;
+            var s = Math.max(0, Math.min(-nat, bottom - nat - b.height));
+            s = Math.round(s * 10) / 10;
+            if (s === cur) return;
+            this._pinned = s;
+            if (s) this.style.translate = "0 " + s + "px"; else this.style.removeProperty("translate");
         }
         _size() {
             if (!this._renderer) return;
@@ -633,9 +805,19 @@ function modelRuntime() {
             this._raf = requestAnimationFrame(function () {
                 self._raf = 0;
                 if (!self._renderer) return;
+                self._pinTick();
                 self._story();
                 var dt = self._last ? Math.min((performance.now() - self._last) / 1000, 0.1) : 0;
-                var moving = self._visible && (flag(self, "auto-rotate") || (self._mixer && flag(self, "animate")));
+                // effects (data-wc-fx): on the page itself, and in the editor only while it previews them
+                var fx = self._fxOn() ? self._fxAll() : {}, tilt = fx["tilt-mouse"] || 0, fl = fx.float || 0, D2R = Math.PI / 180;
+                var tx = tilt ? -(self._my || 0) * tilt * D2R : 0, ty = tilt ? (self._mx || 0) * tilt * D2R : 0;
+                self._tx = (self._tx || 0) + (tx - (self._tx || 0)) * 0.12;
+                self._ty = (self._ty || 0) + (ty - (self._ty || 0)) * 0.12;
+                var settling = Math.abs(tx - self._tx) > 0.0005 || Math.abs(ty - self._ty) > 0.0005;
+                var p = fx["spin-scroll"] || fx["zoom-scroll"] ? self._fxPct() / 100 : 0;
+                var zf = 1 + (fx["zoom-scroll"] || 0) / 100 * p;
+                if (zf !== (self._zf || 1)) { self._zf = zf; self._camera.zoom = (self._zoom0 || 1) * zf; self._camera.updateProjectionMatrix(); }
+                var moving = self._visible && (flag(self, "auto-rotate") || (self._mixer && flag(self, "animate")) || fl > 0 || settling);
                 self._last = moving ? performance.now() : 0;
                 if (moving) {
                     if (flag(self, "auto-rotate")) self._spin += dt * num(self, "rotate-speed", 30, -360, 360) * Math.PI / 180;
@@ -644,13 +826,35 @@ function modelRuntime() {
                 // scroll-rotate: the model turns by that many degrees while the element crosses the screen (half either way)
                 var sr = num(self, "scroll-rotate", 0, -720, 720), turn = 0;
                 if (sr) { var b = self.getBoundingClientRect(); turn = (Math.min(1, Math.max(0, (innerHeight - b.top) / (innerHeight + b.height))) - 0.5) * sr * Math.PI / 180; }
-                self._spinner.rotation.y = self._spin + turn;
+                self._spinner.rotation.y = self._spin + turn + (fx["spin-scroll"] || 0) * p * 2 * Math.PI + self._ty;
+                self._spinner.rotation.x = self._tx;
+                self._spinner.position.y = fl ? Math.sin(performance.now() / 1000 * 1.6) * fl / 100 : 0;
                 if (self._visible) { self._renderer.render(self._scene, self._camera); self._place(); }
                 if (moving) self._frame();
             });
         }
     }
     customElements.define("wc-model", WcModel);
+    // A click on (or inside) an element with data-wc-act does what it says to the model it belongs to: the one inside it (a hotspot) or the one
+    // in the nearest ancestor that has only one. Only on the page itself: while editing, a click selects.
+    document.addEventListener("click", function (e) {
+        var t = e.target && e.target.closest ? e.target.closest("[data-wc-act]") : null;
+        if (!t || document.querySelector("script[data-wc-agent]")) return;
+        var m = t.closest("wc-model");
+        for (var p = t.parentElement; !m && p; p = p.parentElement) {
+            var ms = p.querySelectorAll("wc-model");
+            if (ms.length > 1) return;
+            if (ms.length) m = ms[0];
+        }
+        if (!m || !m._act) return;
+        // a button that is a link to "#" (the editor's Button) would jump the page to its top: the click is for the model
+        if (t.tagName === "A" && /^#?$/.test((t.getAttribute("href") || "").trim())) e.preventDefault();
+        String(t.getAttribute("data-wc-act")).split("|").forEach(function (a) {
+            a = a.trim();
+            var i = a.indexOf(" ");
+            if (i > 0) m._act(a.slice(0, i), a.slice(i + 1).trim());
+        });
+    });
 }
 
 /** The script as it is saved in the page: the element's code, run once. */

@@ -148,7 +148,7 @@ $("addMenu").innerHTML = BLOCKS.map(([name], i) => `<button type="button" data-b
         if (!b) return;
         const html = BLOCKS[Number(b.dataset.block)][1];
         if (model.markup.trim() === "" || !S.selected) {
-            if (model.markup.trim() === "") { addToEmpty(html); return; }
+            if (model.markup.trim() === "") { if (html.includes("data-wc-view")) S.storyNext = true; addToEmpty(html); return; } // a Scroll story: its drawer opens once the page is in
             return cmd({ cmd: "insert", path: [], html, position: "inside" });
         }
         cmd({ cmd: "insert", path: S.selected.path, html, position: CONTAINERS.has(S.selected.tag) ? "inside" : "after" });

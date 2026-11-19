@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MODEL_ATTRS, MODEL_MARK, MODEL_SCRIPT, THREE_VERSION, usesModel, hasModelScript, withModelScript, parseRotation, numberAttr, boolAttr, modelMarkup, isModelFile, hotspotMarkup, nextHotspot, SAMPLE_MODEL, SAMPLE_MODELS, sampleUrl, sampleThumb, sourceUrl, SAMPLE_KINDS, needsCredit, VIEW_ATTR, VIEW_KEYS, parseView, viewFromAttrs, storyMarkup } from "../model3d.js";
+import { MODEL_ATTRS, MODEL_MARK, MODEL_SCRIPT, THREE_VERSION, usesModel, hasModelScript, withModelScript, parseRotation, numberAttr, boolAttr, modelMarkup, isModelFile, hotspotMarkup, nextHotspot, SAMPLE_MODEL, SAMPLE_MODELS, sampleUrl, sampleThumb, sourceUrl, SAMPLE_KINDS, needsCredit, ACT_ATTR, ACT_KINDS, parseAct, writeAct, PLACE_ATTR, PLACES, placeClasses, FX_ATTR, EFFECTS, parseFx, writeFx, VIEW_ATTR, WORDS_ATTR, VIEW_KEYS, WORDS, parseView, poseWords, stepMarkup, storyMarkup } from "../model3d.js";
 import { exportComponent } from "../exporters.js";
 
 test("a design uses a model when it has the element", () => {
@@ -92,22 +92,55 @@ test("the sample list: each model has a file, a picture, a licence and a credit"
     assert.equal(needsCredit({ license: "CC0" }), false);
 });
 
-test("a view is read and written as plain text", () => {
+test("a click action is read and written as plain text", () => {
+    assert.deepEqual(parseAct("color #e11d48 | view rotation:0 90 0; model-size:420 | bogus x | clip"), [{ kind: "color", value: "#e11d48" }, { kind: "view", value: "rotation:0 90 0; model-size:420" }]);
+    assert.equal(writeAct([{ kind: "color", value: "#fff" }, { kind: "clip", value: "" }, { kind: "model", value: "a.glb" }]), "color #fff | model a.glb");
+    assert.deepEqual(parseAct(writeAct(parseAct("clip Run"))), [{ kind: "clip", value: "Run" }]);
+    assert.equal(ACT_ATTR, "data-wc-act");
+    assert.ok(MODEL_SCRIPT.includes("data-wc-act") && MODEL_SCRIPT.includes("_paint"));
+});
+
+test("effects are names and amounts", () => {
+    assert.deepEqual(parseFx("spin-scroll:1 tilt-mouse:99 float bogus:3 turntable:20 zoom-scroll:x"), { "spin-scroll": 1, "tilt-mouse": 45, float: 6 });
+    assert.equal(writeFx({ float: 6, "spin-scroll": -0.5, turntable: 30 }), "spin-scroll:-0.5 float:6");
+    assert.equal(writeFx({}), "");
+    assert.ok(EFFECTS.every((e) => e.def >= e.min && e.def <= e.max && e.label && e.kind));
+    assert.ok(MODEL_SCRIPT.includes("data-wc-fx") && MODEL_SCRIPT.includes("data-wc-place"));
+});
+
+test("a placement swaps the model's layout classes and keeps the rest", () => {
+    const bg = placeClasses("block h-[520px] w-[560px] ml-[600px] mt-10 rounded-lg bg-neutral-100 md:h-96", "background");
+    assert.equal(bg, "absolute inset-x-0 top-0 -z-10 block h-screen max-h-full w-full rounded-lg bg-neutral-100");
+    assert.equal(placeClasses(bg, ""), "block h-80 w-full rounded-lg bg-neutral-100");
+    assert.equal(placeClasses("absolute left-[285px] top-[1259px] -mt-[1205px] h-[2230px] w-[583px]", "across"), "absolute inset-x-0 top-0 -z-10 block h-screen max-h-full w-full");
+    assert.deepEqual(PLACES.map((p) => p[0]), ["", "background", "across"]);
+    assert.equal(PLACE_ATTR, "data-wc-place");
+    assert.equal(FX_ATTR, "data-wc-fx");
+});
+
+test("a page needs the model script only when it has a model", () => {
+    assert.ok(usesModel('<wc-model src="a.glb"></wc-model>'));
+    assert.ok(!usesModel('<div data-wc-scene=""><section data-wc-step=""></section><h2 data-wc-at="1: y=20"></h2></div>'));
+    for (const gone of ["data-wc-scroll", "data-wc-at", "sceneTick", "_stops"]) assert.ok(!MODEL_SCRIPT.includes(gone), gone);
+});
+
+test("a story step's pose is plain text, and reads as a few words", () => {
     assert.deepEqual(parseView("rotation:0 90 0; model-size:420; junk:1; camera-angle:"), { rotation: "0 90 0", "model-size": "420" });
-    assert.deepEqual(parseView(""), {});
-    assert.equal(viewFromAttrs({ rotation: "0 90 0", "camera-angle": "20", src: "x.glb" }), "rotation:0 90 0; camera-angle:20");
-    assert.equal(viewFromAttrs({}), "rotation:0 0 0");
-    assert.deepEqual(parseView(viewFromAttrs({ rotation: "10 20 30", "model-position": "0.5 0 0" })), { rotation: "10 20 30", "model-position": "0.5 0 0" });
+    assert.equal(poseWords("rotation:0 -25 0; camera-angle:10"), "front");
+    assert.equal(poseWords("rotation:0 70 0; camera-angle:25; camera-distance:0.75"), "side, closer");
+    assert.equal(poseWords("rotation:0 200 0; camera-angle:40; camera-distance:1.3"), "back, farther, from above");
+    assert.equal(poseWords("rotation:270"), "other side");
+    assert.equal(poseWords("model-position:0.5 0 0"), "front, moved");
+    assert.deepEqual(VIEW_KEYS, ["rotation", "model-position", "model-size", "camera-angle", "camera-distance"]);
+    assert.deepEqual(WORDS.map((w) => w[0]), ["", "dim", "fade"]);
 });
 
-test("the scroll story block has a pinned model and steps with views", () => {
+test("the Scroll story block: a pinned model and three steps that dim", () => {
     const html = storyMarkup();
-    assert.ok(usesModel(html));
+    assert.ok(usesModel(html) && html.includes("sticky"));
     assert.equal((html.match(new RegExp(VIEW_ATTR + '="', "g")) || []).length, 3);
-    assert.ok(html.includes("sticky"));
-    for (const m of html.matchAll(new RegExp(VIEW_ATTR + '="([^"]*)"', "g"))) assert.ok(Object.keys(parseView(m[1])).every((k) => VIEW_KEYS.includes(k)) && Object.keys(parseView(m[1])).length > 0);
-});
-
-test("the runtime reads the steps and the pose", () => {
-    assert.ok(MODEL_SCRIPT.includes("data-wc-view"));
+    assert.equal((html.match(new RegExp(WORDS_ATTR + '="dim"', "g")) || []).length, 3);
+    const step = stepMarkup("New <section>", "Words", "rotation:0 10 0", "");
+    assert.ok(step.includes('data-wc-view="rotation:0 10 0"') && !step.includes(WORDS_ATTR) && step.includes("New &lt;section>"));
+    assert.ok(MODEL_SCRIPT.includes("data-wc-view") && MODEL_SCRIPT.includes("data-wc-words") && MODEL_SCRIPT.includes("_showU"));
 });

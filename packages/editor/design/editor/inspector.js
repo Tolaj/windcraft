@@ -19,6 +19,7 @@ import { clampSize, docs, queueBoardSave, rememberCustom, renameFrame, setFrameS
 import { curWidth, fitTo, heightOfDoc, layout, positions, remeasureHeight, widthOf } from "./plane.js";
 import { draftPage } from "./add-menu.js";
 import { chooseModel } from "./model-samples.js";
+import { placeClasses } from "../../../core/model3d.js";
 import { openWireframes, wireframeTarget } from "./layout-picker.js";
 import { cmd } from "./frame-messages.js";
 import { setPanel } from "./color-ui.js";
@@ -290,8 +291,9 @@ const panelActions = {
     /** Puts new markup inside the selected element (a hotspot into a 3D model). */
     // the free 3D models dialog (over the canvas, like the wireframes): a pick becomes the selected model's file
     openSamples: () => chooseModel(cmd),
-    // a scroll-story step: this box takes the model's present view (or lets it go)
-    useView: (on) => { if (S.selected) cmd({ cmd: on ? "viewSet" : "viewClear", path: S.selected.path }); },
+    // where the selected 3D model sits (its layout classes come from the placement) and the scroll point its effects are previewed at
+    placeModel: (place) => { if (S.selected) cmd({ cmd: "placeModel", path: S.selected.path, place, cls: placeClasses(S.selected.classes, place), count: 3 }); },
+    fxScrub: (pct) => { if (S.selected) cmd({ cmd: "fxScrub", path: S.selected.path, pct }); },
     addChild: (make) => { if (S.selected) cmd({ cmd: "insert", path: S.selected.path, html: make(model.markup), position: "inside" }); },
     setAttr: (name, value) => { if (S.selected) cmd({ cmd: "setAttr", path: S.selected.path, name, value: value === "" ? null : value }, `attr-${name}`); },
     // the classes, inline CSS and attributes below the element's code (classes-section.js)

@@ -48,6 +48,8 @@ export function agentMain() {
     }
     root.appendChild(kidLayer);
     root.appendChild(overlay);
+    const storyLayer = mk("position:absolute;left:0;top:0;"); // the chips of a Scroll story open in the drawer (see drawChips)
+    overlay.appendChild(storyLayer);
 
     // In the editor the cursor belongs to the active tool, never to the design: a button's own cursor:pointer would show a
     // pointing hand over it. Everything inherits the cursor set on <html> (arrow, grab, crosshair...); text being typed keeps its I-beam.
@@ -243,6 +245,7 @@ export function agentMain() {
         drawGapHandles();
         drawModel(el);
         syncModels();
+        drawChips();
     }
     /**
      * A 3D model has two levels, as a box and what is in it: the scene (the element, with its box and handles) and the model inside it.
@@ -733,20 +736,11 @@ export function agentMain() {
         cursorStyle.disabled = true;
         try { return describeNow(el); } finally { cursorStyle.disabled = false; }
     };
-    // The 3D model a box is a scroll-story step of: the one model in the nearest ancestor that has only that one (as the model's runtime finds its steps)
-    const storyModelOf = (el) => {
-        if (!el || el === document.body || el.tagName === "WC-MODEL" || el.closest("wc-model") || el.querySelector("wc-model")) return null;
-        for (let p = el.parentElement; p; p = p.parentElement) {
-            const ms = p.querySelectorAll("wc-model");
-            if (ms.length === 1) return ms[0];
-            if (ms.length > 1) return null;
-        }
-        return null;
-    };
-    const STORY_KEYS = ["rotation", "model-position", "model-size", "camera-angle", "camera-distance"];
     const describeNow = (el) => {
         const attrs = {};
         Array.prototype.forEach.call(el.attributes, (a) => { if (a.name !== "class" && a.name !== "style" && a.name !== "contenteditable") attrs[a.name] = a.value; });
+        // a model whose Scroll story has a section picked: the panel shows (and edits) that section's pose
+        if (el === storyModel && storyCur >= 0) { const st = storyStepsOf(el)[storyCur]; if (st) Object.entries(viewOf(st)).forEach(([k, v]) => { attrs[k] = v; }); }
         const crumbs = [];
         for (let n = el; n && n !== document.documentElement; n = n.parentElement) crumbs.unshift({ tag: n.tagName.toLowerCase(), path: n === document.body ? [] : pathOf(n) });
         return {
@@ -762,7 +756,8 @@ export function agentMain() {
             ownText: Array.prototype.some.call(el.childNodes, (n) => n.nodeType === 3 && n.textContent.trim() !== ""), // text of its own: Typography shows
             text: el.children.length === 0 ? el.textContent : null,
             attrs, crumbs,
-            storyModel: storyModelOf(el) ? true : undefined, // a 3D model this box can be a scroll-story step of
+            story: el.tagName === "WC-MODEL" ? storyStepsOf(el).length || undefined : undefined, // the sections of its Scroll story
+            storyPick: el === storyModel && storyCur >= 0 ? storyCur + 1 : undefined, // the section picked in the Scroll drawer
             clips: el._clips ? el._clips.map((c) => c.name) : undefined, // a <wc-model>'s animations, for the panel's picker
             geom: geomOf(el),
             rect: el === document.body ? null : pageRect(el),
@@ -800,11 +795,94 @@ export function agentMain() {
         return c.innerHTML.trim();
     };
 
+    // ── Scroll story (the editor's Scroll drawer): a model and the sections beside it that hold its pose for while each is on screen (data-wc-view) and
+    // whether their words dim or fade when away (data-wc-words). `storyModel`: the story open in the drawer; `storyCur`: the section picked in it (its
+    // pose shows on the model, and turning, moving or sizing the model is saved into it), -1 for none. Chips on the canvas name each section's pose.
+    const VIEW_KEYS = ["rotation", "model-position", "model-size", "camera-angle", "camera-distance"];
+    let storyModel = null, storyCur = -1;
+    const storyStepsOf = (m) => {
+        if (!m || m.tagName !== "WC-MODEL") return [];
+        for (let p = m.parentElement; p; p = p.parentElement) {
+            if (p.querySelectorAll("wc-model").length > 1) return [];
+            const f = p.querySelectorAll("[data-wc-view]");
+            if (f.length) return [...f];
+        }
+        return [];
+    };
+    const viewOf = (st) => {
+        const v = {};
+        String(st.getAttribute("data-wc-view") || "").split(";").forEach((part) => { const i = part.indexOf(":"); if (i > 0 && part.slice(i + 1).trim()) v[part.slice(0, i).trim()] = part.slice(i + 1).trim(); });
+        return v;
+    };
+    const poseWords = (st) => { // as core/model3d.js poseWords
+        const v = viewOf(st), out = [], r = String(v.rotation || "0").trim().split(/[\s,]+/).map(Number), y = (r.length === 1 ? r[0] : r[1]) || 0;
+        const a = ((Math.round(y) % 360) + 360) % 360, d = Number(v["camera-distance"] || 1), tilt = Number(v["camera-angle"] ?? 10);
+        out.push(a <= 45 || a >= 315 ? "front" : a < 135 ? "side" : a <= 225 ? "back" : "other side");
+        if (d < 0.9) out.push("closer"); else if (d > 1.1) out.push("farther");
+        if (tilt >= 30) out.push("from above"); else if (tilt <= -15) out.push("from below");
+        if (v["model-position"] && String(v["model-position"]).trim().split(/[\s,]+/).some((n) => Math.abs(Number(n)) > 0.05)) out.push("moved");
+        return out.join(", ");
+    };
+    const stepName = (st, i) => { const h = st.querySelector("h1,h2,h3,h4,p"); const t = h ? h.textContent.trim().replace(/\s+/g, " ") : ""; return t ? t.slice(0, 40) : `Section ${i + 1}`; };
+    function postStory() {
+        if (storyModel && !alive(storyModel)) { storyModel = null; storyCur = -1; }
+        const steps = storyStepsOf(storyModel);
+        if (storyModel && !steps.length) { storyModel = null; storyCur = -1; }
+        if (storyCur >= steps.length) storyCur = -1;
+        post({ type: "story", info: storyModel ? { model: pathOf(storyModel), cur: storyCur, steps: steps.map((st, i) => ({ path: pathOf(st), name: stepName(st, i), pose: poseWords(st), words: st.getAttribute("data-wc-words") || "" })) } : null });
+    }
+    function storyShow() { // the model shows the picked section's pose (or itself), the canvas shows the chips
+        if (!storyModel) return;
+        const st = storyStepsOf(storyModel)[storyCur];
+        if (storyModel._showStep) storyModel._showStep(st || null);
+    }
+    function storyClose() {
+        if (storyModel && storyModel._showStep) storyModel._showStep(null);
+        storyModel = null; storyCur = -1;
+        storyLayer.innerHTML = "";
+    }
+    // a pose value written to the model while a section is picked goes to that section instead (null clears it there); false when it is not one of those
+    const storyWrite = (m, key, value) => {
+        if (!storyModel || m !== storyModel || storyCur < 0 || !VIEW_KEYS.includes(key)) return false;
+        const st = storyStepsOf(m)[storyCur];
+        if (!st) return false;
+        const v = viewOf(st);
+        if (value == null || value === "") delete v[key]; else v[key] = String(value);
+        st.setAttribute("data-wc-view", Object.keys(v).map((k) => k + ":" + v[k]).join("; ") || "rotation:0 0 0");
+        return true;
+    };
+    function drawChips() {
+        storyLayer.innerHTML = "";
+        if (!storyModel) return;
+        const k = 1 / (zoom || 1);
+        storyStepsOf(storyModel).forEach((st, i) => {
+            const b = st.getBoundingClientRect(), on = i === storyCur;
+            const c = document.createElement("div");
+            c.setAttribute("data-wc-chip", String(i));
+            c.textContent = `${i + 1} · ${poseWords(st)}`;
+            c.title = "Pick this section in the Scroll drawer: its pose shows on the model";
+            c.style.cssText = `position:absolute;left:${b.left + scrollX + 12 * k}px;top:${b.top + scrollY + 12 * k}px;transform:scale(${k});transform-origin:0 0;pointer-events:auto;cursor:pointer;` +
+                `font:500 12px/1 system-ui,sans-serif;white-space:nowrap;padding:6px 10px;border-radius:999px;` +
+                (on ? "background:#2f4fdd;color:#fff;" : "background:#fff;color:#333;box-shadow:0 0 0 1px rgba(0,0,0,.14),0 2px 6px rgba(0,0,0,.08);");
+            storyLayer.appendChild(c);
+        });
+    }
+    function storyPick(i) {
+        const steps = storyStepsOf(storyModel);
+        storyCur = i >= 0 && i < steps.length ? i : -1;
+        storyShow();
+        if (storyCur >= 0) { setSelection([storyModel], true); steps[storyCur].scrollIntoView({ block: "center" }); post({ type: "selected", info: describe(storyModel) }); }
+        redraw();
+        postStory();
+    }
+
     function changed(silent, key) {
         redraw();
         const info = primary() && alive(primary()) ? describe(primary()) : null;
         // with nothing selected the editor shows the page, and the page's styling is the body's: it gets the body's fresh values
+        if (storyModel) storyShow();
         post({ type: "changed", silent: Boolean(silent), key: key || "", html: serialize(), tree: tree(), info, body: info ? null : describe(document.body) });
+        if (storyModel) postStory();
     }
     // A 3D model only looks while the page is edited (a drag on it moves the element). A double-click on it picks it (`part`): then the tool chosen
     // in the bar (`mode`) decides what a drag does. "view" turns the camera, and leaving that keeps the view it was turned to.
@@ -817,7 +895,7 @@ export function agentMain() {
         orbiting = null;
         const view = m._bake ? m._bake() : null;
         m._live = false;
-        if (view) Object.keys(view).forEach((k) => (view[k] == null ? m.removeAttribute(k) : m.setAttribute(k, view[k])));
+        if (view) Object.keys(view).forEach((k) => { if (!storyWrite(m, k, view[k])) (view[k] == null ? m.removeAttribute(k) : m.setAttribute(k, view[k])); });
         if (m._apply) m._apply();
         if (view && alive(m)) changed();
     }
@@ -835,6 +913,14 @@ export function agentMain() {
     function setSelection(list, quiet) {
         sels = list.filter(Boolean);
         if (part && !(sels.length === 1 && sels[0] === part && alive(part))) setPart(null);
+        // a selected 3D model plays its effects on the canvas (the scroll at the panel's preview point); the others rest
+        document.querySelectorAll("wc-model").forEach((md) => {
+            const on = sels.length === 1 && sels[0] === md;
+            if (Boolean(md._fxPreview) === on) return;
+            md._fxPreview = on;
+            if (!on) md._fxScrub = 0;
+            if (md._frame) md._frame();
+        });
         showState(); // the picked state shows on whatever is selected now
         if (inside && !(sels.length && sels.every((el) => el !== inside && inside.contains(el)))) inside = null; // picked something outside: out of the group
         redraw();
@@ -2217,6 +2303,9 @@ export function agentMain() {
 
     document.addEventListener("pointerdown", (e) => {
         if (e.button !== 0) return;
+        // a chip of the Scroll story on a section: pick that section (its pose shows on the model)
+        const chip = e.target && e.target.closest ? e.target.closest("[data-wc-chip]") : null;
+        if (chip) { e.preventDefault(); e.stopPropagation(); storyPick(Number(chip.getAttribute("data-wc-chip"))); return; }
         if (converting) { e.preventDefault(); return; } // the last drag is still becoming classes (askConvert)
         if (editing && editing.contains(e.target)) return;
         // an empty 3D model shows a "Choose a model" button: a press on it selects the model and asks the editor to open its list
@@ -2435,7 +2524,7 @@ export function agentMain() {
     document.addEventListener("wc-gizmo", (e) => {
         const m = e.target, d = e.detail || {};
         if (!m || m.tagName !== "WC-MODEL") return;
-        Object.keys(d).forEach((k) => (d[k] == null ? m.removeAttribute(k) : m.setAttribute(k, d[k])));
+        Object.keys(d).forEach((k) => { if (!storyWrite(m, k, d[k])) (d[k] == null ? m.removeAttribute(k) : m.setAttribute(k, d[k])); });
         changed();
     });
     document.addEventListener("selectionchange", () => { if (editing) postEditing(); });
@@ -2930,7 +3019,7 @@ export function agentMain() {
             });
         },
         // value null: off; true: a bare attribute (<wc-model controls>); a string: its value
-        setAttr: (el, m) => { m.value === null ? el.removeAttribute(m.name) : el.setAttribute(m.name, m.value === true ? "" : m.value); },
+        setAttr: (el, m) => { if (el.tagName === "WC-MODEL" && storyWrite(el, m.name, m.value === true ? "" : m.value)) return; m.value === null ? el.removeAttribute(m.name) : el.setAttribute(m.name, m.value === true ? "" : m.value); },
         remove: (el) => { const p = el.parentElement; el.remove(); sels = p && p !== root ? [p] : []; },
         duplicate: (el) => { const c = el.cloneNode(true); el.after(c); if (made.has(el)) markMade(c); sels = [c]; },
         move: (el, m) => {
@@ -2973,6 +3062,8 @@ export function agentMain() {
             if (m.position === "inside") el.appendChild(n); else el.after(n);
             markMade(n);
             sels = [n];
+            const sm = n.querySelector && n.querySelector("wc-model"); // a Scroll story block: its drawer opens
+            if (sm && storyStepsOf(sm).length) { storyModel = sm; storyCur = -1; }
         },
         setGeom: (el, m) => {
             const abs = isAbs(el);
@@ -3042,15 +3133,66 @@ export function agentMain() {
             if (editing && m.name) { editing.focus(); document.execCommand(m.name, false, m.arg || null); postEditing(); }
             return;
         }
-        if (m.cmd === "viewSet" || m.cmd === "viewClear") { // a scroll-story step takes the model's present view (or lets it go)
-            const el = elAt(m.path), model = storyModelOf(el);
-            if (!el) return;
-            if (m.cmd === "viewClear") el.removeAttribute("data-wc-view");
-            else if (model) {
-                const parts = STORY_KEYS.filter((k) => (model.getAttribute(k) || "").trim() !== "").map((k) => k + ":" + model.getAttribute(k).trim());
-                el.setAttribute("data-wc-view", parts.length ? parts.join("; ") : "rotation:0 0 0");
+        if (m.cmd === "fxScrub") { // the panel's scroll preview for the selected model's effects (0..100)
+            const el = elAt(m.path);
+            if (el && el.tagName === "WC-MODEL") { el._fxPreview = true; el._fxScrub = Number(m.pct) || 0; if (el._frame) el._frame(); }
+            return;
+        }
+        if (m.cmd === "placeModel") { // where a 3D model sits: its layout classes (worked out by the panel) and what its section needs
+            const el = elAt(m.path);
+            if (!el || el.tagName !== "WC-MODEL") return;
+            const was = el.getAttribute("data-wc-place") || "", place = m.place || "";
+            el.setAttribute("class", m.cls || "");
+            if (place) el.setAttribute("data-wc-place", place); else el.removeAttribute("data-wc-place");
+            let host = el.parentElement;
+            // across sections: this section and the next ones go into one group, and the model moves to the group's start, behind them all
+            if (place === "across" && was !== "across" && host && host !== document.body) {
+                const group = document.createElement("div"), take = [host];
+                for (let n = host.nextElementSibling; n && take.length < (m.count || 3); n = n.nextElementSibling) if (!/^(SCRIPT|STYLE)$/.test(n.tagName)) take.push(n);
+                host.before(group);
+                take.forEach((n) => group.appendChild(n));
+                group.prepend(el);
+                host = group;
+            }
+            // the model is placed against its section: the section is its positioned parent, and its own stacking layer (the model sits under the content)
+            if (place && host && host !== document.body) {
+                if (getComputedStyle(host).position === "static") host.classList.add("relative");
+                host.classList.add("isolate");
             }
             changed();
+            return;
+        }
+        if (m.cmd === "storyOpen") { // the Scroll drawer for the selected model's story
+            const el = m.path ? elAt(m.path) : [...document.querySelectorAll("wc-model")].find((x) => storyStepsOf(x).length); // no path: the page's first story
+            if (el && storyStepsOf(el).length) { if (storyModel && storyModel !== el) storyClose(); storyModel = el; storyCur = -1; }
+            redraw(); postStory();
+            return;
+        }
+        if (m.cmd === "storyClose") { storyClose(); redraw(); post({ type: "story", info: null }); return; }
+        if (m.cmd === "storyPick") { storyPick(Number(m.i)); return; }
+        if (m.cmd === "storyScrub") { if (storyModel && storyModel._showU) { storyCur = -1; storyModel._showU(Number(m.u)); redraw(); } return; }
+        if (m.cmd === "storyWords") {
+            const st = storyStepsOf(storyModel)[m.i];
+            if (st) { if (m.value) st.setAttribute("data-wc-words", m.value); else st.removeAttribute("data-wc-words"); changed(); }
+            return;
+        }
+        if (m.cmd === "storyAdd") { // one more section after the last, with the last one's pose: it is then picked, to be posed
+            const steps = storyStepsOf(storyModel), last = steps[steps.length - 1];
+            if (!last) return;
+            const n = last.cloneNode(true), h = n.querySelector("h1,h2,h3,h4"), p = n.querySelector("p");
+            if (h) h.textContent = "New section";
+            if (p) p.textContent = "Words for this section.";
+            n.style.removeProperty("opacity");
+            if (!n.getAttribute("style")) n.removeAttribute("style");
+            last.after(n);
+            storyCur = steps.length;
+            changed();
+            storyPick(storyCur);
+            return;
+        }
+        if (m.cmd === "storyRemove") {
+            const steps = storyStepsOf(storyModel);
+            if (steps.length > 1 && steps[m.i]) { steps[m.i].remove(); storyCur = -1; changed(); }
             return;
         }
         if (m.cmd === "mpart") { const el = primary(); if (el && el.tagName === "WC-MODEL") setPart(part === el ? null : el, "move"); return; } // the 3D bar's model button: pick it (or let it go)

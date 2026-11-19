@@ -14,6 +14,7 @@ import { suggestLayout } from "./layout-chip.js";
 import { syncLayoutPicker } from "./layout-picker.js";
 import { setCanvasOnly } from "./canvas-mode.js";
 import { chooseModel } from "./model-samples.js";
+import { storyDrawer } from "./scroll-drawer.js";
 
 let pendingKey = "";
 
@@ -105,6 +106,8 @@ export function init() {
             return handleWheel({ dx: m.dx, dy: m.dy, zoomKey: m.zoom, cx: view.x + (pos.x + m.x) * view.z, cy: view.y + (pos.y + m.y) * view.z });
         }
         if (m.type === "ready") {
+            storyDrawer(null); // a fresh page: no story is open in the drawer
+            if (S.storyNext) { S.storyNext = false; send({ cmd: "storyOpen" }); } // unless a Scroll story was just added: the frame opens its first one
             if (S.switching) {
                 S.switching = false;
                 // the frame moves over now (layout below) but shows a moment later, once Tailwind has styled the new design; the
@@ -172,6 +175,8 @@ export function init() {
             renderSel();
         } else if (m.type === "chooseModel") {
             chooseModel(cmd);
+        } else if (m.type === "story") { // the Scroll story open in the drawer (null: closed)
+            storyDrawer(m.info);
         } else if (m.type === "model") {
             S.modelPart = m.part;
             S.modelMode = m.mode;
