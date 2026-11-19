@@ -35,6 +35,7 @@ S.frameAt = null;
 S.handingOver = false;
 S.lastCustom = null;
 S.editingInfo = null;
+S.orbiting = false; // a 3D model is being turned on the canvas (double-click on it, or the 3D bar's Turn)
 S.gestureOn = false;
 S.frameSel = null;
 S.ftMenu = false;

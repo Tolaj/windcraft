@@ -22,6 +22,7 @@ function toolbarState() {
     if (!S.selected || S.selected.tag === "body" || !S.selected.rect) return null;
     const editing = Boolean(S.editingInfo && S.editingInfo.on);
     const text = editing || TEXT_TAGS.has(S.selected.tag) || (S.selected.leaf && String(S.selected.text || "").trim() !== "");
+    if (!editing && S.selected.tag === "wc-model") return { kind: "model", sel: S.selected, editing, turning: S.orbiting, menu: S.ftMenu, pop: S.ftPop, sides: S.ftSides };
     return { kind: text ? "text" : "shape", sel: S.selected, editing, fmt: editing ? S.editingInfo.fmt : null, menu: S.ftMenu, pop: S.ftPop, sides: S.ftSides };
 }
 
@@ -188,6 +189,10 @@ export const FLOAT_ACTIONS = {
         setProps(SIDES4.map((d) => `border-${d}-style`), kind, "borderStyle", [], undefined, one);
         if (kind !== "none" && none) setProps(SIDES4.map((d) => `border-${d}-width`), 1, "borderWidth", ["borderT", "borderR", "borderB", "borderL"], undefined, one); // a line style on a borderless box: make it visible
     },
+    // the 3D model bar: a switch on the element (a bare attribute when on), turning the model on the canvas, and back to the starting view
+    mattr(name) { const on = S.selected.attrs && S.selected.attrs[name] != null && String(S.selected.attrs[name]).trim().toLowerCase() !== "false"; cmd({ cmd: "setAttr", path: S.selected.path, name, value: on ? null : true }); },
+    mturn() { send({ cmd: "orbit" }); },
+    mreset() { ["rotation", "camera-angle"].forEach((name) => cmd({ cmd: "setAttr", path: S.selected.path, name, value: null })); },
     dup() { S.ftMenu = false; cmd({ cmd: "duplicate", path: S.selected.path }); },
     del() { S.ftMenu = false; cmd({ cmd: "remove", path: S.selected.path }); },
     up() { S.ftMenu = false; cmd({ cmd: "move", path: S.selected.path, dir: -1 }); },

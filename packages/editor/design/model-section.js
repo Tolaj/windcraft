@@ -102,6 +102,7 @@ export function ModelSection({ s, actions }) {
             </div>
         </${FSection}>
         <${FSection} title="Camera">
+            <p class="fsub">Double-click the model on the canvas and drag to turn it: the view you leave it at is saved here.</p>
             <div class="frow">${rotField(0, "X")}${rotField(1, "Y")}${rotField(2, "Z")}</div>
             <div class="frow"><${NumAttr} name="camera-angle" label="Tilt" unit="°" at=${at} set=${set} /><${NumAttr} name="camera-distance" label="Zoom" at=${at} set=${set} title="Camera distance: 1 fits the whole model, less is closer" /></div>
             <div class="frow"><${NumAttr} name="fov" label="FOV" unit="°" at=${at} set=${set} title="Field of view" /></div>

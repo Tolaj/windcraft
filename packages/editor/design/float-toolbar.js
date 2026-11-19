@@ -24,6 +24,12 @@ const ICONS = {
     dashed: icon('<path d="M3 12h4M10 12h4M17 12h4"/>'),
     dotted: icon('<path d="M4 12h.01M8 12h.01M12 12h.01M16 12h.01M20 12h.01" stroke-width="2.4"/>'),
     layouts: icon('<rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M9.5 4v16M9.5 10h11"/>'),
+    turn: icon('<path d="M12 3 4 7.5v9L12 21l8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/>'),
+    spin: icon('<path d="M20 12a8 8 0 1 1-2.5-5.8M20 4v4.5h-4.5"/>'),
+    orbit: icon('<ellipse cx="12" cy="12" rx="9" ry="4"/><circle cx="12" cy="12" r="2.2"/>'),
+    play: icon('<path d="M8 5.5v13l10-6.5z"/>'),
+    shadow: icon('<path d="M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/><ellipse cx="12" cy="18" rx="7" ry="2.4" stroke-dasharray="2.6 2.4"/>'),
+    reset: icon('<path d="M4 12a8 8 0 1 0 2.5-5.8M4 4v4.5h4.5"/>'),
     more: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>',
 };
 
@@ -38,7 +44,7 @@ const familyOf = (css) => {
     return "sans";
 };
 
-const btn = (act, svg, title, on) => `<button type="button" class="tbtn ${on ? "on" : ""}" data-ft="${act}" title="${title}">${svg}</button>`;
+const btn = (act, svg, title, on, arg) => `<button type="button" class="tbtn ${on ? "on" : ""}" data-ft="${act}"${arg ? ` data-arg="${arg}"` : ""} title="${title}">${svg}</button>`;
 const swatch = (kind, value, title) => `<label class="swatch" title="${title}" style="background:${value || "#fff"}${value ? "" : ";background-image:linear-gradient(135deg,transparent 46%,#e5484d 46%,#e5484d 54%,transparent 54%)"}"><input type="color" data-ftcol="${kind}" value="${value || "#000000"}"></label>`;
 
 function moreMenu(st) {
@@ -79,10 +85,22 @@ function textBar(st) {
 const popBtn = (st, key, svg, title) => `<button type="button" class="tbtn ${st.pop === key ? "on" : ""}" data-ft="pop" data-arg="${key}" title="${title}">${svg}</button>`;
 const boxButtons = (st) => `<span class="sep"></span>${popBtn(st, "border", ICONS.border, "Border")}${popBtn(st, "radius", ICONS.radius, "Corner radius")}${popBtn(st, "spacing", ICONS.spacing, "Padding and margin")}`;
 
+// A 3D model: what it does (turn, spin, orbit, play, shadow) and the box buttons; the rest is in the panel's 3D sections
+function modelBar(st) {
+    const at = (st.sel && st.sel.attrs) || {}, cs = (st.sel && st.sel.computed) || {};
+    const on = (n) => at[n] != null && String(at[n]).trim().toLowerCase() !== "false";
+    const sw = (n, svg, title) => btn("mattr", svg, title, on(n), n);
+    const fill = rgbToHex(cs["background-color"] || "");
+    const view = at.rotation != null || at["camera-angle"] != null;
+    return `${btn("mturn", ICONS.turn, st.turning ? "Turning the model: drag it, Esc keeps the view" : "Turn the model to set its starting view (or double-click it)", st.turning)}${view ? btn("mreset", ICONS.reset, "Back to the default view") : ""}
+        <span class="sep"></span>${sw("auto-rotate", ICONS.spin, "Spin slowly")}${sw("controls", ICONS.orbit, "Visitors can drag it to turn it")}${sw("animate", ICONS.play, "Play the model's animation")}${sw("shadow", ICONS.shadow, "Ground shadow")}
+        <span class="sep"></span>${swatch("fill", fill, "Fill color")}${boxButtons(st)}${more(st)}`;
+}
+
 function shapeBar(st) {
     const cs = (st.sel && st.sel.computed) || {};
     const fill = rgbToHex(cs["background-color"] || "");
-    const hasText = st.sel && st.sel.leaf === false ? false : true;
+    const hasText = st.sel && (st.sel.leaf === false || st.sel.tag === "wc-model") ? false : true; // a box with boxes in it, or a 3D model, has no text colour
     return `<span class="lbl2">Fill</span>${swatch("fill", fill, "Fill color")}${hasText ? `<span class="lbl2">Text</span>${swatch("text", rgbToHex(cs.color || "") || "#000000", "Text color")}` : ""}
         ${boxButtons(st)}${more(st)}`;
 }
@@ -156,7 +174,7 @@ function frameBar(st) {
 
 export function toolbarHtml(st) {
     if (st.kind === "frame") return frameBar(st);
-    return (st.kind === "text" ? textBar(st) : shapeBar(st)) + popHtml(st);
+    return (st.kind === "text" ? textBar(st) : st.kind === "model" ? modelBar(st) : shapeBar(st)) + popHtml(st);
 }
 
 export const FAMILY_STACKS = {

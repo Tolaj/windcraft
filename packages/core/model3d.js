@@ -151,8 +151,6 @@ function modelRuntime() {
         }
         connectedCallback() {
             this._on = true;
-            // inside the editor's canvas the model only looks: the editor owns the pointer there
-            this._editing = !!document.querySelector("script[data-wc-agent]");
             var self = this;
             if (!this._ro) {
                 this._ro = new ResizeObserver(function () { self._size(); });
@@ -222,7 +220,7 @@ function modelRuntime() {
                 self._env = pmrem.fromScene(new L.RoomEnvironment(), 0.04).texture;
                 pmrem.dispose();
                 var controls = new L.OrbitControls(camera, renderer.domElement);
-                controls.addEventListener("change", function () { self._frame(); });
+                controls.addEventListener("change", function () { if (self._live) self._moved = true; self._frame(); });
                 self._controls = controls;
                 new L.GLTFLoader().load(src, function (gltf) {
                     if (seq !== self._seq || !self._on) return;
@@ -280,7 +278,11 @@ function modelRuntime() {
             c.lookAt(0, 0, 0);
             c.updateProjectionMatrix();
             var ctl = this._controls;
-            ctl.enabled = flag(this, "controls") && !this._editing;
+            // inside the editor's canvas the model only looks (the editor owns the pointer, so dragging it moves the element) until the
+            // editor turns `_live` on with a double-click on it; the agent script is added after the page parses, so this is checked each time
+            var editing = !!document.querySelector("script[data-wc-agent]");
+            ctl.enabled = this._live || (flag(this, "controls") && !editing);
+            this._renderer.domElement.style.cursor = this._live ? "grab" : "";
             ctl.enableZoom = flag(this, "zoom");
             ctl.enablePan = false;
             ctl.target.set(0, 0, 0);
@@ -294,6 +296,28 @@ function modelRuntime() {
             r.setClearColor(bg || 0x000000, bg ? 1 : 0);
             this._size();
             this._frame();
+        }
+        // What the editor saves when someone has turned the model to a new view (see `_live`): the attributes that give that view, so what
+        // was left on the canvas is what the page shows. The camera sits on the +z axis at `camera-angle`; turning around the model by an angle
+        // is turning the model the other way about the vertical axis, so the turn goes into `rotation` (about the world's y, after its own
+        // turns). Null when nothing was turned. A value equal to the default is null (the attribute comes off).
+        _bake() {
+            if (!this._moved || !this._camera) return null;
+            var T = this._T, p = this._camera.position, d = p.length() || 1;
+            var el = Math.max(-80, Math.min(80, Math.asin(Math.max(-1, Math.min(1, p.y / d))) * 180 / Math.PI));
+            var az = Math.atan2(p.x, p.z), r3 = turns(this.getAttribute("rotation")), D = Math.PI / 180;
+            var q = new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), -az).multiply(new T.Quaternion().setFromEuler(new T.Euler(r3[0] * D, r3[1] * D, r3[2] * D, "XYZ")));
+            var e = new T.Euler().setFromQuaternion(q, "XYZ");
+            var r = function (v) { v = Math.round(v / D * 10) / 10; return v === 0 ? 0 : v; };
+            var rot = [r(e.x), r(e.y), r(e.z)];
+            // the same turn can be written two ways: (180, y, 180) is a plain turn about y of 180 - y: the plain one is what is shown
+            if (Math.abs(Math.abs(rot[0]) - 180) < 0.06 && Math.abs(Math.abs(rot[2]) - 180) < 0.06) {
+                var y = 180 - rot[1];
+                y = y > 180 ? y - 360 : y <= -180 ? y + 360 : y;
+                rot = [0, Math.round(y * 10) / 10, 0];
+            }
+            var ang = Math.round(el * 10) / 10;
+            return { rotation: rot.every(function (v) { return v === 0; }) ? null : rot.join(" "), "camera-angle": ang === 10 ? null : String(ang) };
         }
         // hotspots: children with data-position="x y z" (the model's own units: its bounding sphere has radius 1) are pinned to that point on the
         // model, each in a slot of its own, so they are ordinary HTML in the page (any tag, any Tailwind classes, a link or a button)

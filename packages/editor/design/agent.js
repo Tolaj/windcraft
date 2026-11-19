@@ -26,7 +26,10 @@ export function agentMain() {
     // see the empty layer and stay white everywhere. The layer as a whole is inverted against the page: black dashes on light, white on dark.
     const kidLayer = mk("position:absolute;left:0;top:0;width:0;height:0;z-index:2147483646;pointer-events:none;mix-blend-mode:difference;");
     const gapLayer = mk("position:absolute;left:0;top:0;"); // gap and padding handles of the selected box
-    overlay.append(hoverBox, gapLayer, guideLayer, draftBox, marqueeBox, ghostBox, dropBox, insertLine, dropHint);
+    // a 3D model that is selected shows a small note on how to turn it; one being turned has a dashed frame inside it and no handles
+    const orbitBox = mk("position:absolute;display:none;pointer-events:none;box-sizing:border-box;");
+    const orbitTag = mk("position:absolute;display:none;pointer-events:none;background:#2f4fdd;color:#fff;font:500 11px/1 system-ui,sans-serif;white-space:nowrap;border-radius:4px;padding:4px 7px;");
+    overlay.append(hoverBox, gapLayer, orbitBox, orbitTag, guideLayer, draftBox, marqueeBox, ghostBox, dropBox, insertLine, dropHint);
     const isOverlay = (n) => overlay.contains(n) || kidLayer.contains(n);
     /**
      * The frame is scaled with the canvas, so a 1px line here is 8px thick at 800%: the boxes the frame draws itself keep one screen pixel.
@@ -219,7 +222,7 @@ export function agentMain() {
         const el = primary();
         const dragging = Boolean(gesture && gesture.type === "reorder" && gesture.leave && gesture.igh); // the landing outline and label say it all while dragging
         const items = dragging ? [] : sels.filter((e) => e !== document.body).map(boxOf);
-        const handles = Boolean(!dragging && el && sels.length === 1 && el !== document.body && tool === "move" && !editing && !isLocked(el));
+        const handles = Boolean(!dragging && el && sels.length === 1 && el !== document.body && tool === "move" && !editing && !isLocked(el) && el !== orbiting);
         let label = "", at = null;
         if (el && el !== document.body && gesture && gesture.moved) {
             const g = geomOf(el);
@@ -238,18 +241,36 @@ export function agentMain() {
         place(hoverBox, tool === "move" && hov && hov !== document.body && !sels.includes(hov) ? hov : null); // not the page itself
         drawKids();
         drawGapHandles();
+        drawOrbit(el);
+    }
+    /** The 3D model selected: a note on how to turn it. The one being turned: a dashed frame inside it (it is not the box selected: the box is gone) and how to leave. */
+    function drawOrbit(el) {
+        const m = el && el.tagName === "WC-MODEL" && sels.length === 1 && tool === "move" && !editing && !gesture ? el : null;
+        if (!m) { orbitBox.style.display = orbitTag.style.display = "none"; return; }
+        const r = pageRect(m), one = 1 / (zoom || 1), turning = m === orbiting;
+        if (turning) {
+            Object.assign(orbitBox.style, dashes("#2f4fdd", 2 * one), { display: "block", left: `${r.x + 4 * one}px`, top: `${r.y + 4 * one}px`, width: `${Math.max(0, r.w - 8 * one)}px`, height: `${Math.max(0, r.h - 8 * one)}px`, boxShadow: "none" });
+        } else orbitBox.style.display = "none";
+        // the note is centred along the top (the corner handles are at the sides) and shortened, or left out, as the box gets small
+        const w = r.w * (zoom || 1);
+        const text = turning ? (w >= 300 ? "Drag to turn the model · Esc keeps the view" : w >= 190 ? "Drag to turn · Esc to leave" : "") : w >= 260 ? "3D model · double-click to turn it" : w >= 170 ? "Double-click to turn" : "";
+        orbitTag.textContent = text;
+        if (!text) { orbitTag.style.display = "none"; return; }
+        Object.assign(orbitTag.style, { display: "block", left: `${r.x + r.w / 2}px`, top: `${r.y + 8 * one}px`, transform: `scale(${one}) translateX(-50%)`, transformOrigin: "0 0" });
     }
 
     // the box selected shows what it holds: its children, dashed (the one under the pointer is outlined solid by the hover box)
     let kidsKey = "";
     function drawKids() {
         const el = sels.length === 1 ? sels[0] : null;
-        const list = !el || el === document.body || tool !== "move" || editing || gesture ? [] : realKids(el).slice(0, 60).filter((k) => k !== hov).map(pageRect).filter((r) => r.w >= 2 && r.h >= 2);
-        const key = zoom + ":" + list.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join("|"); // redrawn on every pointer move: only rebuilt when something changed (or the zoom)
+        const kids = !el || el === document.body || tool !== "move" || editing || gesture ? [] : realKids(el).slice(0, 60).filter((k) => k !== hov);
+        const list = kids.map((k) => { const r = pageRect(k), m = k.tagName === "WC-MODEL", i = m ? Math.min(4 / (zoom || 1), r.w / 4, r.h / 4) : 0; // a model that fills its parent is drawn a little inside it, or its dashes would sit under the parent's own outline
+            return { x: r.x + i, y: r.y + i, w: r.w - 2 * i, h: r.h - 2 * i, model: m }; }).filter((r) => r.w >= 2 && r.h >= 2);
+        const key = zoom + ":" + list.map((r) => `${r.x},${r.y},${r.w},${r.h},${r.model ? 1 : 0}`).join("|"); // redrawn on every pointer move: only rebuilt when something changed (or the zoom)
         if (key === kidsKey) return;
         kidsKey = key;
         kidLayer.textContent = "";
-        list.forEach((r) => { const d = mk(`position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`); Object.assign(d.style, dashes("#fff", px(1))); kidLayer.appendChild(d); });
+        list.forEach((r) => { const d = mk(`position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`); Object.assign(d.style, dashes("#fff", px(r.model ? 2 : 1))); if (r.model) d.title = "3D model: double-click to turn it"; kidLayer.appendChild(d); });
     }
 
     const clearGuides = () => { guideLayer.innerHTML = ""; insertLine.style.display = "none"; ghostBox.style.display = "none"; dropBox.style.display = "none"; dropHint.style.display = "none"; dropHint.style.transform = ""; };
@@ -757,8 +778,26 @@ export function agentMain() {
         // with nothing selected the editor shows the page, and the page's styling is the body's: it gets the body's fresh values
         post({ type: "changed", silent: Boolean(silent), key: key || "", html: serialize(), tree: tree(), info, body: info ? null : describe(document.body) });
     }
+    // A 3D model only looks while the page is edited (a drag on it moves the element). A double-click on it turns its orbit on until something
+    // else is picked or Esc is pressed: then a drag turns the model, scroll zoom stays with the canvas.
+    let orbiting = null;
+    // Leaving it keeps the view it was turned to: the model writes the attributes for it (rotation, camera-angle), one change in the history.
+    function stopOrbit() {
+        if (!orbiting) return;
+        const m = orbiting;
+        orbiting = null;
+        const view = m._bake ? m._bake() : null;
+        m._live = false;
+        if (view) Object.keys(view).forEach((k) => (view[k] == null ? m.removeAttribute(k) : m.setAttribute(k, view[k])));
+        if (m._apply) m._apply();
+        redraw();
+        if (view && alive(m)) changed();
+        post({ type: "orbit", on: false });
+    }
+    function startOrbit(m) { stopOrbit(); orbiting = m; m._live = true; if (m._apply) m._apply(); m._moved = false; redraw(); post({ type: "orbit", on: true }); }
     function setSelection(list, quiet) {
         sels = list.filter(Boolean);
+        if (orbiting && !(sels.length === 1 && sels[0] === orbiting && alive(orbiting))) stopOrbit();
         showState(); // the picked state shows on whatever is selected now
         if (inside && !(sels.length && sels.every((el) => el !== inside && inside.contains(el)))) inside = null; // picked something outside: out of the group
         redraw();
@@ -880,7 +919,7 @@ export function agentMain() {
 
     // ── Inline editing ──────────────────────────────────────────────────────────────────────
     // what can hold typed words: never a picture, an icon or a control, which would take the words somewhere they don't show
-    const NO_TEXT = /^(IMG|SVG|VIDEO|AUDIO|IFRAME|CANVAS|HR|BR|SELECT|PICTURE|OBJECT|EMBED)$/i;
+    const NO_TEXT = /^(IMG|SVG|VIDEO|AUDIO|IFRAME|CANVAS|HR|BR|SELECT|PICTURE|OBJECT|EMBED|WC-MODEL)$/i;
     // a form field's words are its placeholder (or its value attribute when it has one and no placeholder): typed in the field itself
     const isField = (el) => /^(INPUT|TEXTAREA)$/.test(el.tagName) && !/^(checkbox|radio|range|color|file|submit|button|image|reset|hidden)$/i.test(el.type || "");
     function startEdit(el, selectAll) {
@@ -2143,6 +2182,7 @@ export function agentMain() {
         if (e.button !== 0) return;
         if (converting) { e.preventDefault(); return; } // the last drag is still becoming classes (askConvert)
         if (editing && editing.contains(e.target)) return;
+        if (orbiting && e.target === orbiting && e.button === 0) return; // a drag on the model being orbited turns it
         if (editing) finishEdit(); else dropTextSelection();
         try { root.setPointerCapture(e.pointerId); } catch (err) { /* capture is optional */ }
         e.preventDefault();
@@ -2311,6 +2351,8 @@ export function agentMain() {
         e.preventDefault();
         const el = hitAt(e.clientX, e.clientY);
         if (el === document.body || tool !== "move" || isLocked(el)) return;
+        // a 3D model: no text to type in it; the double-click picks it and lets it be turned (its children, hotspots, are edited as usual)
+        if (el.tagName === "WC-MODEL") { setSelection([el]); startOrbit(el); return; }
         const cur = sels.length === 1 && alive(sels[0]) ? sels[0] : null;
         const inner = cur && cur !== el && cur.contains(el) && el.closest("svg") !== cur ? childOf(cur, el.closest("svg") || el) : null;
         // into the selected box: the one of its children under the pointer is picked (and what sits beside it can be picked next). A box with words of its own is edited
@@ -2636,6 +2678,7 @@ export function agentMain() {
 
     // ── Keyboard ────────────────────────────────────────────────────────────────────────────
     document.addEventListener("keydown", (e) => {
+        if (orbiting && e.key === "Escape") { e.preventDefault(); stopOrbit(); return; }
         // while dragging in the layout: Tab tries the next option, Esc puts the element back
         if (gesture && gesture.type === "reorder" && gesture.moved && (e.key === "Escape" || (e.key === "Tab" && gesture.leave))) { e.preventDefault(); if (e.key === "Tab") intentCycle(gesture); else reorderCancel(gesture); return; }
         // Ctrl/Cmd + = / - / 0 zoom the plane, never this frame's page
@@ -2935,6 +2978,7 @@ export function agentMain() {
             if (editing && m.name) { editing.focus(); document.execCommand(m.name, false, m.arg || null); postEditing(); }
             return;
         }
+        if (m.cmd === "orbit") { const el = primary(); if (el && el.tagName === "WC-MODEL") (orbiting === el ? stopOrbit() : startOrbit(el)); return; } // the 3D model bar's Turn button
         if (m.cmd === "view") { zoom = m.zoom || 1; lineWidths(); redraw(); return; }
         if (m.cmd === "scrollTo") { const el = elAt(m.path); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
         if (m.cmd === "align") { align(m.mode); return; }
