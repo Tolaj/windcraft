@@ -73,7 +73,8 @@ function onClick(e) {
     if (!t || performance.now() - dragEnd < 250) return; // (the click that ends a drag of the playhead)
     const a = t.dataset.act, i = Number(t.dataset.i);
     if (a === "close") { stop(); send({ cmd: "storyClose" }); return; }
-    if (a === "pickmode") { stop(); send({ cmd: "storyPickMode", on: !info.picking }); return; }
+    if (a === "pickmode") { stop(); if (!info.picking) send({ cmd: "storyPickMode", on: true }); else flash("Click an element on the page to add it, or Done when you're finished."); return; } // + always asks for an element
+    if (a === "pickdone") { send({ cmd: "storyPickMode", on: false }); return; }
     if (a === "pick") { stop(); send({ cmd: "storyPick", i: info.cur === i ? -1 : i }); return; }
     if (a === "pin") { cmd({ cmd: "storyPin", on: !info.pin }); return; }
     if (a === "remove") { stop(); cmd({ cmd: "storyRemove", i }); return; }
@@ -111,13 +112,13 @@ function paint() {
         <button type="button" data-act="remove" data-i="${cur}" class="mt-2 text-neutral-500 underline-offset-2 hover:text-red-600 hover:underline" title="It stays on the page; it just no longer moves the model">Take out of the story</button></div>` : "";
     const note = info.picking ? `<div class="absolute bottom-[60px] left-0 right-0 z-10 flex items-center justify-between gap-3 rounded-xl bg-blue-600 px-3 py-2 text-white shadow-lg">
         <span>Click the elements on the page that should move the model, top to bottom (each one is a pose); click one again to take it out. The page is not changed. ${n ? `${n} chosen.` : ""}</span>
-        <button type="button" data-act="pickmode" class="shrink-0 rounded-md bg-white px-2.5 py-1 font-medium text-blue-700">Done</button></div>` : "";
+        <button type="button" data-act="pickdone" class="shrink-0 rounded-md bg-white px-2.5 py-1 font-medium text-blue-700">Done</button></div>` : "";
     box.innerHTML = `${note}${pop}
         <div class="flex h-[52px] items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-1.5 shadow-[0_6px_24px_rgba(0,0,0,.12)]">
             ${ib("play", playing ? "pause" : "play", n < 2 ? "Choose at least two elements to play" : "Play the scroll on the canvas", false, n < 2)}
-            <div data-track class="relative flex min-w-0 flex-1 gap-1">${n ? info.steps.map(seg).join("") : `<span class="flex h-10 flex-1 items-center justify-center rounded-lg border border-dashed border-neutral-300 text-neutral-400">No elements chosen yet</span>`}
+            <div data-track class="relative flex min-w-0 flex-1 gap-1">${n ? info.steps.map(seg).join("") : `<button type="button" data-act="pickmode" class="flex h-10 flex-1 items-center justify-center rounded-lg border border-dashed border-neutral-300 text-neutral-500 hover:border-neutral-500 hover:text-neutral-800">${info.picking ? "Click an element on the page to add it" : "No elements yet: click here or + to choose them on the page"}</button>`}
                 ${n > 1 ? `<span data-head title="Drag to see the model along the scroll" class="absolute -bottom-1 -top-1 z-[1] w-3 -translate-x-1/2 cursor-ew-resize touch-none" style="left:${((scrubU - 0.5) / n) * 100}%"><span class="pointer-events-none absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded bg-blue-600"></span><span class="pointer-events-none absolute -top-1 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-blue-600"></span></span>` : ""}</div>
-            ${ib("pickmode", "add", info.picking ? "Done choosing" : "Add or take out elements: click them on the page", info.picking)}
+            ${ib("pickmode", "add", info.picking ? "Click elements on the page to add or take them out" : "Add elements: click them on the page", info.picking)}
             ${ib("pin", "pin", info.pin ? "Kept on screen while the story scrolls: click to let it scroll with the page" : "Keep the model on screen until the last element has scrolled past (the layout is not changed)", info.pin)}
             ${ib("close", "close", "Close", false)}
         </div>`;

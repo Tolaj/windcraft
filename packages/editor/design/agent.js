@@ -837,7 +837,6 @@ export function agentMain() {
     function postStory() {
         if (storyModel && !alive(storyModel)) { storyModel = null; storyCur = -1; }
         const steps = storyStepsOf(storyModel);
-        if (storyModel && !steps.length && !storyPicking) { storyModel = null; storyCur = -1; }
         if (storyCur >= steps.length) storyCur = -1;
         const m = storyModel, list = steps.map((st, i) => ({ path: pathOf(st), name: stepName(st, i), pose: poseWords(st), words: st.getAttribute("data-wc-words") || "", snap: m ? snapOf(m, st) : null }));
         if (m && list.some((x) => !x.snap) && !m._ground) m.addEventListener("load", () => { if (storyModel === m) postStory(); }, { once: true }); // the pictures come once the model is in
