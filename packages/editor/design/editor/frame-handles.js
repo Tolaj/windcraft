@@ -5,6 +5,7 @@ import { docs, setFrameSize, wraps } from "./designs.js";
 import { canvas, heightOfDoc, positions, view, widthOf } from "./plane.js";
 import { setDevice, setProp, setProps } from "./inspector.js";
 import { cmd } from "./frame-messages.js";
+import { chooseModel } from "./model-samples.js";
 import { setPanel, setPanelTab } from "./color-ui.js";
 import { closeColorPicker, placeBeside, placeColorPicker } from "../color-picker.js";
 
@@ -192,6 +193,7 @@ export const FLOAT_ACTIONS = {
     // the 3D model bar: a switch on the element (a bare attribute when on), turning the model on the canvas, and back to the starting view
     mattr(name) { const on = S.selected.attrs && S.selected.attrs[name] != null && String(S.selected.attrs[name]).trim().toLowerCase() !== "false"; cmd({ cmd: "setAttr", path: S.selected.path, name, value: on ? null : true }); },
     mpart() { send({ cmd: "mpart" }); },
+    mchoose() { chooseModel(cmd); },
     mmode(mode) { send({ cmd: "mmode", mode }); },
     mreset() { ["rotation", "camera-angle"].forEach((name) => cmd({ cmd: "setAttr", path: S.selected.path, name, value: null })); },
     dup() { S.ftMenu = false; cmd({ cmd: "duplicate", path: S.selected.path }); },

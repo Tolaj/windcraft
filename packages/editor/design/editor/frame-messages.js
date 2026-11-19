@@ -13,6 +13,7 @@ import { updateCodeHighlight } from "./code-panel.js";
 import { suggestLayout } from "./layout-chip.js";
 import { syncLayoutPicker } from "./layout-picker.js";
 import { setCanvasOnly } from "./canvas-mode.js";
+import { chooseModel } from "./model-samples.js";
 
 let pendingKey = "";
 
@@ -169,6 +170,8 @@ export function init() {
         } else if (m.type === "overlay") {
             S.selData = m;
             renderSel();
+        } else if (m.type === "chooseModel") {
+            chooseModel(cmd);
         } else if (m.type === "model") {
             S.modelPart = m.part;
             S.modelMode = m.mode;

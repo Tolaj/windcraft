@@ -188,12 +188,18 @@ function modelRuntime() {
             root.innerHTML = '<style>:host{display:block;position:relative;width:100%;height:20rem;overflow:hidden}' +
                 'canvas{display:block;width:100%;height:100%;touch-action:pan-y}' +
                 '.s{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:12px system-ui,sans-serif;color:#737373;text-align:center;padding:8px}' +
-                '.s[hidden]{display:none}.h{position:absolute;inset:0;overflow:hidden;pointer-events:none}.h>div{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}</style>' +
-                '<slot class="s"></slot><div class="s" part="error" hidden></div><div class="h"></div>';
+                '.s[hidden]{display:none}' +
+                '.ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font:12px system-ui,sans-serif;color:#737373;text-align:center;padding:8px}.ph[hidden]{display:none}' +
+                '.ph svg{width:44px;height:44px;opacity:.7}.ph button{font:500 12px system-ui,sans-serif;background:#111;color:#fff;border:0;border-radius:999px;padding:6px 14px;cursor:pointer}.ph button:hover{background:#333}' +
+                '.h{position:absolute;inset:0;overflow:hidden;pointer-events:none}.h>div{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}</style>' +
+                '<slot class="s"></slot><div class="s" part="error" hidden></div><div class="h"></div>' +
+                // an empty model, in the editor: a cube and a button that asks the editor to open its list of models
+                '<div class="ph" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg><span>No 3D model yet</span><button type="button" data-wc-choose>Choose a model</button></div>';
             this._slot = root.querySelector("slot");
             this._err = root.querySelector("[part=error]");
             this._root = root;
             this._layer = root.querySelector(".h");
+            this._ph = root.querySelector(".ph");
             this._spin = 0;
             this._seq = 0;
             this._on = false;
@@ -228,6 +234,8 @@ function modelRuntime() {
             if (name === "src") return this._build();
             this._apply();
         }
+        // The cube and "Choose a model" show only while there is no model and the page is being edited (the agent script is added after the page parses)
+        _showPh() { if (this._ph) this._ph.hidden = Boolean(this.getAttribute("src")) || !document.querySelector("script[data-wc-agent]"); }
         _fail(msg) { this._err.textContent = msg; this._err.hidden = false; this._slot.hidden = true; this.dispatchEvent(new CustomEvent("error", { detail: msg })); }
         _dispose() {
             this._seq++;
@@ -251,6 +259,7 @@ function modelRuntime() {
             this._err.hidden = true;
             this._slot.hidden = false;
             this._layer.style.visibility = "hidden"; // hotspots wait for the model
+            this._showPh();
             if (!src) return;
             load().then(function (L) {
                 if (seq !== self._seq || !self._on) return;

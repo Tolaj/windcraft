@@ -28,6 +28,7 @@ const ICONS = {
     move: icon('<path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/>'),
     rotate: icon('<ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(-25 12 12)"/><path d="M12 3a9 9 0 0 1 0 18" stroke-dasharray="2.6 2.4"/>'),
     scale: icon('<rect x="4" y="9" width="11" height="11" rx="1.5"/><path d="M13 11l7-7M14.5 4H20v5.5"/>'),
+    swap: icon('<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.6"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.6"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.6"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.6"/>'),
     look: icon('<circle cx="12" cy="12" r="3"/><path d="M12 4v2.5M12 17.5V20M4 12h2.5M17.5 12H20"/>'),
     spin: icon('<ellipse cx="12" cy="17" rx="8" ry="3"/><path d="M4.5 11.5C5.3 9 8 7.2 12 7.2s6.7 1.8 7.5 4.3M19.5 11.5l-2.4-1.8M19.5 11.5l.5-3"/>'), // a turntable with an arrow going round it
     play: icon('<path d="M8 5.5v13l10-6.5z"/>'),
@@ -64,7 +65,9 @@ function moreMenu(st) {
 }
 
 // Layouts and designs for the selected element: for any element but plain text (a button counts)
-const layoutsBtn = (st) => (st.sel && st.sel.tag !== "body" && !st.editing && (st.kind !== "text" || st.sel.tag === "button") ? btn("layouts", ICONS.layouts, "Layouts and designs for this element") : "");
+// (a 3D model has no layouts: that place has its list of models instead, where the wireframe button is for everything else)
+const layoutsBtn = (st) => (st.sel && st.sel.tag === "wc-model" && !st.editing ? btn("mchoose", ICONS.swap, st.sel.attrs && st.sel.attrs.src ? "Change the model: free models or your own file" : "Choose a model: free models or your own file")
+    : st.sel && st.sel.tag !== "body" && !st.editing && (st.kind !== "text" || st.sel.tag === "button") ? btn("layouts", ICONS.layouts, "Layouts and designs for this element") : "");
 const more = (st) => `<span class="sep"></span>${layoutsBtn(st)}<div class="relative">${btn("more", ICONS.more, "More", st.menu)}${st.menu ? moreMenu(st) : ""}</div>`;
 
 function textBar(st) {
@@ -97,9 +100,10 @@ function modelBar(st) {
     const view = at.rotation != null || at["camera-angle"] != null;
     // the model button picks the model inside the scene (as a double-click on it does); its tools appear to the left of it while it is picked
     const tool = (m, svg, title) => btn("mmode", svg, title, st.picked && st.mode === m, m);
-    const tools = st.picked ? `${tool("move", ICONS.move, "Move: drag an arrow")}${tool("rotate", ICONS.rotate, "Turn: drag a ring")}${tool("scale", ICONS.scale, "Size: drag a cube")}${tool("view", ICONS.look, "Look around it: drag to set the starting view")}<span class="sep"></span>` : "";
-    return `${tools}${btn("mpart", ICONS.turn, st.picked ? "The model is picked: its tools are on the left. Click to let go" : "Pick the model inside the scene (or double-click it)", st.picked)}${view ? btn("mreset", ICONS.reset, "Back to the default view") : ""}
-        <span class="sep"></span>${sw("auto-rotate", ICONS.spin, "Spin slowly")}${sw("animate", ICONS.play, "Play the model's animation")}${sw("shadow", ICONS.shadow, "Ground shadow")}
+    const empty = !at.src; // no model yet: only "Choose a model" and the box's own buttons make sense
+    const tools = st.picked && !empty ? `${tool("move", ICONS.move, "Move: drag an arrow")}${tool("rotate", ICONS.rotate, "Turn: drag a ring")}${tool("scale", ICONS.scale, "Size: drag a cube")}${tool("view", ICONS.look, "Look around it: drag to set the starting view")}<span class="sep"></span>` : "";
+    return `${tools}${empty ? "" : btn("mpart", ICONS.turn, st.picked ? "The model is picked: its tools are on the left. Click to let go" : "Pick the model inside the scene (or double-click it)", st.picked)}${view && !empty ? btn("mreset", ICONS.reset, "Back to the default view") : ""}
+        ${empty ? "" : '<span class="sep"></span>'}${sw("auto-rotate", ICONS.spin, "Spin slowly")}${sw("animate", ICONS.play, "Play the model's animation")}${sw("shadow", ICONS.shadow, "Ground shadow")}
         <span class="sep"></span>${swatch("fill", fill, "Fill color")}${boxButtons(st)}${more(st)}`;
 }
 

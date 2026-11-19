@@ -257,7 +257,7 @@ export function agentMain() {
         const r = pageRect(m), one = 1 / (zoom || 1), w = r.w * (zoom || 1);
         const long = { view: "Drag to look around · Esc keeps the view", move: "Drag an arrow to move the model", rotate: "Drag a ring to turn the model", scale: "Drag a cube to size the model" };
         const short = { view: "Drag to look around", move: "Move the model", rotate: "Turn the model", scale: "Size the model" };
-        const text = m === part ? (w >= 330 ? long[mode] : w >= 170 ? short[mode] : "") : w >= 300 ? "Double-click the model to pick it" : "";
+        const text = !m.getAttribute("src") ? "" : m === part ? (w >= 330 ? long[mode] : w >= 170 ? short[mode] : "") : w >= 300 ? "Double-click the model to pick it" : "";
         orbitTag.textContent = text;
         if (!text) return;
         Object.assign(orbitTag.style, { display: "block", left: `${r.x + r.w / 2}px`, top: `${r.y + 8 * one}px`, transform: `scale(${one}) translateX(-50%)`, transformOrigin: "0 0" });
@@ -267,6 +267,7 @@ export function agentMain() {
         const cur = sels.length === 1 && alive(sels[0]) && tool === "move" && !editing ? sels[0] : null;
         document.querySelectorAll("wc-model").forEach((m) => {
             const level = m === part ? 2 : m === cur ? 1 : 0;
+            if (m._showPh) m._showPh();
             if ((m._hl || 0) !== level) { m._hl = level; if (m._tint) m._tint(); }
             const g = m === part && m !== orbiting && mode !== "view" ? mode : null;
             if ((m._gmode || null) !== g) { m._gmode = g; if (m._apply) m._apply(); }
@@ -2206,6 +2207,14 @@ export function agentMain() {
         if (e.button !== 0) return;
         if (converting) { e.preventDefault(); return; } // the last drag is still becoming classes (askConvert)
         if (editing && editing.contains(e.target)) return;
+        // an empty 3D model shows a "Choose a model" button: a press on it selects the model and asks the editor to open its list
+        const hit0 = e.composedPath ? e.composedPath()[0] : null;
+        if (hit0 && hit0.hasAttribute && hit0.hasAttribute("data-wc-choose") && e.target.tagName === "WC-MODEL" && !isLocked(e.target)) {
+            e.preventDefault();
+            setSelection([e.target]);
+            post({ type: "chooseModel" });
+            return;
+        }
         if (part && alive(part)) {
             if (orbiting && e.target === orbiting) return; // a drag on the model being looked around turns the camera
             if (part._gizmoAxis && part._gizmoAxis(e.clientX, e.clientY)) return; // on one of the handles: the model gets the press
@@ -2382,6 +2391,7 @@ export function agentMain() {
         if (el === document.body || tool !== "move" || isLocked(el)) return;
         // a 3D model: no text to type in it; the double-click picks it and lets it be turned (its children, hotspots, are edited as usual)
         if (el.tagName === "WC-MODEL") {
+            if (!el.getAttribute("src")) { setSelection([el]); post({ type: "chooseModel" }); return; } // an empty model: the list of models
             const on = Boolean(el._hit && el._hit(e.clientX, e.clientY));
             if (part === el) { if (on) setPart(el, mode === "view" ? "move" : "view"); else setPart(null); } // the model again: look around it (again: back to the tools); beside it: the scene
             else if (sels.length === 1 && sels[0] === el) { if (on) setPart(el, "move"); } // the scene is selected: the model in it is picked

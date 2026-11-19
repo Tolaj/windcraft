@@ -1,8 +1,8 @@
 // The free 3D models dialog. It is the wireframe browser's own kind of dialog (layout-picker.js): a card over the dimmed canvas, not over
 // the whole editor, with the same chips, tiles and Close button. A tile is a model: its picture, name, licence and size; below it who made it
 // and a link to its page (where the author and the licence are stated). A click on the tile sets it as the selected model's file.
-import { $, esc } from "./base.js";
-import { SAMPLE_MODELS, SAMPLE_KINDS, sampleUrl, sampleThumb, sourceUrl, needsCredit } from "../../../core/model3d.js";
+import { $, S, esc } from "./base.js";
+import { SAMPLE_MODELS, SAMPLE_KINDS, sampleUrl, sampleThumb, sourceUrl, needsCredit, isModelFile, MAX_EMBED_BYTES } from "../../../core/model3d.js";
 
 let box = null;
 let onKey = null;
@@ -35,7 +35,8 @@ export function openSamples({ current, onPick }) {
     const chips = [["all", "All"], ...SAMPLE_KINDS];
     box.innerHTML = `<div role="dialog" aria-label="Free 3D models" style="min-height:min(34rem,100%)" class="pointer-events-auto relative flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
         <div class="flex items-center justify-between gap-4 px-5 pt-5"><h2 class="truncate text-[15px] font-semibold text-neutral-900">Free 3D models</h2>
-            <button type="button" data-close class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">Close</button></div>
+            <span class="flex shrink-0 items-center gap-1"><label class="cursor-pointer rounded-md border border-neutral-200 px-2.5 py-1 text-xs text-neutral-700 hover:border-neutral-400" title="A .glb or .gltf from your computer, embedded in the page (up to 1.5 MB)">Upload a file…<input type="file" data-upload accept=".glb,.gltf,model/gltf-binary,model/gltf+json" class="hidden"></label>
+                <button type="button" data-close class="rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">Close</button></span></div>
         <p class="px-5 pt-1 text-xs leading-snug text-neutral-500">Pick one to use in this element. They load from a CDN as a link, so your page stays small. Models marked CC BY need a credit line on your page: each one's Source link shows who made it.</p>
         <div data-chips class="flex flex-wrap gap-1.5 px-5 pb-3 pt-3">${chips.map(([k, l]) => `<button type="button" data-chip="${k}" class="rounded-full border px-3 py-1 text-xs">${esc(l)}</button>`).join("")}</div>
         <div class="min-h-0 flex-1 overflow-y-auto border-t border-neutral-100 px-5 pb-5 pt-4"><div data-grid class="grid grid-cols-4 gap-x-3 gap-y-4">${SAMPLE_MODELS.map((m) => tile(m, current)).join("")}</div></div>
@@ -56,6 +57,23 @@ export function openSamples({ current, onPick }) {
         const m = pick && SAMPLE_MODELS.find((x) => x.id === pick.dataset.pick);
         if (m) { closeSamples(); onPick(sampleUrl(m)); }
     });
+    box.querySelector("[data-upload]").addEventListener("change", (e) => {
+        const f = e.target.files && e.target.files[0];
+        e.target.value = "";
+        if (!f) return;
+        if (!isModelFile(f.name, f.type)) return alert("Choose a .glb or .gltf file.");
+        if (f.size > MAX_EMBED_BYTES) return alert(`That file is ${(f.size / 1e6).toFixed(1)} MB. A model inside the page can be up to ${(MAX_EMBED_BYTES / 1e6).toFixed(1)} MB: host it somewhere and paste its URL in the panel instead.`);
+        const r = new FileReader();
+        r.onload = () => { closeSamples(); onPick(String(r.result)); };
+        r.readAsDataURL(f);
+    });
     onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeSamples(); } };
     document.addEventListener("keydown", onKey, true);
+}
+
+/** The list of models for the selected 3D model: a pick (or an upload) becomes its file. `cmd` sends an edit to the page. */
+export function chooseModel(cmd) {
+    if (!S.selected) return;
+    const path = S.selected.path;
+    openSamples({ current: (S.selected.attrs || {}).src, onPick: (url) => cmd({ cmd: "setAttr", path, name: "src", value: url }) });
 }
