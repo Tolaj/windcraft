@@ -5,7 +5,7 @@
 import { html, useState, useRef } from "../vendor/preact-htm.js";
 import { TextInput, SelectInput, ColorInput } from "./controls.js";
 import { FSection, NumField, IconBtn, I } from "./figma-sections.js";
-import { MODEL_ATTRS, boolAttr, numberAttr, parseRotation, isModelFile, MAX_EMBED_BYTES, hotspotMarkup, nextHotspot } from "../../core/model3d.js";
+import { VIEW_ATTR, parseView, MODEL_ATTRS, boolAttr, numberAttr, parseRotation, isModelFile, MAX_EMBED_BYTES, hotspotMarkup, nextHotspot } from "../../core/model3d.js";
 
 const mb = (n) => (n / 1e6).toFixed(1);
 const A = Object.fromEntries(MODEL_ATTRS.map((a) => [a.name, a]));
@@ -159,5 +159,17 @@ export function HotspotSection({ s, actions }) {
     return html`<${FSection} title="Hotspot">
         <div class="frow">${field(0, "X")}${field(1, "Y")}${field(2, "Z")}</div>
         <p class="fsub">It stays on that point as the model turns. Style it like any element; give it a link or an interaction.</p>
+    </${FSection}>`;
+}
+
+/** On a box next to a 3D model: make it a step of the scroll story. Pose the model (move, turn, size), select the box, press the button:
+ *  while the page scrolls, the model glides to each step's view. What is kept is one plain attribute, data-wc-view. */
+export function StorySection({ s, actions }) {
+    const view = (s.attrs || {})[VIEW_ATTR];
+    const has = view !== undefined, v = parseView(view);
+    return html`<${FSection} title="Scroll story">
+        <div class="frow"><button type="button" class="ib txt" style="flex:1" title="Keep how the 3D model looks now as this section's view" onClick=${() => actions.useView(true)}>${has ? "Update this view" : "Use this view"}</button>
+            ${has && html`<button type="button" class="ib txt" title="This section stops moving the model" onClick=${() => actions.useView(false)}>Remove</button>`}</div>
+        <p class="fsub">${has ? html`The model glides to this view as this section reaches the middle of the screen: ${Object.keys(v).map((k) => k.replace("model-", "").replace("camera-", "")).join(", ") || "its start view"}. Preview the page to see it move.` : "Turn, move or size the model, then press the button: the model goes to that view when this section scrolls into the middle."}</p>
     </${FSection}>`;
 }

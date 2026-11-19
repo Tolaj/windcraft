@@ -109,6 +109,28 @@ export function numberAttr(name, raw) {
     return a && a.min != null ? Math.min(a.max, Math.max(a.min, n)) : n;
 }
 
+// ── Scroll story: elements marked data-wc-view are steps; the model glides between their views as the page scrolls ──
+export const VIEW_ATTR = "data-wc-view";
+/** The model attributes a step can set. */
+export const VIEW_KEYS = ["rotation", "model-position", "model-size", "camera-angle", "camera-distance"];
+
+/** `"rotation:0 90 0; model-size:420"` as an object (only the keys a step can set). */
+export function parseView(text) {
+    const out = {};
+    for (const part of String(text || "").split(";")) {
+        const i = part.indexOf(":");
+        if (i < 0) continue;
+        const k = part.slice(0, i).trim(), v = part.slice(i + 1).trim();
+        if (VIEW_KEYS.includes(k) && v) out[k] = v;
+    }
+    return out;
+}
+/** The view text for a step from a model's attributes (what the model looks like now); an untouched model gives its start view. */
+export function viewFromAttrs(attrs = {}) {
+    const parts = VIEW_KEYS.filter((k) => attrs[k] != null && String(attrs[k]).trim() !== "").map((k) => `${k}:${String(attrs[k]).trim()}`);
+    return parts.length ? parts.join("; ") : "rotation:0 0 0";
+}
+
 /** A boolean attribute is on when it is there, unless it says "false". */
 export const boolAttr = (raw) => raw != null && String(raw).trim().toLowerCase() !== "false";
 
@@ -126,6 +148,18 @@ export function modelMarkup(attrs = {}, cls = "block h-80 w-full") {
     return `<${MODEL_TAG} ${parts.join(" ")}></${MODEL_TAG}>`;
 }
 const esc = (v) => String(v).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+/** A scroll story: the model stays pinned while three text sections scroll by; the model turns and moves to each section's view. */
+export function storyMarkup() {
+    const step = (view, title, text, side) => `<section ${VIEW_ATTR}="${esc(view)}" class="flex min-h-screen items-center px-8 py-16 md:px-16"><div class="max-w-md"><h2 class="text-3xl font-semibold tracking-tight text-neutral-900">${esc(title)}</h2><p class="mt-3 text-neutral-600">${esc(text)}</p></div></section>`;
+    return `<div class="grid md:grid-cols-2">` +
+        `<div class="sticky top-0 z-10 h-[45vh] bg-white md:order-2 md:h-screen md:self-start">${modelMarkup({ controls: false, shadow: true }, "block h-full w-full")}</div>` +
+        `<div class="md:order-1">` +
+        step("rotation:0 -25 0; camera-angle:10", "Meet the design", "Start with the big picture. The model sits still while you read.") +
+        step("rotation:0 70 0; camera-angle:25; camera-distance:0.75", "Every detail", "Scrolling turns the model and moves the camera in close.") +
+        step("rotation:0 200 0; camera-angle:5; camera-distance:1.15", "From every side", "Select a section and press Use this view to set where the model goes.") +
+        `</div></div>`;
+}
 
 /** A hotspot: ordinary HTML pinned to a point of the model. `pos` "x y z" is in the model's own units (its bounding sphere has radius 1). */
 export function hotspotMarkup(n = 1, pos = "0 0 0", label = "Label") {
@@ -165,7 +199,7 @@ function modelRuntime() {
         return gizmoLib;
     }
     var num = function (el, name, def, min, max) {
-        var v = el.getAttribute(name);
+        var v = el._a ? el._a(name) : el.getAttribute(name);
         if (v == null || String(v).trim() === "") return def;
         v = Number(v);
         return isFinite(v) ? Math.min(max, Math.max(min, v)) : def;
@@ -215,8 +249,9 @@ function modelRuntime() {
             this._io.observe(this);
             this._visible = true;
             // scroll-rotate follows the page's scroll; hotspots are the element's own children that have a data-position
-            this._onScroll = this._onScroll || function () { if (num(self, "scroll-rotate", 0, -720, 720)) self._frame(); };
+            this._onScroll = this._onScroll || function () { if (num(self, "scroll-rotate", 0, -720, 720) || self._steps().length) self._frame(); };
             window.addEventListener("scroll", this._onScroll, { passive: true });
+            window.addEventListener("resize", this._onScroll);
             this._mo = this._mo || new MutationObserver(function () { self._hotspots(); self._frame(); });
             this._mo.observe(this, { childList: true, attributes: true, attributeFilter: ["data-position", "slot"], subtree: true });
             this._hotspots();
@@ -226,6 +261,7 @@ function modelRuntime() {
             this._on = false;
             if (this._ro) { this._ro.disconnect(); this._io.disconnect(); }
             window.removeEventListener("scroll", this._onScroll);
+            window.removeEventListener("resize", this._onScroll);
             if (this._mo) this._mo.disconnect();
             this._dispose();
         }
@@ -248,6 +284,7 @@ function modelRuntime() {
             });
             if (this._renderer) { this._renderer.dispose(); this._renderer.domElement.remove(); }
             this._renderer = this._scene = this._camera = this._controls = this._pivot = this._spinner = this._mixer = this._ground = null;
+            this._ov = null; this._ovKey = "";
             this._clipOn = false;
             if (this._tc) { this._tc.dispose(); }
             this._tc = null; this._tcWait = false;
@@ -319,11 +356,11 @@ function modelRuntime() {
         _apply() {
             if (!this._renderer || !this._ground) return;
             var T = this._T, c = this._camera, r = this._renderer;
-            var r3 = turns(this.getAttribute("rotation"));
+            var r3 = turns(this._a("rotation"));
             if (!this._dragging) { // (not while a handle is being dragged: it is the one moving it)
                 this._pivot.rotation.set(r3[0] * Math.PI / 180, r3[1] * Math.PI / 180, r3[2] * Math.PI / 180);
                 // `model-position`: where the model sits in the scene, in its own units
-                var pp = String(this.getAttribute("model-position") || "").trim().split(/[\s,]+/).map(Number);
+                var pp = String(this._a("model-position") || "").trim().split(/[\s,]+/).map(Number);
                 this._pivot.position.set(isFinite(pp[0]) ? pp[0] : 0, isFinite(pp[1]) ? pp[1] : 0, isFinite(pp[2]) ? pp[2] : 0);
                 this._pivot.scale.set(1, 1, 1);
             }
@@ -513,12 +550,79 @@ function modelRuntime() {
                 s.w.style.transform = "translate(" + ((v.x * 0.5 + 0.5) * W) + "px," + ((-v.y * 0.5 + 0.5) * H) + "px) translate(-50%,-50%)";
             }
         }
+        // ── Scroll story: elements with data-wc-view="rotation:0 90 0; model-size:420; …" are the steps. As the page scrolls the model glides
+        // from the view of one step to the next (a step whose middle is at the middle of the screen is "at" its view). Views are plain
+        // attributes of the steps, so the page needs no script of its own. Off while editing (the editor shows the model as it is set).
+        _a(name) { return this._ov && this._ov[name] != null ? this._ov[name] : this.getAttribute(name); }
+        // the steps this model belongs to: those in the nearest ancestor that has any, as long as no other model is in it
+        _steps() {
+            var now = performance.now();
+            if (this._sc && now - this._sct < 300) return this._sc;
+            this._sct = now;
+            var list = [];
+            if (!document.querySelector("script[data-wc-agent]")) {
+                for (var p = this.parentElement; p; p = p.parentElement) {
+                    if (p.querySelectorAll("wc-model").length > 1) break;
+                    var f = p.querySelectorAll("[data-wc-view]");
+                    if (f.length) { list = [].slice.call(f); break; }
+                }
+            }
+            return (this._sc = list);
+        }
+        // a view as numbers: the model's own attributes, with what the step sets laid over them
+        _pose(step) {
+            var g = function (n) { return this.getAttribute(n); }.bind(this), three = function (v) { var q = turns(v); return [q[0], q[1], q[2]]; };
+            var fitPx = 0.72 * Math.min(this.clientWidth || 1, this.clientHeight || 1);
+            var o = {
+                rotation: three(g("rotation")), "model-position": g("model-position") ? three(g("model-position")) : [0, 0, 0],
+                "model-size": num(this, "model-size", 0, 0, 8000) || fitPx, "camera-angle": num(this, "camera-angle", 10, -80, 80), "camera-distance": num(this, "camera-distance", 1, 0.3, 4)
+            };
+            if (this._ov) { // `num` reads through the override: the model's own values are the attributes
+                var own = function (n, d) { var v = g(n); return v == null || String(v).trim() === "" || !isFinite(Number(v)) ? d : Number(v); };
+                o["model-size"] = own("model-size", 0) || fitPx; o["camera-angle"] = own("camera-angle", 10); o["camera-distance"] = own("camera-distance", 1);
+            }
+            String(step ? step.getAttribute("data-wc-view") || "" : "").split(";").forEach(function (part) {
+                var i = part.indexOf(":");
+                if (i < 0) return;
+                var k = part.slice(0, i).trim(), v = part.slice(i + 1).trim();
+                if (k === "rotation" || k === "model-position") o[k] = three(v);
+                else if (k === "model-size" || k === "camera-angle" || k === "camera-distance") { var n = Number(v); if (isFinite(n)) o[k] = n; }
+            });
+            return o;
+        }
+        _story() {
+            var els = this._steps(), ov = null;
+            if (els.length && this._ground) {
+                var line = innerHeight / 2, cs = els.map(function (e) { var b = e.getBoundingClientRect(); return b.top + b.height / 2; }), j = -1, i;
+                for (i = 0; i < cs.length; i++) if (cs[i] <= line) j = i;
+                var a = this._pose(els[Math.max(j, 0)]), b = a, t = 0;
+                if (j >= 0 && j < els.length - 1) {
+                    b = this._pose(els[j + 1]);
+                    t = Math.min(1, Math.max(0, (line - cs[j]) / Math.max(1, cs[j + 1] - cs[j])));
+                    t = t * t * (3 - 2 * t);
+                }
+                var mix = function (x, y) { return x + (y - x) * t; }, r3 = function (x, y) { return [0, 1, 2].map(function (k) { return Math.round(mix(x[k], y[k]) * 1000) / 1000; }).join(" "); };
+                ov = {
+                    rotation: r3(a.rotation, b.rotation), "model-position": r3(a["model-position"], b["model-position"]),
+                    "model-size": String(Math.round(mix(a["model-size"], b["model-size"]))),
+                    "camera-angle": String(Math.round(mix(a["camera-angle"], b["camera-angle"]) * 100) / 100),
+                    "camera-distance": String(Math.round(mix(a["camera-distance"], b["camera-distance"]) * 1000) / 1000)
+                };
+            }
+            var key = ov ? JSON.stringify(ov) : "";
+            if (key === (this._ovKey || "")) return;
+            this._ovKey = key; this._ov = ov;
+            this._apply();
+        }
         _size() {
             if (!this._renderer) return;
-            var w = this.clientWidth || 1, h = this.clientHeight || 1;
-            this._renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-            this._renderer.setSize(w, h, false);
-            this._camera.aspect = w / h;
+            var w = this.clientWidth || 1, h = this.clientHeight || 1, pr = Math.min(window.devicePixelRatio || 1, 2);
+            if (this._sw !== w || this._sh !== h || this._spr !== pr || this._sr !== this._renderer) { // (setting the same size again clears the canvas: not on every scroll step)
+                this._sw = w; this._sh = h; this._spr = pr; this._sr = this._renderer;
+                this._renderer.setPixelRatio(pr);
+                this._renderer.setSize(w, h, false);
+                this._camera.aspect = w / h;
+            }
             this._camera.updateProjectionMatrix();
             this._frame();
         }
@@ -529,6 +633,7 @@ function modelRuntime() {
             this._raf = requestAnimationFrame(function () {
                 self._raf = 0;
                 if (!self._renderer) return;
+                self._story();
                 var dt = self._last ? Math.min((performance.now() - self._last) / 1000, 0.1) : 0;
                 var moving = self._visible && (flag(self, "auto-rotate") || (self._mixer && flag(self, "animate")));
                 self._last = moving ? performance.now() : 0;

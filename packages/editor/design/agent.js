@@ -733,6 +733,17 @@ export function agentMain() {
         cursorStyle.disabled = true;
         try { return describeNow(el); } finally { cursorStyle.disabled = false; }
     };
+    // The 3D model a box is a scroll-story step of: the one model in the nearest ancestor that has only that one (as the model's runtime finds its steps)
+    const storyModelOf = (el) => {
+        if (!el || el === document.body || el.tagName === "WC-MODEL" || el.closest("wc-model") || el.querySelector("wc-model")) return null;
+        for (let p = el.parentElement; p; p = p.parentElement) {
+            const ms = p.querySelectorAll("wc-model");
+            if (ms.length === 1) return ms[0];
+            if (ms.length > 1) return null;
+        }
+        return null;
+    };
+    const STORY_KEYS = ["rotation", "model-position", "model-size", "camera-angle", "camera-distance"];
     const describeNow = (el) => {
         const attrs = {};
         Array.prototype.forEach.call(el.attributes, (a) => { if (a.name !== "class" && a.name !== "style" && a.name !== "contenteditable") attrs[a.name] = a.value; });
@@ -751,6 +762,7 @@ export function agentMain() {
             ownText: Array.prototype.some.call(el.childNodes, (n) => n.nodeType === 3 && n.textContent.trim() !== ""), // text of its own: Typography shows
             text: el.children.length === 0 ? el.textContent : null,
             attrs, crumbs,
+            storyModel: storyModelOf(el) ? true : undefined, // a 3D model this box can be a scroll-story step of
             clips: el._clips ? el._clips.map((c) => c.name) : undefined, // a <wc-model>'s animations, for the panel's picker
             geom: geomOf(el),
             rect: el === document.body ? null : pageRect(el),
@@ -3028,6 +3040,17 @@ export function agentMain() {
         if (m.cmd === "hend") { onUp(m.e); return; }
         if (m.cmd === "exec") {
             if (editing && m.name) { editing.focus(); document.execCommand(m.name, false, m.arg || null); postEditing(); }
+            return;
+        }
+        if (m.cmd === "viewSet" || m.cmd === "viewClear") { // a scroll-story step takes the model's present view (or lets it go)
+            const el = elAt(m.path), model = storyModelOf(el);
+            if (!el) return;
+            if (m.cmd === "viewClear") el.removeAttribute("data-wc-view");
+            else if (model) {
+                const parts = STORY_KEYS.filter((k) => (model.getAttribute(k) || "").trim() !== "").map((k) => k + ":" + model.getAttribute(k).trim());
+                el.setAttribute("data-wc-view", parts.length ? parts.join("; ") : "rotation:0 0 0");
+            }
+            changed();
             return;
         }
         if (m.cmd === "mpart") { const el = primary(); if (el && el.tagName === "WC-MODEL") setPart(part === el ? null : el, "move"); return; } // the 3D bar's model button: pick it (or let it go)

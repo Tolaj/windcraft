@@ -290,6 +290,8 @@ const panelActions = {
     /** Puts new markup inside the selected element (a hotspot into a 3D model). */
     // the free 3D models dialog (over the canvas, like the wireframes): a pick becomes the selected model's file
     openSamples: () => chooseModel(cmd),
+    // a scroll-story step: this box takes the model's present view (or lets it go)
+    useView: (on) => { if (S.selected) cmd({ cmd: on ? "viewSet" : "viewClear", path: S.selected.path }); },
     addChild: (make) => { if (S.selected) cmd({ cmd: "insert", path: S.selected.path, html: make(model.markup), position: "inside" }); },
     setAttr: (name, value) => { if (S.selected) cmd({ cmd: "setAttr", path: S.selected.path, name, value: value === "" ? null : value }, `attr-${name}`); },
     // the classes, inline CSS and attributes below the element's code (classes-section.js)

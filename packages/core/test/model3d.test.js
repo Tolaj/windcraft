@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MODEL_ATTRS, MODEL_MARK, MODEL_SCRIPT, THREE_VERSION, usesModel, hasModelScript, withModelScript, parseRotation, numberAttr, boolAttr, modelMarkup, isModelFile, hotspotMarkup, nextHotspot, SAMPLE_MODEL, SAMPLE_MODELS, sampleUrl, sampleThumb, sourceUrl, SAMPLE_KINDS, needsCredit } from "../model3d.js";
+import { MODEL_ATTRS, MODEL_MARK, MODEL_SCRIPT, THREE_VERSION, usesModel, hasModelScript, withModelScript, parseRotation, numberAttr, boolAttr, modelMarkup, isModelFile, hotspotMarkup, nextHotspot, SAMPLE_MODEL, SAMPLE_MODELS, sampleUrl, sampleThumb, sourceUrl, SAMPLE_KINDS, needsCredit, VIEW_ATTR, VIEW_KEYS, parseView, viewFromAttrs, storyMarkup } from "../model3d.js";
 import { exportComponent } from "../exporters.js";
 
 test("a design uses a model when it has the element", () => {
@@ -90,4 +90,24 @@ test("the sample list: each model has a file, a picture, a licence and a credit"
     assert.equal(sampleUrl(SAMPLE_MODELS.find((m) => m.id === "Fox")), SAMPLE_MODEL, "the Add menu's sample is in the list");
     assert.equal(needsCredit({ license: "CC BY 4.0" }), true);
     assert.equal(needsCredit({ license: "CC0" }), false);
+});
+
+test("a view is read and written as plain text", () => {
+    assert.deepEqual(parseView("rotation:0 90 0; model-size:420; junk:1; camera-angle:"), { rotation: "0 90 0", "model-size": "420" });
+    assert.deepEqual(parseView(""), {});
+    assert.equal(viewFromAttrs({ rotation: "0 90 0", "camera-angle": "20", src: "x.glb" }), "rotation:0 90 0; camera-angle:20");
+    assert.equal(viewFromAttrs({}), "rotation:0 0 0");
+    assert.deepEqual(parseView(viewFromAttrs({ rotation: "10 20 30", "model-position": "0.5 0 0" })), { rotation: "10 20 30", "model-position": "0.5 0 0" });
+});
+
+test("the scroll story block has a pinned model and steps with views", () => {
+    const html = storyMarkup();
+    assert.ok(usesModel(html));
+    assert.equal((html.match(new RegExp(VIEW_ATTR + '="', "g")) || []).length, 3);
+    assert.ok(html.includes("sticky"));
+    for (const m of html.matchAll(new RegExp(VIEW_ATTR + '="([^"]*)"', "g"))) assert.ok(Object.keys(parseView(m[1])).every((k) => VIEW_KEYS.includes(k)) && Object.keys(parseView(m[1])).length > 0);
+});
+
+test("the runtime reads the steps and the pose", () => {
+    assert.ok(MODEL_SCRIPT.includes("data-wc-view"));
 });
