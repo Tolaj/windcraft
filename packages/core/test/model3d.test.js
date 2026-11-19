@@ -149,3 +149,9 @@ test("the page script handles hover as well as click", () => {
     assert.ok(MODEL_SCRIPT.includes("data-wc-hover") && MODEL_SCRIPT.includes("pointerover") && MODEL_SCRIPT.includes("pointerout"));
     assert.ok(MODEL_SCRIPT.includes("_showView") && !MODEL_SCRIPT.includes("_showStep"));
 });
+
+test("the element redraws when its effects change", () => {
+    const watched = MODEL_SCRIPT.match(/observedAttributes\(\) \{\s*return (\[[^\]]*\])/);
+    assert.ok(watched, "observedAttributes");
+    for (const a of ["data-wc-fx", "data-wc-pin", "data-wc-place", "auto-rotate", "rotate-speed"]) assert.ok(watched[1].includes(`"${a}"`), a);
+});

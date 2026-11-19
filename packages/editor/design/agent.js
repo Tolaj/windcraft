@@ -3238,6 +3238,22 @@ export function agentMain() {
             redraw(); postStory();
             return;
         }
+        if (m.cmd === "fxSet") { // a 3D model's effect at an amount (0: off), on the model as it is now: spin is auto-rotate and rotate-speed, the rest data-wc-fx
+            const el = elAt(m.path), n = Number(m.amount) || 0;
+            if (!el || el.tagName !== "WC-MODEL") return;
+            if (m.name === "spin") {
+                if (n > 0) { el.setAttribute("auto-rotate", ""); const v = Math.min(m.max || 180, Math.max(m.min || 5, n)); if (v === 30) el.removeAttribute("rotate-speed"); else el.setAttribute("rotate-speed", String(v)); }
+                else { el.removeAttribute("auto-rotate"); el.removeAttribute("rotate-speed"); }
+            } else {
+                const ORDER = ["spin-scroll", "zoom-scroll", "tilt-mouse", "float"], fx = {};
+                String(el.getAttribute("data-wc-fx") || "").trim().split(/\s+/).forEach((t) => { const [k, v] = t.split(":"); if (k && v !== undefined && v !== "" && Number.isFinite(Number(v))) fx[k] = Number(v); });
+                if (n > 0) fx[m.name] = Math.min(m.max ?? n, Math.max(m.min ?? n, n)); else delete fx[m.name];
+                const text = ORDER.filter((k) => fx[k] != null).map((k) => `${k}:${fx[k]}`).join(" ");
+                if (text) el.setAttribute("data-wc-fx", text); else el.removeAttribute("data-wc-fx");
+            }
+            changed();
+            return;
+        }
         if (m.cmd === "storyPin") { if (storyModel) { if (m.on) storyModel.setAttribute("data-wc-pin", ""); else storyModel.removeAttribute("data-wc-pin"); changed(); } return; }
         if (m.cmd === "storyPickMode") { if (storyModel) { storyChoose(Boolean(m.on)); storyShow(); redraw(); postStory(); } return; }
         if (m.cmd === "storyKind") { // a tab of the strip: scroll, click or hover

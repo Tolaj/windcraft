@@ -136,6 +136,9 @@ textarea.field { height: auto; padding: 6px 8px; font-family: ui-monospace, mono
 #ftb { position: absolute; }
 #ftb .ftpop { position: absolute; left: 0; bottom: calc(100% + 6px); width: 224px; padding: 10px; background: #fff; border: 1px solid #ececec; border-radius: 14px; box-shadow: 0 8px 28px rgba(0,0,0,.16); display: flex; flex-direction: column; gap: 6px; z-index: 50; }
 #ftb.popdown .ftpop { bottom: auto; top: calc(100% + 6px); }
+#ftb .fxseg button { font-size: 11px; color: #555; }
+#ftb .fxseg button.on { color: #111; font-weight: 500; }
+#ftb .ftpop .fsep { height: 1px; background: #f0f0f0; margin: 2px -2px; flex-shrink: 0; }
 #ftb .fttl { font-size: 12px; color: #8c8c8c; padding: 0 2px; }
 #ftb .frow { display: flex; align-items: center; gap: 6px; }
 #ftb .fgrid { display: grid; grid-template-columns: 1fr 1fr 26px; align-items: center; gap: 6px; }

@@ -15,9 +15,12 @@ const stop = () => { if (playing) { cancelAnimationFrame(playing); playing = 0; 
 /** Shows the strip for a story (`next`: what the frame sent), or closes it (null). */
 export function storyDrawer(next) {
     info = next;
-    if (!info) { stop(); if (box) { box.remove(); box = null; } return; }
-    if (!box) mount();
-    paint();
+    if (!info) { stop(); if (box) { box.remove(); box = null; } }
+    else { if (!box) mount(); paint(); }
+    // the element's toolbar keeps above the strip and its section card (frame-handles.js): now, and again once the selection that came with this has
+    // placed the toolbar (it can arrive just after)
+    const moved = () => window.dispatchEvent(new Event("wc-strip"));
+    moved(); requestAnimationFrame(moved); setTimeout(moved, 200);
 }
 
 /** Opens the strip for the selected model's story (the toolbar's Scroll story button). */
@@ -84,6 +87,7 @@ function onClick(e) {
     if (a === "close") { stop(); send({ cmd: "storyClose" }); return; }
     if (a === "pickmode") { stop(); if (!info.picking) send({ cmd: "storyPickMode", on: true }); else flash("Click an element on the page to add it, or Done when you're finished."); return; } // + always asks for an element
     if (a === "pickdone") { send({ cmd: "storyPickMode", on: false }); return; }
+    if (a === "unpick") { send({ cmd: "storyPick", i: -1 }); return; }
     if (a === "pick") { stop(); send({ cmd: "storyPick", i: info.cur === i ? -1 : i }); return; }
     if (a === "pin") { cmd({ cmd: "storyPin", on: !info.pin }); return; }
     if (a === "remove") { stop(); cmd({ cmd: "storyRemove", i }); return; }
@@ -115,7 +119,8 @@ function paint() {
     const tabs = `<div class="flex shrink-0 rounded-lg bg-neutral-100 p-0.5">${[["scroll", "Scroll"], ["click", "Click"], ["hover", "Hover"]].map(([k, l]) => `<button type="button" data-kind="${k}" title="${k === "scroll" ? "The model moves as the page scrolls" : k === "click" ? "The model changes when something is clicked" : "The model changes while something is hovered"}" class="rounded-md px-2 py-1 ${k === kind ? "bg-white font-medium text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-900"}">${l}${info.counts && info.counts[k] ? `<span class="ml-1 text-neutral-400">${info.counts[k]}</span>` : ""}</button>`).join("")}</div>`;
     // the picked section's own settings, over its segment
     const pop = sel ? `<div class="absolute bottom-[60px] z-10 w-60 rounded-xl border border-neutral-200 bg-white p-2.5 shadow-[0_8px_24px_rgba(0,0,0,.12)]" style="left:clamp(0px, calc(${((cur + 0.5) / n) * 100}% - 120px), calc(100% - 240px))">
-        <div class="mb-1 truncate font-semibold text-neutral-900">${cur + 1} · ${esc(sel.name)}</div>
+        <div class="mb-1 flex items-center gap-2"><span class="min-w-0 flex-1 truncate font-semibold text-neutral-900">${cur + 1} · ${esc(sel.name)}</span>
+            <button type="button" data-act="unpick" title="Close (the model shows its own pose again)" class="-mr-1 -mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${icon("close")}</button></div>
         <p class="mb-2 leading-snug text-neutral-500">Turn, move or size the model now: it's saved for this element (${esc(sel.pose)}).${kind === "click" ? " The model goes there when it is clicked." : kind === "hover" ? " The model goes there while it is hovered, and back when the pointer leaves." : ""}</p>
         ${kind === "scroll" ? `<label class="flex items-center justify-between gap-2"><span class="text-neutral-500">Words when away</span>
             <select data-words="${cur}" class="rounded-md border border-neutral-200 bg-white px-1.5 py-1">${WORDS.map(([v, l]) => `<option value="${v}"${v === sel.words ? " selected" : ""}>${l.replace(" when away", "")}</option>`).join("")}</select></label>`

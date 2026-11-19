@@ -268,6 +268,7 @@ function modelRuntime() {
         ]).then(function (m) { return { THREE: m[0], GLTFLoader: m[1].GLTFLoader, OrbitControls: m[2].OrbitControls, RoomEnvironment: m[3].RoomEnvironment }; });
         return libs;
     }
+    var GIZMO_REACH = 1.5; // how big the handles are against the model (an arrow then reaches most of the way to its edge)
     // The transform handles the editor shows on a picked model (move, turn, size): fetched only when one is asked for
     var gizmoLib = null;
     function loadGizmo() {
@@ -289,7 +290,7 @@ function modelRuntime() {
 
     class WcModel extends HTMLElement {
         static get observedAttributes() {
-            return ["src", "controls", "zoom", "auto-rotate", "rotate-speed", "animate", "rotation", "camera-angle", "camera-distance", "fov", "environment", "exposure", "light", "light-color", "background", "scroll-rotate", "shadow", "clip", "model-size", "model-position"];
+            return ["src", "controls", "zoom", "auto-rotate", "rotate-speed", "animate", "rotation", "camera-angle", "camera-distance", "fov", "environment", "exposure", "light", "light-color", "background", "scroll-rotate", "shadow", "clip", "model-size", "model-position", "data-wc-fx", "data-wc-pin", "data-wc-place"]; // (its effects, and staying on screen: a change shows at once)
         }
         constructor() {
             super();
@@ -538,7 +539,6 @@ function modelRuntime() {
                 loadGizmo().then(function (TC) {
                     if (!self._renderer || self._tc) return;
                     var tc = new TC(self._camera, self._renderer.domElement);
-                    tc.setSize(2.2);
                     self._scene.add(tc.getHelper());
                     tc.addEventListener("change", function () { self._frame(); });
                     tc.addEventListener("objectChange", function () {
@@ -559,9 +559,23 @@ function modelRuntime() {
             var tc = this._tc;
             tc.setMode(mode === "move" ? "translate" : mode);
             tc.attach(this._pivot);
+            this._gizmoSize();
             tc.getHelper().visible = true;
             tc.enabled = true;
             this._frame();
+        }
+        // The handles at about the model's own size on screen (not a share of the box: a tall box made them huge), at least big enough to grab and at
+        // most a share of the box's shorter side. TransformControls scales its handles by its own factor of the camera's distance; `size` sets the rest.
+        _gizmoSize() {
+            var tc = this._tc, c = this._camera;
+            if (!tc || !c) return;
+            var W = this.clientWidth || 1, H = this.clientHeight || 1, p = new this._T.Vector3();
+            this._pivot.getWorldPosition(p);
+            var dist = c.position.distanceTo(p) || 1, half = dist * Math.tan(c.fov * Math.PI / 360) / (c.zoom || 1); // half the box's height, in world units
+            var modelPx = (this._radius || 1) * (this._pivot.scale.x || 1) / half * (H / 2); // the model's radius on screen
+            var want = Math.max(56, Math.min(modelPx * GIZMO_REACH, Math.min(W, H) * 0.6)); // how far a handle reaches, in px
+            var factor = dist * Math.min(1.9 * Math.tan(Math.PI * c.fov / 360) / (c.zoom || 1), 7);
+            tc.setSize(Math.max(0.15, 4 * (want / (H / 2) * half) / factor));
         }
         // Over a handle of the gizmo right now (so a press goes to it, not to the editor's own selection)?
         _gizmoAxis(cx, cy) {
