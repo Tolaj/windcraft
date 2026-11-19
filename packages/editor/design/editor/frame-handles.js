@@ -201,7 +201,7 @@ export const FLOAT_ACTIONS = {
         if (fx[name] != null) delete fx[name]; else if (e) fx[name] = e.def;
         cmd({ cmd: "setAttr", path: S.selected.path, name: "data-wc-fx", value: writeFx(fx) || null });
     },
-    mstory() { if (S.selected.story) openStory(S.selected.path); else send({ cmd: "storyMake", path: S.selected.path }); }, // a model without a story: choose its steps among what is on the page
+    mstory() { openStory(S.selected.path); }, // the strip: scroll, click and hover, chosen from the page
     mmode(mode) { send({ cmd: "mmode", mode }); },
     mreset() { ["rotation", "camera-angle"].forEach((name) => cmd({ cmd: "setAttr", path: S.selected.path, name, value: null })); },
     dup() { S.ftMenu = false; cmd({ cmd: "duplicate", path: S.selected.path }); },

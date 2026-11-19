@@ -144,3 +144,8 @@ test("the Scroll story block: a pinned model and three steps that dim", () => {
     assert.ok(step.includes('data-wc-view="rotation:0 10 0"') && !step.includes(WORDS_ATTR) && step.includes("New &lt;section>"));
     assert.ok(MODEL_SCRIPT.includes("data-wc-view") && MODEL_SCRIPT.includes("data-wc-words") && MODEL_SCRIPT.includes("_showU"));
 });
+
+test("the page script handles hover as well as click", () => {
+    assert.ok(MODEL_SCRIPT.includes("data-wc-hover") && MODEL_SCRIPT.includes("pointerover") && MODEL_SCRIPT.includes("pointerout"));
+    assert.ok(MODEL_SCRIPT.includes("_showView") && !MODEL_SCRIPT.includes("_showStep"));
+});

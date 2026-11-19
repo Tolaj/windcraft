@@ -673,7 +673,14 @@ function modelRuntime() {
             this._apply();
         }
         // the editor's Scroll drawer: show one step's pose (`step`), the pose at `u` along the steps (1 is the first), or the model as it is set (neither)
-        _showStep(step) { this._peek = step && this._ground ? this._blend(this._pose(step.getAttribute("data-wc-view")), this._pose(step.getAttribute("data-wc-view")), 0) : null; this._apply(); }
+        _showView(view, color) { // the pose `view` (text) and colour `color` shown at once; null: the model as it is set
+            if (!this._ground) return;
+            var a = view != null ? this._pose(view) : null;
+            this._peek = a ? this._blend(a, a, 0) : null;
+            this._apply();
+            if (color) this._paint(color, true); else if (this._shownCol) this._paint("reset", true);
+            this._shownCol = color || null;
+        }
         // a small square picture of the model in the pose `view` (for the editor's Scroll strip): drawn at once, without the editor's blue wash or
         // handles, and the model goes back to what it showed. Null while the model is not loaded.
         _snap(view, px) {
@@ -739,24 +746,27 @@ function modelRuntime() {
             })(t0);
         }
         // every material's colour goes to `hex` (a colour the browser knows), or back to the file's own for "reset"
-        _paint(hex) {
+        _paint(hex, instant) {
             if (!this._spinner || !this._T) return;
             var T = this._T, to = null, mats = [];
+            this._col = hex === "reset" ? null : hex;
             if (hex !== "reset") { try { to = new T.Color(hex); } catch (e) { return; } }
             this._spinner.traverse(function (o) { if (o.isMesh) [].concat(o.material).forEach(function (m) { if (m && m.color && mats.indexOf(m) < 0) mats.push(m); }); });
             var from = mats.map(function (m) { if (!m.userData.wcC) m.userData.wcC = m.color.clone(); return m.color.clone(); }), self = this;
-            this._tween("paint", 350, function (t) {
-                mats.forEach(function (m, i) { m.color.copy(from[i]).lerp(to || m.userData.wcC, t); });
-                self._frame();
-            });
+            var go = function (t) { mats.forEach(function (m, i) { m.color.copy(from[i]).lerp(to || m.userData.wcC, t); }); self._frame(); };
+            if (instant) { this._twm = this._twm || {}; this._twm.paint = (this._twm.paint || 0) + 1; go(1); } else this._tween("paint", 350, go);
         }
         // the model glides to the view in `text` ("rotation:0 90 0; model-size:420"), and keeps it: the attributes take over when it arrives
-        _goView(text) {
+        _goView(text, mode) {
             if (!this._ground) return;
-            var a = this._pose(null), b = this._pose(text), self = this;
-            this._tween("view", 700, function (t) {
+            // the glide starts from what the model shows now (a glide in progress too), so a hover that ends half way turns back from there
+            var cur = this._ov, a = this._pose(null), b = this._pose(text), self = this;
+            if (cur) a = { rotation: String(cur.rotation).trim().split(/\s+/).map(Number), "model-position": String(cur["model-position"]).trim().split(/\s+/).map(Number), "model-size": Number(cur["model-size"]), "camera-angle": Number(cur["camera-angle"]), "camera-distance": Number(cur["camera-distance"]) };
+            this._tween("view", mode ? 450 : 700, function (t) {
                 self._ov = self._blend(a, b, t);
                 if (t < 1) return self._apply();
+                if (mode === "keep") return self._apply(); // held while the pointer is over it
+                if (mode === "rest") { self._ov = null; return self._apply(); } // back to how it is set
                 var o = self._ov; self._ov = null;
                 String(text).split(";").forEach(function (part) {
                     var i = part.indexOf(":"), k = part.slice(0, i).trim();
@@ -858,18 +868,22 @@ function modelRuntime() {
         }
     }
     customElements.define("wc-model", WcModel);
-    // A click on (or inside) an element with data-wc-act does what it says to the model it belongs to: the one inside it (a hotspot) or the one
-    // in the nearest ancestor that has only one. Only on the page itself: while editing, a click selects.
-    document.addEventListener("click", function (e) {
-        var t = e.target && e.target.closest ? e.target.closest("[data-wc-act]") : null;
-        if (!t || document.querySelector("script[data-wc-agent]")) return;
-        var m = t.closest("wc-model");
+    // The model an element acts on: the one it is (or is inside: a hotspot), else the one in the nearest ancestor that has only one.
+    function modelFor(t) {
+        var m = t.tagName === "WC-MODEL" ? t : t.closest("wc-model");
         for (var p = t.parentElement; !m && p; p = p.parentElement) {
             var ms = p.querySelectorAll("wc-model");
-            if (ms.length > 1) return;
+            if (ms.length > 1) return null;
             if (ms.length) m = ms[0];
         }
-        if (!m || !m._act) return;
+        return m && m._act ? m : null;
+    }
+    // A click on (or inside) an element with data-wc-act does what it says to the model it belongs to. Only on the page itself: while editing, a click selects.
+    document.addEventListener("click", function (e) {
+        var t = e.target && e.target.closest ? e.target.closest("[data-wc-act]") : null;
+        if (!t || editingNow()) return;
+        var m = modelFor(t);
+        if (!m) return;
         // a button that is a link to "#" (the editor's Button) would jump the page to its top: the click is for the model
         if (t.tagName === "A" && /^#?$/.test((t.getAttribute("href") || "").trim())) e.preventDefault();
         String(t.getAttribute("data-wc-act")).split("|").forEach(function (a) {
@@ -877,6 +891,34 @@ function modelRuntime() {
             var i = a.indexOf(" ");
             if (i > 0) m._act(a.slice(0, i), a.slice(i + 1).trim());
         });
+    });
+    // Hover: data-wc-hover="view rotation:0 40 0 | color #e11d48" does that while the pointer is over the element (or the model, when it has it), and the
+    // model goes back to how it was when the pointer leaves.
+    function hoverOf(e) { return e.target && e.target.closest ? e.target.closest("[data-wc-hover]") : null; }
+    document.addEventListener("pointerover", function (e) {
+        var t = hoverOf(e);
+        if (!t || editingNow() || (e.relatedTarget && t.contains(e.relatedTarget))) return; // (moving about inside it is still being over it)
+        var m = modelFor(t);
+        if (!m || m._hovered === t) return;
+        m._hovered = t;
+        if (!m._hoverBase) { // how it is now, to go back to: its pose (as text) and its colour
+            var b = m._pose(null);
+            m._hoverBase = "rotation:" + b.rotation.join(" ") + "; model-position:" + b["model-position"].join(" ") + "; model-size:" + b["model-size"] + "; camera-angle:" + b["camera-angle"] + "; camera-distance:" + b["camera-distance"];
+            m._colRest = m._col || null;
+        }
+        String(t.getAttribute("data-wc-hover")).split("|").forEach(function (a) {
+            a = a.trim();
+            var i = a.indexOf(" "), k = a.slice(0, i), v = a.slice(i + 1).trim();
+            if (k === "view") m._goView(v, "keep"); else if (k === "color") m._paint(v);
+        });
+    });
+    document.addEventListener("pointerout", function (e) {
+        var t = hoverOf(e);
+        if (!t || editingNow() || (e.relatedTarget && t.contains(e.relatedTarget))) return;
+        var m = modelFor(t);
+        if (!m || m._hovered !== t) return;
+        m._hovered = null;
+        if (m._hoverBase) { m._goView(m._hoverBase, "rest"); m._paint(m._colRest || "reset"); m._hoverBase = null; }
     });
 }
 
