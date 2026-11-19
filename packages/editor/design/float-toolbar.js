@@ -29,10 +29,9 @@ const ICONS = {
     rotate: icon('<ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(-25 12 12)"/><path d="M12 3a9 9 0 0 1 0 18" stroke-dasharray="2.6 2.4"/>'),
     scale: icon('<rect x="4" y="9" width="11" height="11" rx="1.5"/><path d="M13 11l7-7M14.5 4H20v5.5"/>'),
     look: icon('<circle cx="12" cy="12" r="3"/><path d="M12 4v2.5M12 17.5V20M4 12h2.5M17.5 12H20"/>'),
-    spin: icon('<path d="M20 12a8 8 0 1 1-2.5-5.8M20 4v4.5h-4.5"/>'),
-    orbit: icon('<ellipse cx="12" cy="12" rx="9" ry="4"/><circle cx="12" cy="12" r="2.2"/>'),
+    spin: icon('<ellipse cx="12" cy="17" rx="8" ry="3"/><path d="M4.5 11.5C5.3 9 8 7.2 12 7.2s6.7 1.8 7.5 4.3M19.5 11.5l-2.4-1.8M19.5 11.5l.5-3"/>'), // a turntable with an arrow going round it
     play: icon('<path d="M8 5.5v13l10-6.5z"/>'),
-    shadow: icon('<path d="M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8z"/><ellipse cx="12" cy="18" rx="7" ry="2.4" stroke-dasharray="2.6 2.4"/>'),
+    shadow: icon('<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" fill-opacity=".4" stroke="none"/>'), // a ball shaded on one side
     reset: icon('<path d="M4 12a8 8 0 1 0 2.5-5.8M4 4v4.5h4.5"/>'),
     more: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>',
 };
@@ -100,7 +99,7 @@ function modelBar(st) {
     const tool = (m, svg, title) => btn("mmode", svg, title, st.picked && st.mode === m, m);
     const tools = st.picked ? `${tool("move", ICONS.move, "Move: drag an arrow")}${tool("rotate", ICONS.rotate, "Turn: drag a ring")}${tool("scale", ICONS.scale, "Size: drag a cube")}${tool("view", ICONS.look, "Look around it: drag to set the starting view")}<span class="sep"></span>` : "";
     return `${tools}${btn("mpart", ICONS.turn, st.picked ? "The model is picked: its tools are on the left. Click to let go" : "Pick the model inside the scene (or double-click it)", st.picked)}${view ? btn("mreset", ICONS.reset, "Back to the default view") : ""}
-        <span class="sep"></span>${sw("auto-rotate", ICONS.spin, "Spin slowly")}${sw("controls", ICONS.orbit, "Visitors can drag it to turn it")}${sw("animate", ICONS.play, "Play the model's animation")}${sw("shadow", ICONS.shadow, "Ground shadow")}
+        <span class="sep"></span>${sw("auto-rotate", ICONS.spin, "Spin slowly")}${sw("animate", ICONS.play, "Play the model's animation")}${sw("shadow", ICONS.shadow, "Ground shadow")}
         <span class="sep"></span>${swatch("fill", fill, "Fill color")}${boxButtons(st)}${more(st)}`;
 }
 
