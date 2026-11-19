@@ -22,8 +22,8 @@ const TABS = ["html", "css", "js", "config"]; // config: the Tailwind config wor
 function textFor(t) {
     if (t === "config") return "";
     if (t === "css") return cssText(S.parsed);
-    if (t === "js") return jsText(S.parsed);
-    return model.markup.trim() ? assembleDoc(withoutOwn(S.parsed), model.markup) : "";
+    if (t === "js") return jsText(S.parsed, model.markup);
+    return model.markup.trim() ? assembleDoc(withoutOwn(S.parsed), model.markup, { runtime: false }) : "";
 }
 const lineCount = (text) => (text ? text.split("\n").length : 0);
 let jsSeq = 0;
@@ -42,7 +42,7 @@ async function refreshTabs() {
         b.setAttribute("aria-selected", String(t === tab));
     });
     const seq = ++jsSeq;
-    const bad = await jsProblem(jsText(S.parsed));
+    const bad = await jsProblem(jsText(S.parsed, model.markup));
     if (seq === jsSeq) $("codeJsDot").classList.toggle("hidden", !bad);
 }
 /** Copies text and says so on the button for a moment. */
@@ -151,8 +151,9 @@ function applyCode() {
     codeTimer = null;
     if (showCodeProblem()) return false;
     const text = codeValue();
-    if (tab === "css") S.parsed = withCss(S.parsed, text);
-    else if (tab === "js") S.parsed = withJs(S.parsed, text);
+    // the CSS and JS tabs leave the markup alone: it is what the page has now (the parsed copy still holds the markup the page was opened with)
+    if (tab === "css") S.parsed = withCss({ ...S.parsed, markup: model.markup }, text);
+    else if (tab === "js") S.parsed = withJs({ ...S.parsed, markup: model.markup }, text);
     else S.parsed = withOwnFrom(parseComponentSource(text), S.parsed);
     commit(S.parsed.markup, "code");
     // the canvas shows the page at rest, with no scripts: only Interact (and the saved page) runs them

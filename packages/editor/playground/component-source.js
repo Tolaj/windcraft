@@ -40,7 +40,7 @@ export function parseComponentSource(code) {
     dom.querySelectorAll("script").forEach((el) => {
         const src = el.getAttribute("src") || "";
         // the editor's own scripts (interactions, animation triggers) are copies saved inside the page: whichever version a page has, it gets the current one
-        const mine = !src && [[INTERACT_MARK, INTERACT_SCRIPT], [MOTION_MARK, MOTION_SCRIPT], [MODEL_MARK, MODEL_SCRIPT]].find(([mark]) => el.textContent.includes(mark));
+        const mine = !src && [[INTERACT_MARK, INTERACT_SCRIPT], [MOTION_MARK, MOTION_SCRIPT], [MODEL_MARK, MODEL_SCRIPT]].find(([mark]) => el.textContent.trimStart().startsWith(mark)); // (at the start: a mark inside a script someone wrote is only a comment)
         scripts.push({
             src,
             type: el.getAttribute("type") || "",

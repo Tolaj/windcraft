@@ -44,9 +44,9 @@ export function stillDocument() {
 }
 
 /** Rebuilds the component source: original head assets and scripts around the edited markup. */
-export function assembleDoc(p, markup) {
+export function assembleDoc(p, markup, { runtime = true } = {}) {
     const css = [...p.links, ...p.styles.map(styleTag)].join("\n");
-    const js = withModelScript(p.scripts, markup).map(scriptTag).join("\n");
+    const js = (runtime ? withModelScript(p.scripts, markup) : p.scripts).map(scriptTag).join("\n"); // runtime false: the code panel's HTML tab, which leaves the editor's scripts out
     const bodyAttrs = Object.entries(p.bodyAttrs).map(([k, v]) => ` ${k}="${esc(v)}"`).join("");
     if (bodyAttrs) return `<!DOCTYPE html>\n<html>\n<head>\n${css}\n</head>\n<body${bodyAttrs}>\n${markup}\n${js}\n</body>\n</html>\n`;
     return [css, markup, js].filter(Boolean).join("\n") + "\n";
