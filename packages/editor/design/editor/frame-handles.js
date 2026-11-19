@@ -7,6 +7,7 @@ import { setDevice, setProp, setProps } from "./inspector.js";
 import { cmd } from "./frame-messages.js";
 import { chooseModel } from "./model-samples.js";
 import { openStory } from "./scroll-drawer.js";
+import { storyClasses, parseFx, writeFx, EFFECTS } from "../../../core/model3d.js";
 import { setPanel, setPanelTab } from "./color-ui.js";
 import { closeColorPicker, placeBeside, placeColorPicker } from "../color-picker.js";
 
@@ -195,7 +196,12 @@ export const FLOAT_ACTIONS = {
     mattr(name) { const on = S.selected.attrs && S.selected.attrs[name] != null && String(S.selected.attrs[name]).trim().toLowerCase() !== "false"; cmd({ cmd: "setAttr", path: S.selected.path, name, value: on ? null : true }); },
     mpart() { send({ cmd: "mpart" }); },
     mchoose() { chooseModel(cmd); },
-    mstory() { openStory(S.selected.path); },
+    mfx(name) { // a toolbar effect on or off (tilt, float), with its usual amount
+        const fx = parseFx(S.selected.attrs && S.selected.attrs["data-wc-fx"]), e = EFFECTS.find((x) => x.name === name);
+        if (fx[name] != null) delete fx[name]; else if (e) fx[name] = e.def;
+        cmd({ cmd: "setAttr", path: S.selected.path, name: "data-wc-fx", value: writeFx(fx) || null });
+    },
+    mstory() { if (S.selected.story) openStory(S.selected.path); else cmd({ cmd: "storyMake", path: S.selected.path, cls: storyClasses(S.selected.classes) }); },
     mmode(mode) { send({ cmd: "mmode", mode }); },
     mreset() { ["rotation", "camera-angle"].forEach((name) => cmd({ cmd: "setAttr", path: S.selected.path, name, value: null })); },
     dup() { S.ftMenu = false; cmd({ cmd: "duplicate", path: S.selected.path }); },

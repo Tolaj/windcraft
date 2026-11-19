@@ -169,6 +169,13 @@ export function placeClasses(cls, place) {
     return [...add, ...keep].join(" ");
 }
 
+/** The model's classes when it becomes the pinned model of a Scroll story made from the page around it: behind the sections, on the right half on wide
+ *  screens (the words keep the left), the full width on phones. Its own layout classes give way; the rest stay. */
+export function storyClasses(cls) {
+    const keep = String(cls || "").split(/\s+/).filter((t) => t && !LAYOUT_TOKEN.test(t));
+    return ["absolute", "right-0", "top-0", "-z-10", "block", "h-screen", "max-h-full", "w-full", "md:w-1/2", ...keep].join(" ");
+}
+
 // Effects (data-wc-fx="spin-scroll:1 tilt-mouse:15 float:6"): each a name and an amount. Turntable is the model's own auto-rotate and rotate-speed.
 export const FX_ATTR = "data-wc-fx";
 /** The gallery: [name, label, default, min, max, step, unit, kind]. `attr`: an effect that is an attribute of its own (turntable). */
@@ -646,7 +653,8 @@ function modelRuntime() {
             for (var p = this.parentElement; p; p = p.parentElement) {
                 if (p.querySelectorAll("wc-model").length > 1) return [];
                 var f = p.querySelectorAll("[data-wc-view]");
-                if (f.length) return [].slice.call(f);
+                // in the order they are down the page (in a free layout that need not be the order of the code)
+                if (f.length) return [].slice.call(f).map(function (e) { return [e, e.getBoundingClientRect().top + scrollY]; }).sort(function (a, b) { return a[1] - b[1]; }).map(function (x) { return x[0]; });
             }
             return [];
         }
@@ -673,6 +681,24 @@ function modelRuntime() {
         }
         // the editor's Scroll drawer: show one step's pose (`step`), the pose at `u` along the steps (1 is the first), or the model as it is set (neither)
         _showStep(step) { this._peek = step && this._ground ? this._blend(this._pose(step.getAttribute("data-wc-view")), this._pose(step.getAttribute("data-wc-view")), 0) : null; this._apply(); }
+        // a small square picture of the model in the pose `view` (for the editor's Scroll strip): drawn at once, without the editor's blue wash or
+        // handles, and the model goes back to what it showed. Null while the model is not loaded.
+        _snap(view, px) {
+            if (!this._renderer || !this._ground) return null;
+            var keep = this._peek, hl = this._hl, helper = this._tc && this._tc.getHelper(), hv = helper && helper.visible, a = this._pose(view), url = null;
+            this._peek = this._blend(a, a, 0); this._hl = 0; this._tint(); if (helper) helper.visible = false;
+            this._apply();
+            try {
+                this._renderer.render(this._scene, this._camera);
+                var src = this._renderer.domElement, c = document.createElement("canvas"), s = Math.min(src.width, src.height);
+                c.width = c.height = px || 64;
+                c.getContext("2d").drawImage(src, (src.width - s) / 2, (src.height - s) / 2, s, s, 0, 0, c.width, c.height);
+                url = c.toDataURL("image/png");
+            } catch (e) { url = null; }
+            if (helper) helper.visible = hv; this._hl = hl; this._tint();
+            this._peek = keep; this._apply();
+            return url;
+        }
         _showU(u) {
             var els = this._findSteps();
             if (!els.length || !this._ground) return;

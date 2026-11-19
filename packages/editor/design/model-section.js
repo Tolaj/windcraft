@@ -5,7 +5,7 @@
 import { html, useState, useRef } from "../vendor/preact-htm.js";
 import { TextInput, SelectInput, ColorInput } from "./controls.js";
 import { FSection, NumField, IconBtn, I } from "./figma-sections.js";
-import { PLACE_ATTR, PLACES, FX_ATTR, EFFECTS, parseFx, writeFx, MODEL_ATTRS, boolAttr, numberAttr, parseRotation, isModelFile, MAX_EMBED_BYTES, hotspotMarkup, nextHotspot } from "../../core/model3d.js";
+import { MODEL_ATTRS, boolAttr, numberAttr, parseRotation, isModelFile, MAX_EMBED_BYTES, hotspotMarkup, nextHotspot } from "../../core/model3d.js";
 
 const mb = (n) => (n / 1e6).toFixed(1);
 const A = Object.fromEntries(MODEL_ATTRS.map((a) => [a.name, a]));
@@ -46,9 +46,9 @@ function NumAttr({ name, label, unit, at, set, title, ph }) {
 }
 
 /** An on/off setting as a button that is pressed when it is on. */
-const Toggle = ({ name, label, at, set }) => {
+const Toggle = ({ name, label, at, set, title }) => {
     const on = boolAttr(at[name]);
-    return html`<button type="button" class=${`ib txt ${on ? "on" : ""}`} title=${A[name].hint || A[name].label} aria-pressed=${on} onClick=${() => set(name, on ? null : true)}>${label}</button>`;
+    return html`<button type="button" class=${`ib txt ${on ? "on" : ""}`} title=${title || A[name].hint || A[name].label} aria-pressed=${on} onClick=${() => set(name, on ? null : true)}>${label}</button>`;
 };
 
 /** A colour attribute: a swatch that opens the picker, the colour typed (any CSS colour), and a clear button. */
@@ -128,7 +128,7 @@ export function ModelSection({ s, actions }) {
             <${ColorAttr} name="light-color" label="Colour" at=${at} set=${set} />
         </${FSection}>
         <${FSection} title="Visitors and animation">
-            <div class="ibrow"><div class="ibg wide"><${Toggle} name="controls" label="Drag to turn" at=${at} set=${set} />
+            <div class="ibrow"><div class="ibg wide"><${Toggle} name="controls" label="Turnable" title="Visitors can drag the model to turn it" at=${at} set=${set} />
                 <${Toggle} name="zoom" label="Zoom" at=${at} set=${set} /><${Toggle} name="animate" label="Play" at=${at} set=${set} /></div></div>
             <label class="nf" title="Which of the model's animations play (all by default)"><span class="nfl">Clip</span>
                 ${clips.length
@@ -158,52 +158,5 @@ export function HotspotSection({ s, actions }) {
     return html`<${FSection} title="Hotspot">
         <div class="frow">${field(0, "X")}${field(1, "Y")}${field(2, "Z")}</div>
         <p class="fsub">It stays on that point as the model turns. Style it like any element; give it a link or an interaction.</p>
-    </${FSection}>`;
-}
-
-const PLACE_HINT = {
-    "": "An ordinary box: size it and place it like any element.",
-    background: "Fills its section, behind the words and buttons, and stays on screen while the section scrolls. Leave the section without a background colour so the model shows.",
-    across: "Stays on screen behind this section and the next two while they scroll past: the product tour. Their backgrounds should be clear so the model shows.",
-};
-/** Where a 3D model sits: one choice that does the layout (its classes, its section's positioning, staying on screen). */
-export function PlaceSection({ s, actions }) {
-    const place = (s.attrs || {})[PLACE_ATTR] || "";
-    return html`<${FSection} title="Where it sits">
-        <div class="fxgrid" style="grid-template-columns:1fr">${PLACES.map(([v, l]) => html`<button type="button" class=${`ib txt fxt ${place === v ? "on" : ""}`} aria-pressed=${place === v} onClick=${() => place !== v && actions.placeModel(v)}>${l}</button>`)}</div>
-        <p class="fsub">${PLACE_HINT[place] || PLACE_HINT[""]}</p>
-    </${FSection}>`;
-}
-
-/** What a 3D model does: named effects, each switched on with a click and set with one slider. Scroll effects follow where it sits (its box, its
- *  section, its group of sections): nothing else to set. Saved as data-wc-fx (turntable is the model's own auto-rotate and rotate-speed). */
-export function EffectsSection({ s, actions }) {
-    const at = s.attrs || {}, fx = parseFx(at[FX_ATTR]);
-    const [scrub, setScrub] = useState(50);
-    const isOn = (e) => (e.attr ? boolAttr(at["auto-rotate"]) : fx[e.name] != null);
-    const amount = (e) => (e.attr ? numberAttr("rotate-speed", at["rotate-speed"]) : fx[e.name]);
-    const toggle = (e) => {
-        if (e.attr) return actions.setAttr("auto-rotate", isOn(e) ? null : true);
-        const next = { ...fx };
-        if (isOn(e)) delete next[e.name]; else next[e.name] = e.def;
-        actions.setAttr(FX_ATTR, writeFx(next) || null);
-        if (!isOn(e) && e.kind === "scroll") actions.fxScrub(scrub);
-    };
-    const set = (e, v) => {
-        if (e.attr) return actions.setAttr("rotate-speed", String(v));
-        actions.setAttr(FX_ATTR, writeFx({ ...fx, [e.name]: v }) || null);
-    };
-    const on = EFFECTS.filter(isOn), scrolls = on.some((e) => e.kind === "scroll");
-    const show = (e) => { const v = amount(e); return `${Math.round(v * 100) / 100}${e.unit ? " " + e.unit : ""}`; };
-    return html`<${FSection} title="What it does">
-        <div class="fxgrid">${EFFECTS.map((e) => html`<button type="button" class=${`ib txt fxt ${isOn(e) ? "on" : ""}`} aria-pressed=${isOn(e)} title=${e.hint} onClick=${() => toggle(e)}>${e.label}</button>`)}
-            <button type="button" class="ib txt fxt" disabled title="Colour swatches, intros and recording your own motion are coming next">More soon</button></div>
-        ${on.map((e) => html`<label class="nf" title=${e.hint}><span class="nfl" style="min-width:86px">${e.label}</span>
-            <input type="range" min=${e.min} max=${e.max} step=${e.step} value=${amount(e)} style="flex:1;min-width:0" onInput=${(ev) => set(e, Number(ev.target.value))} />
-            <span class="nfu" style="min-width:44px;text-align:right">${show(e)}</span></label>`)}
-        ${scrolls && html`<label class="nf" title="Where the page is scrolled to, for this preview only" style="margin-top:4px"><span class="nfl" style="min-width:86px">Scroll preview</span>
-            <input type="range" min="0" max="100" step="1" value=${scrub} style="flex:1;min-width:0" onInput=${(ev) => { setScrub(Number(ev.target.value)); actions.fxScrub(Number(ev.target.value)); }} />
-            <span class="nfu" style="min-width:44px;text-align:right">${scrub}%</span></label>`}
-        <p class="fsub">${on.length ? "Combine as many as you like. The canvas plays them while the model is selected: drag Scroll preview for the scroll ones, move the pointer over it for tilt." : "Click an effect to switch it on. Scroll effects follow where the model sits."}</p>
     </${FSection}>`;
 }

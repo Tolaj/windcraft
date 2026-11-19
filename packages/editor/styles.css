@@ -344,9 +344,6 @@ select.fi, .vbar select { -webkit-appearance: none; appearance: none; padding-ri
 .fsx { display: flex; gap: 2px; }
 .fsub { margin: 2px 0 -2px; font-size: 10px; color: #8c8c8c; }
 .fsubn { color: #b4b4b4; }
-.fxgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 6px; }
-.fxgrid .fxt { width: 100%; justify-content: center; min-height: 30px; }
-.fxgrid .fxt:disabled { opacity: .45; cursor: default; }
 .frow { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .frow > .nf { flex: 1; }
 .frow.four { display: grid; grid-template-columns: 1fr 1fr 24px; }

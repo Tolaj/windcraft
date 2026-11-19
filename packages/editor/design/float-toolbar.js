@@ -1,6 +1,7 @@
 // The small toolbar that floats next to whatever is selected (text, a shape, or a whole frame).
 // It only renders markup; editor.js places it and turns its clicks into edits.
 import { rgbToHex } from "./css-props.js";
+import { parseFx } from "../../core/model3d.js";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const icon = (d) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -28,6 +29,8 @@ const ICONS = {
     move: icon('<path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/>'),
     rotate: icon('<ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(-25 12 12)"/><path d="M12 3a9 9 0 0 1 0 18" stroke-dasharray="2.6 2.4"/>'),
     scale: icon('<rect x="4" y="9" width="11" height="11" rx="1.5"/><path d="M13 11l7-7M14.5 4H20v5.5"/>'),
+    tilt: icon('<path d="M4 15.5 12 20l8-4.5"/><path d="M4 11 12 15.5 20 11 12 6.5z"/><path d="M15.5 3.5 19 5l-1 3.6"/>'),
+    float: icon('<path d="M7 13.5a5 5 0 0 0 10 0 5 5 0 0 0-10 0z"/><path d="M8 21c1.3-.8 2.7-.8 4 0s2.7.8 4 0"/><path d="M12 3v3M10.5 4.5 12 3l1.5 1.5"/>'),
     scroll: icon('<rect x="7" y="2.5" width="10" height="15" rx="5"/><path d="M12 6.5v3"/><path d="M8.5 20 12 22.5 15.5 20"/>'),
     swap: icon('<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.6"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.6"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.6"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.6"/>'),
     look: icon('<circle cx="12" cy="12" r="3"/><path d="M12 4v2.5M12 17.5V20M4 12h2.5M17.5 12H20"/>'),
@@ -97,6 +100,7 @@ function modelBar(st) {
     const at = (st.sel && st.sel.attrs) || {}, cs = (st.sel && st.sel.computed) || {};
     const on = (n) => at[n] != null && String(at[n]).trim().toLowerCase() !== "false";
     const sw = (n, svg, title) => btn("mattr", svg, title, on(n), n);
+    const fx = parseFx(at["data-wc-fx"]), fxb = (n, svg, title) => btn("mfx", svg, title, fx[n] != null, n); // an effect of data-wc-fx, on or off
     const fill = rgbToHex(cs["background-color"] || "");
     const view = at.rotation != null || at["camera-angle"] != null;
     // the model button picks the model inside the scene (as a double-click on it does); its tools appear to the left of it while it is picked
@@ -104,7 +108,7 @@ function modelBar(st) {
     const empty = !at.src; // no model yet: only "Choose a model" and the box's own buttons make sense
     const tools = st.picked && !empty ? `${tool("move", ICONS.move, "Move: drag an arrow")}${tool("rotate", ICONS.rotate, "Turn: drag a ring")}${tool("scale", ICONS.scale, "Size: drag a cube")}${tool("view", ICONS.look, "Look around it: drag to set the starting view")}<span class="sep"></span>` : "";
     return `${tools}${empty ? "" : btn("mpart", ICONS.turn, st.picked ? "The model is picked: its tools are on the left. Click to let go" : "Pick the model inside the scene (or double-click it)", st.picked)}${view && !empty ? btn("mreset", ICONS.reset, "Back to the default view") : ""}
-        ${empty ? "" : '<span class="sep"></span>'}${st.sel && st.sel.story ? btn("mstory", ICONS.scroll, "Scroll story: pose the model for each section") : ""}${sw("auto-rotate", ICONS.spin, "Spin slowly")}${sw("animate", ICONS.play, "Play the model's animation")}${sw("shadow", ICONS.shadow, "Ground shadow")}
+        ${empty ? "" : '<span class="sep"></span>'}${empty ? "" : btn("mstory", ICONS.scroll, st.sel && st.sel.story ? "Scroll story: pose the model for each section" : "Scroll story: the model moves as the page scrolls, posed for each section")}${sw("auto-rotate", ICONS.spin, "Spin slowly")}${fxb("tilt-mouse", ICONS.tilt, "Tilt toward the pointer")}${fxb("float", ICONS.float, "Float gently up and down")}${sw("animate", ICONS.play, "Play the model's animation")}${sw("shadow", ICONS.shadow, "Ground shadow")}
         <span class="sep"></span>${swatch("fill", fill, "Fill color")}${boxButtons(st)}${more(st)}`;
 }
 
