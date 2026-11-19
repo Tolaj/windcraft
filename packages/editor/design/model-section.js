@@ -12,7 +12,7 @@ const A = Object.fromEntries(MODEL_ATTRS.map((a) => [a.name, a]));
 const tidy = (n) => String(Math.round(n * 1000) / 1000);
 
 /** A number attribute as a field: faint when it is at its default, type a value (empty resets) or drag its label sideways to scrub it. */
-function NumAttr({ name, label, unit, at, set, title }) {
+function NumAttr({ name, label, unit, at, set, title, ph }) {
     const a = A[name], raw = at[name];
     const [live, setLive] = useState(/** @type {number | null} */ (null));
     const store = (n) => set(name, n === a.def ? null : tidy(n));
@@ -39,7 +39,7 @@ function NumAttr({ name, label, unit, at, set, title }) {
     const shown = live != null ? tidy(live) : raw ?? "";
     return html`<label class=${`nf ${raw == null && live == null ? "unset" : ""}`} title=${title || a.hint || a.label}>
         <span class="nfl" style="cursor:ew-resize;touch-action:none" onPointerDown=${scrub}>${label}</span>
-        <${TextInput} class="nfi" value=${shown} placeholder=${String(a.def)}
+        <${TextInput} class="nfi" value=${shown} placeholder=${ph || String(a.def)}
             onInput=${(x) => { if (x.trim() !== "" && Number.isFinite(Number(x))) store(numberAttr(name, x)); }}
             onCommit=${(x) => (x.trim() === "" ? set(name, null) : store(numberAttr(name, x)))} />
         ${unit && html`<span class="nfu">${unit}</span>`}</label>`;
@@ -87,6 +87,15 @@ export function ModelSection({ s, actions }) {
     const rotField = (i, l) => html`<label class=${`nf ${at.rotation == null ? "unset" : ""}`} title=${`Turn about ${l} (°): where the model starts`}><span class="nfl">${l}</span>
         <${TextInput} class="nfi" value=${tidy(rot[i])} placeholder="0" onInput=${(x) => { if (x.trim() !== "" && Number.isFinite(Number(x))) setRot(i, x); }} onCommit=${(x) => setRot(i, x)} /><span class="nfu">°</span></label>`;
     const file = useRef(null);
+    // where the model sits in the scene is one attribute, "x y z" (units of its own size: 1 is its radius): each field changes its own
+    const pos = String(at["model-position"] || "0 0 0").trim().split(/[\s,]+/).map(Number).map((n) => (Number.isFinite(n) ? n : 0)).concat([0, 0, 0]).slice(0, 3);
+    const setPos = (i, x) => {
+        const n = pos.slice();
+        n[i] = Number.isFinite(Number(x)) && String(x).trim() !== "" ? Number(x) : 0;
+        set("model-position", n.every((d) => d === 0) ? null : n.map(tidy).join(" "));
+    };
+    const posField = (i, l) => html`<label class=${`nf ${at["model-position"] == null ? "unset" : ""}`} title=${`Move the model along ${l}, in units of its own size`}><span class="nfl">${l}</span>
+        <${TextInput} class="nfi" value=${tidy(pos[i])} placeholder="0" onInput=${(x) => { if (x.trim() !== "" && Number.isFinite(Number(x))) setPos(i, x); }} onCommit=${(x) => setPos(i, x)} /></label>`;
     const light = at.environment === "none" ? "none" : "studio";
     const clips = s.clips || [];
     return html`
@@ -100,6 +109,11 @@ export function ModelSection({ s, actions }) {
                 <input ref=${file} type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" style="display:none" onChange=${pick} />
                 <button type="button" title="A free sample model (CC0), loaded from a CDN" onClick=${() => set("src", SAMPLE_MODEL)}>Use a sample</button>
             </div>
+        </${FSection}>
+        <${FSection} title="Model in the scene">
+            <div class="frow"><${NumAttr} name="model-size" label="Size" unit="px" ph="fit" at=${at} set=${set} /></div>
+            <div class="frow">${posField(0, "X")}${posField(1, "Y")}${posField(2, "Z")}</div>
+            <p class="fsub">Its size and place inside the box, whatever the box's size. Double-click the model on the canvas to pick it, then use the tools in the bar (move, turn, size). A size left empty fits the box.</p>
         </${FSection}>
         <${FSection} title="Camera">
             <p class="fsub">Double-click the model on the canvas and drag to turn it: the view you leave it at is saved here.</p>

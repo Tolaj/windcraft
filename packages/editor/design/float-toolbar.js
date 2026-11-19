@@ -25,6 +25,10 @@ const ICONS = {
     dotted: icon('<path d="M4 12h.01M8 12h.01M12 12h.01M16 12h.01M20 12h.01" stroke-width="2.4"/>'),
     layouts: icon('<rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M9.5 4v16M9.5 10h11"/>'),
     turn: icon('<path d="M12 3 4 7.5v9L12 21l8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/>'),
+    move: icon('<path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/>'),
+    rotate: icon('<ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(-25 12 12)"/><path d="M12 3a9 9 0 0 1 0 18" stroke-dasharray="2.6 2.4"/>'),
+    scale: icon('<rect x="4" y="9" width="11" height="11" rx="1.5"/><path d="M13 11l7-7M14.5 4H20v5.5"/>'),
+    look: icon('<circle cx="12" cy="12" r="3"/><path d="M12 4v2.5M12 17.5V20M4 12h2.5M17.5 12H20"/>'),
     spin: icon('<path d="M20 12a8 8 0 1 1-2.5-5.8M20 4v4.5h-4.5"/>'),
     orbit: icon('<ellipse cx="12" cy="12" rx="9" ry="4"/><circle cx="12" cy="12" r="2.2"/>'),
     play: icon('<path d="M8 5.5v13l10-6.5z"/>'),
@@ -92,7 +96,10 @@ function modelBar(st) {
     const sw = (n, svg, title) => btn("mattr", svg, title, on(n), n);
     const fill = rgbToHex(cs["background-color"] || "");
     const view = at.rotation != null || at["camera-angle"] != null;
-    return `${btn("mturn", ICONS.turn, st.turning ? "Turning the model: drag it, Esc keeps the view" : "Turn the model to set its starting view (or double-click it)", st.turning)}${view ? btn("mreset", ICONS.reset, "Back to the default view") : ""}
+    // the model button picks the model inside the scene (as a double-click on it does); its tools appear to the left of it while it is picked
+    const tool = (m, svg, title) => btn("mmode", svg, title, st.picked && st.mode === m, m);
+    const tools = st.picked ? `${tool("move", ICONS.move, "Move: drag an arrow")}${tool("rotate", ICONS.rotate, "Turn: drag a ring")}${tool("scale", ICONS.scale, "Size: drag a cube")}${tool("view", ICONS.look, "Look around it: drag to set the starting view")}<span class="sep"></span>` : "";
+    return `${tools}${btn("mpart", ICONS.turn, st.picked ? "The model is picked: its tools are on the left. Click to let go" : "Pick the model inside the scene (or double-click it)", st.picked)}${view ? btn("mreset", ICONS.reset, "Back to the default view") : ""}
         <span class="sep"></span>${sw("auto-rotate", ICONS.spin, "Spin slowly")}${sw("controls", ICONS.orbit, "Visitors can drag it to turn it")}${sw("animate", ICONS.play, "Play the model's animation")}${sw("shadow", ICONS.shadow, "Ground shadow")}
         <span class="sep"></span>${swatch("fill", fill, "Fill color")}${boxButtons(st)}${more(st)}`;
 }

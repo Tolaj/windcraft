@@ -169,8 +169,9 @@ export function init() {
         } else if (m.type === "overlay") {
             S.selData = m;
             renderSel();
-        } else if (m.type === "orbit") {
-            S.orbiting = m.on;
+        } else if (m.type === "model") {
+            S.modelPart = m.part;
+            S.modelMode = m.mode;
             renderFloat(true);
         } else if (m.type === "editing") {
             S.editingInfo = m;

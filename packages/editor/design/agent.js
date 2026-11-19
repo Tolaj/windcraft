@@ -26,10 +26,9 @@ export function agentMain() {
     // see the empty layer and stay white everywhere. The layer as a whole is inverted against the page: black dashes on light, white on dark.
     const kidLayer = mk("position:absolute;left:0;top:0;width:0;height:0;z-index:2147483646;pointer-events:none;mix-blend-mode:difference;");
     const gapLayer = mk("position:absolute;left:0;top:0;"); // gap and padding handles of the selected box
-    // a 3D model that is selected shows a small note on how to turn it; one being turned has a dashed frame inside it and no handles
-    const orbitBox = mk("position:absolute;display:none;pointer-events:none;box-sizing:border-box;");
+    // a 3D model picked in its scene shows a small note on what a drag does
     const orbitTag = mk("position:absolute;display:none;pointer-events:none;background:#2f4fdd;color:#fff;font:500 11px/1 system-ui,sans-serif;white-space:nowrap;border-radius:4px;padding:4px 7px;");
-    overlay.append(hoverBox, gapLayer, orbitBox, orbitTag, guideLayer, draftBox, marqueeBox, ghostBox, dropBox, insertLine, dropHint);
+    overlay.append(hoverBox, gapLayer, orbitTag, guideLayer, draftBox, marqueeBox, ghostBox, dropBox, insertLine, dropHint);
     const isOverlay = (n) => overlay.contains(n) || kidLayer.contains(n);
     /**
      * The frame is scaled with the canvas, so a 1px line here is 8px thick at 800%: the boxes the frame draws itself keep one screen pixel.
@@ -221,8 +220,9 @@ export function agentMain() {
         sels = sels.filter(alive);
         const el = primary();
         const dragging = Boolean(gesture && gesture.type === "reorder" && gesture.leave && gesture.igh); // the landing outline and label say it all while dragging
-        const items = dragging ? [] : sels.filter((e) => e !== document.body).map(boxOf);
-        const handles = Boolean(!dragging && el && sels.length === 1 && el !== document.body && tool === "move" && !editing && !isLocked(el) && el !== orbiting);
+        const inner = Boolean(el && el === part); // the model inside its scene is the thing selected: the box and handles are drawn here, on it, not on the scene
+        const items = dragging || inner ? [] : sels.filter((e) => e !== document.body).map(boxOf);
+        const handles = Boolean(!dragging && !inner && el && sels.length === 1 && el !== document.body && tool === "move" && !editing && !isLocked(el));
         let label = "", at = null;
         if (el && el !== document.body && gesture && gesture.moved) {
             const g = geomOf(el);
@@ -241,29 +241,44 @@ export function agentMain() {
         place(hoverBox, tool === "move" && hov && hov !== document.body && !sels.includes(hov) ? hov : null); // not the page itself
         drawKids();
         drawGapHandles();
-        drawOrbit(el);
+        drawModel(el);
+        syncModels();
     }
-    /** The 3D model selected: a note on how to turn it. The one being turned: a dashed frame inside it (it is not the box selected: the box is gone) and how to leave. */
-    function drawOrbit(el) {
+    /**
+     * A 3D model has two levels, as a box and what is in it: the scene (the element, with its box and handles) and the model inside it.
+     * The scene selected: the model has a light blue wash (it can be picked). Picked, with a double-click on it: the wash is stronger, the scene's
+     * own box goes, and the model shows the handles of the tool chosen in the bar: move (arrows), turn (rings), size (cubes), or view (drag to
+     * look around it, kept as the starting view). What is let go is written on the element: model-position, rotation, model-size.
+     */
+    function drawModel(el) {
         const m = el && el.tagName === "WC-MODEL" && sels.length === 1 && tool === "move" && !editing && !gesture ? el : null;
-        if (!m) { orbitBox.style.display = orbitTag.style.display = "none"; return; }
-        const r = pageRect(m), one = 1 / (zoom || 1), turning = m === orbiting;
-        if (turning) {
-            Object.assign(orbitBox.style, dashes("#2f4fdd", 2 * one), { display: "block", left: `${r.x + 4 * one}px`, top: `${r.y + 4 * one}px`, width: `${Math.max(0, r.w - 8 * one)}px`, height: `${Math.max(0, r.h - 8 * one)}px`, boxShadow: "none" });
-        } else orbitBox.style.display = "none";
-        // the note is centred along the top (the corner handles are at the sides) and shortened, or left out, as the box gets small
-        const w = r.w * (zoom || 1);
-        const text = turning ? (w >= 300 ? "Drag to turn the model · Esc keeps the view" : w >= 190 ? "Drag to turn · Esc to leave" : "") : w >= 260 ? "3D model · double-click to turn it" : w >= 170 ? "Double-click to turn" : "";
+        orbitTag.style.display = "none";
+        if (!m) return;
+        const r = pageRect(m), one = 1 / (zoom || 1), w = r.w * (zoom || 1);
+        const long = { view: "Drag to look around · Esc keeps the view", move: "Drag an arrow to move the model", rotate: "Drag a ring to turn the model", scale: "Drag a cube to size the model" };
+        const short = { view: "Drag to look around", move: "Move the model", rotate: "Turn the model", scale: "Size the model" };
+        const text = m === part ? (w >= 330 ? long[mode] : w >= 170 ? short[mode] : "") : w >= 300 ? "Double-click the model to pick it" : "";
         orbitTag.textContent = text;
-        if (!text) { orbitTag.style.display = "none"; return; }
+        if (!text) return;
         Object.assign(orbitTag.style, { display: "block", left: `${r.x + r.w / 2}px`, top: `${r.y + 8 * one}px`, transform: `scale(${one}) translateX(-50%)`, transformOrigin: "0 0" });
+    }
+    /** Every model in the page gets what its state says: the wash (picked 2, scene selected 1) and its handles. */
+    function syncModels() {
+        const cur = sels.length === 1 && alive(sels[0]) && tool === "move" && !editing ? sels[0] : null;
+        document.querySelectorAll("wc-model").forEach((m) => {
+            const level = m === part ? 2 : m === cur ? 1 : 0;
+            if ((m._hl || 0) !== level) { m._hl = level; if (m._tint) m._tint(); }
+            const g = m === part && m !== orbiting && mode !== "view" ? mode : null;
+            if ((m._gmode || null) !== g) { m._gmode = g; if (m._apply) m._apply(); }
+        });
     }
 
     // the box selected shows what it holds: its children, dashed (the one under the pointer is outlined solid by the hover box)
     let kidsKey = "";
     function drawKids() {
         const el = sels.length === 1 ? sels[0] : null;
-        const kids = !el || el === document.body || tool !== "move" || editing || gesture ? [] : realKids(el).slice(0, 60).filter((k) => k !== hov);
+        const isModel = Boolean(el && el.tagName === "WC-MODEL");
+        const kids = !el || el === document.body || tool !== "move" || editing || gesture || isModel ? [] : realKids(el).slice(0, 60).filter((k) => k !== hov);
         const list = kids.map((k) => { const r = pageRect(k), m = k.tagName === "WC-MODEL", i = m ? Math.min(4 / (zoom || 1), r.w / 4, r.h / 4) : 0; // a model that fills its parent is drawn a little inside it, or its dashes would sit under the parent's own outline
             return { x: r.x + i, y: r.y + i, w: r.w - 2 * i, h: r.h - 2 * i, model: m }; }).filter((r) => r.w >= 2 && r.h >= 2);
         const key = zoom + ":" + list.map((r) => `${r.x},${r.y},${r.w},${r.h},${r.model ? 1 : 0}`).join("|"); // redrawn on every pointer move: only rebuilt when something changed (or the zoom)
@@ -778,10 +793,11 @@ export function agentMain() {
         // with nothing selected the editor shows the page, and the page's styling is the body's: it gets the body's fresh values
         post({ type: "changed", silent: Boolean(silent), key: key || "", html: serialize(), tree: tree(), info, body: info ? null : describe(document.body) });
     }
-    // A 3D model only looks while the page is edited (a drag on it moves the element). A double-click on it turns its orbit on until something
-    // else is picked or Esc is pressed: then a drag turns the model, scroll zoom stays with the canvas.
+    // A 3D model only looks while the page is edited (a drag on it moves the element). A double-click on it picks it (`part`): then the tool chosen
+    // in the bar (`mode`) decides what a drag does. "view" turns the camera, and leaving that keeps the view it was turned to.
     let orbiting = null;
-    // Leaving it keeps the view it was turned to: the model writes the attributes for it (rotation, camera-angle), one change in the history.
+    let part = null; // the 3D model picked inside its scene (see drawModel)
+    let mode = "move"; // move | rotate | scale | view
     function stopOrbit() {
         if (!orbiting) return;
         const m = orbiting;
@@ -790,14 +806,22 @@ export function agentMain() {
         m._live = false;
         if (view) Object.keys(view).forEach((k) => (view[k] == null ? m.removeAttribute(k) : m.setAttribute(k, view[k])));
         if (m._apply) m._apply();
-        redraw();
         if (view && alive(m)) changed();
-        post({ type: "orbit", on: false });
     }
-    function startOrbit(m) { stopOrbit(); orbiting = m; m._live = true; if (m._apply) m._apply(); m._moved = false; redraw(); post({ type: "orbit", on: true }); }
+    function startOrbit(m) { orbiting = m; m._live = true; if (m._apply) m._apply(); m._moved = false; }
+    /** Pick `m` (null: nothing picked, the scene is what is selected) and, if given, the tool. */
+    function setPart(m, tool2) {
+        const next = tool2 || mode;
+        if (orbiting && (m !== orbiting || next !== "view")) stopOrbit();
+        part = m && alive(m) ? m : null;
+        mode = next;
+        if (part && mode === "view" && orbiting !== part) startOrbit(part);
+        redraw();
+        post({ type: "model", part: Boolean(part), mode: part ? mode : null });
+    }
     function setSelection(list, quiet) {
         sels = list.filter(Boolean);
-        if (orbiting && !(sels.length === 1 && sels[0] === orbiting && alive(orbiting))) stopOrbit();
+        if (part && !(sels.length === 1 && sels[0] === part && alive(part))) setPart(null);
         showState(); // the picked state shows on whatever is selected now
         if (inside && !(sels.length && sels.every((el) => el !== inside && inside.contains(el)))) inside = null; // picked something outside: out of the group
         redraw();
@@ -2182,7 +2206,12 @@ export function agentMain() {
         if (e.button !== 0) return;
         if (converting) { e.preventDefault(); return; } // the last drag is still becoming classes (askConvert)
         if (editing && editing.contains(e.target)) return;
-        if (orbiting && e.target === orbiting && e.button === 0) return; // a drag on the model being orbited turns it
+        if (part && alive(part)) {
+            if (orbiting && e.target === orbiting) return; // a drag on the model being looked around turns the camera
+            if (part._gizmoAxis && part._gizmoAxis(e.clientX, e.clientY)) return; // on one of the handles: the model gets the press
+            if (e.target === part && part._hit && part._hit(e.clientX, e.clientY)) { e.preventDefault(); return; } // on the model: it stays picked
+            setPart(null); // pressed beside it: the scene is what is selected again
+        }
         if (editing) finishEdit(); else dropTextSelection();
         try { root.setPointerCapture(e.pointerId); } catch (err) { /* capture is optional */ }
         e.preventDefault();
@@ -2352,7 +2381,13 @@ export function agentMain() {
         const el = hitAt(e.clientX, e.clientY);
         if (el === document.body || tool !== "move" || isLocked(el)) return;
         // a 3D model: no text to type in it; the double-click picks it and lets it be turned (its children, hotspots, are edited as usual)
-        if (el.tagName === "WC-MODEL") { setSelection([el]); startOrbit(el); return; }
+        if (el.tagName === "WC-MODEL") {
+            const on = Boolean(el._hit && el._hit(e.clientX, e.clientY));
+            if (part === el) { if (on) setPart(el, mode === "view" ? "move" : "view"); else setPart(null); } // the model again: look around it (again: back to the tools); beside it: the scene
+            else if (sels.length === 1 && sels[0] === el) { if (on) setPart(el, "move"); } // the scene is selected: the model in it is picked
+            else setSelection([el]);
+            return;
+        }
         const cur = sels.length === 1 && alive(sels[0]) ? sels[0] : null;
         const inner = cur && cur !== el && cur.contains(el) && el.closest("svg") !== cur ? childOf(cur, el.closest("svg") || el) : null;
         // into the selected box: the one of its children under the pointer is picked (and what sits beside it can be picked next). A box with words of its own is edited
@@ -2374,6 +2409,13 @@ export function agentMain() {
             else if (target.childNodes.length) { const r = document.createRange(); r.selectNodeContents(target); r.collapse(false); sel.removeAllRanges(); sel.addRange(r); }
         }
     }, true);
+    // what a handle on a picked 3D model changed, as the element's attributes (null takes one off): one change in the history
+    document.addEventListener("wc-gizmo", (e) => {
+        const m = e.target, d = e.detail || {};
+        if (!m || m.tagName !== "WC-MODEL") return;
+        Object.keys(d).forEach((k) => (d[k] == null ? m.removeAttribute(k) : m.setAttribute(k, d[k])));
+        changed();
+    });
     document.addEventListener("selectionchange", () => { if (editing) postEditing(); });
     // pasting while typing brings the words only: another app's fonts, colours and markup would land inline in the design
     document.addEventListener("paste", (e) => {
@@ -2678,7 +2720,7 @@ export function agentMain() {
 
     // ── Keyboard ────────────────────────────────────────────────────────────────────────────
     document.addEventListener("keydown", (e) => {
-        if (orbiting && e.key === "Escape") { e.preventDefault(); stopOrbit(); return; }
+        if (e.key === "Escape" && part) { e.preventDefault(); if (mode === "view") setPart(part, "move"); else setPart(null); return; }
         // while dragging in the layout: Tab tries the next option, Esc puts the element back
         if (gesture && gesture.type === "reorder" && gesture.moved && (e.key === "Escape" || (e.key === "Tab" && gesture.leave))) { e.preventDefault(); if (e.key === "Tab") intentCycle(gesture); else reorderCancel(gesture); return; }
         // Ctrl/Cmd + = / - / 0 zoom the plane, never this frame's page
@@ -2978,7 +3020,8 @@ export function agentMain() {
             if (editing && m.name) { editing.focus(); document.execCommand(m.name, false, m.arg || null); postEditing(); }
             return;
         }
-        if (m.cmd === "orbit") { const el = primary(); if (el && el.tagName === "WC-MODEL") (orbiting === el ? stopOrbit() : startOrbit(el)); return; } // the 3D model bar's Turn button
+        if (m.cmd === "mpart") { const el = primary(); if (el && el.tagName === "WC-MODEL") setPart(part === el ? null : el, "move"); return; } // the 3D bar's model button: pick it (or let it go)
+        if (m.cmd === "mmode") { const el = primary(); if (el && el.tagName === "WC-MODEL") setPart(el, m.mode); return; } // its tools: move, rotate, scale, view
         if (m.cmd === "view") { zoom = m.zoom || 1; lineWidths(); redraw(); return; }
         if (m.cmd === "scrollTo") { const el = elAt(m.path); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
         if (m.cmd === "align") { align(m.mode); return; }

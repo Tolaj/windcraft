@@ -31,6 +31,8 @@ export const MODEL_ATTRS = Object.freeze([
     { name: "exposure", type: "number", def: 1, min: 0, max: 4, step: 0.05, label: "Exposure" },
     { name: "light", type: "number", def: 1, min: 0, max: 6, step: 0.1, label: "Key light" },
     { name: "light-color", type: "text", def: "#ffffff", label: "Light colour" },
+    { name: "model-size", type: "number", def: 0, min: 0, max: 8000, step: 10, label: "Model size (px)", hint: "How big the model is inside the box, whatever the box's size. Empty: it fits the box" },
+    { name: "model-position", type: "text", def: "0 0 0", label: "Model position x y z", hint: "Where the model sits in the scene, from its middle, in the model's own units (its bounding sphere has radius 1), e.g. 0.4 0 0" },
     { name: "background", type: "text", def: "", label: "Scene colour", hint: "Empty is see-through, so a bg- class on the element shows" },
 ]);
 
@@ -115,6 +117,12 @@ function modelRuntime() {
         ]).then(function (m) { return { THREE: m[0], GLTFLoader: m[1].GLTFLoader, OrbitControls: m[2].OrbitControls, RoomEnvironment: m[3].RoomEnvironment }; });
         return libs;
     }
+    // The transform handles the editor shows on a picked model (move, turn, size): fetched only when one is asked for
+    var gizmoLib = null;
+    function loadGizmo() {
+        if (!gizmoLib) gizmoLib = load().then(function () { return import(CDN + "three@" + VERSION + "/examples/jsm/controls/TransformControls.js/+esm"); }).then(function (m) { return m.TransformControls; });
+        return gizmoLib;
+    }
     var num = function (el, name, def, min, max) {
         var v = el.getAttribute(name);
         if (v == null || String(v).trim() === "") return def;
@@ -130,7 +138,7 @@ function modelRuntime() {
 
     class WcModel extends HTMLElement {
         static get observedAttributes() {
-            return ["src", "controls", "zoom", "auto-rotate", "rotate-speed", "animate", "rotation", "camera-angle", "camera-distance", "fov", "environment", "exposure", "light", "light-color", "background", "scroll-rotate", "shadow", "clip"];
+            return ["src", "controls", "zoom", "auto-rotate", "rotate-speed", "animate", "rotation", "camera-angle", "camera-distance", "fov", "environment", "exposure", "light", "light-color", "background", "scroll-rotate", "shadow", "clip", "model-size", "model-position"];
         }
         constructor() {
             super();
@@ -153,7 +161,7 @@ function modelRuntime() {
             this._on = true;
             var self = this;
             if (!this._ro) {
-                this._ro = new ResizeObserver(function () { self._size(); });
+                this._ro = new ResizeObserver(function () { if (self._ground) self._apply(); else self._size(); }); // the camera depends on the box's shape
                 this._io = new IntersectionObserver(function (e) { self._visible = e[0].isIntersecting; self._frame(); });
             }
             this._ro.observe(this);
@@ -191,6 +199,9 @@ function modelRuntime() {
             });
             if (this._renderer) { this._renderer.dispose(); this._renderer.domElement.remove(); }
             this._renderer = this._scene = this._camera = this._controls = this._pivot = this._spinner = this._mixer = this._ground = null;
+            this._clipOn = false;
+            if (this._tc) { this._tc.dispose(); }
+            this._tc = null; this._tcWait = false;
         }
         _build() {
             var self = this, seq = ++this._seq, src = this.getAttribute("src");
@@ -259,19 +270,33 @@ function modelRuntime() {
             if (!this._renderer || !this._ground) return;
             var T = this._T, c = this._camera, r = this._renderer;
             var r3 = turns(this.getAttribute("rotation"));
-            this._pivot.rotation.set(r3[0] * Math.PI / 180, r3[1] * Math.PI / 180, r3[2] * Math.PI / 180);
+            if (!this._dragging) { // (not while a handle is being dragged: it is the one moving it)
+                this._pivot.rotation.set(r3[0] * Math.PI / 180, r3[1] * Math.PI / 180, r3[2] * Math.PI / 180);
+                // `model-position`: where the model sits in the scene, in its own units
+                var pp = String(this.getAttribute("model-position") || "").trim().split(/[\s,]+/).map(Number);
+                this._pivot.position.set(isFinite(pp[0]) ? pp[0] : 0, isFinite(pp[1]) ? pp[1] : 0, isFinite(pp[2]) ? pp[2] : 0);
+                this._pivot.scale.set(1, 1, 1);
+            }
             this._ground.visible = flag(this, "shadow");
             // the clips to play: the one named in `clip`, else all of them
             if (this._mixer) {
                 var want = (this.getAttribute("clip") || "").trim(), mx = this._mixer;
-                mx.stopAllAction();
-                this._clips.forEach(function (cl) { if (!want || cl.name === want) mx.clipAction(cl).play(); });
+                if (this._clipKey !== want || !this._clipOn) { // not on every resize: that would restart the animation
+                    this._clipKey = want; this._clipOn = true;
+                    mx.stopAllAction();
+                    this._clips.forEach(function (cl) { if (!want || cl.name === want) mx.clipAction(cl).play(); });
+                }
             }
             c.fov = num(this, "fov", 40, 10, 90);
             // far enough that the model's bounding sphere (a little tightened) fits both ways: the narrower of the two view angles decides
             var half = c.fov * Math.PI / 360, aspect = (this.clientWidth || 1) / (this.clientHeight || 1);
             half = Math.min(half, Math.atan(Math.tan(half) * aspect));
-            var dist = this._radius * 0.72 / Math.sin(half) * num(this, "camera-distance", 1, 0.3, 4);
+            var W = this.clientWidth || 1, H = this.clientHeight || 1;
+            // Without `model-size` the model fits the box (its sphere is about 0.72 of the box's shorter side). With it, the model is that many px
+            // (the sphere's width) in any box: the camera keeps its distance (so the perspective does not change with the box) and zooms instead.
+            var fit = this._radius * 0.72 / Math.sin(half), ms = num(this, "model-size", 0, 0, 8000), cd = num(this, "camera-distance", 1, 0.3, 4);
+            var dist = (ms ? this._radius * 0.72 / Math.sin(c.fov * Math.PI / 360) : fit) * cd;
+            c.zoom = ms ? ms * cd / (0.72 * H) : 1; // in a set size `camera-distance` only changes the perspective, not the size
             var el = num(this, "camera-angle", 10, -80, 80) * Math.PI / 180;
             c.position.set(0, Math.sin(el) * dist, Math.cos(el) * dist);
             c.near = dist / 100; c.far = dist * 100;
@@ -287,7 +312,9 @@ function modelRuntime() {
             ctl.enablePan = false;
             ctl.target.set(0, 0, 0);
             ctl.update();
-            this._renderer.domElement.style.pointerEvents = ctl.enabled ? "" : "none";
+            this._renderer.domElement.style.pointerEvents = ctl.enabled || this._gmode ? "" : "none";
+            this._syncGizmo();
+            this._tint();
             r.toneMappingExposure = num(this, "exposure", 1, 0, 4);
             this._scene.environment = this.getAttribute("environment") === "none" ? null : this._env;
             this._key.intensity = num(this, "light", 1, 0, 6);
@@ -297,6 +324,95 @@ function modelRuntime() {
             this._size();
             this._frame();
         }
+        // ── What the editor does with a model (all of it only while editing a page: the page's own visitors never get any of it) ──
+        // Is the model under this point (the page's coordinates inside the editor's frame)? A ray from the camera against the model itself.
+        _hit(cx, cy) {
+            if (!this._renderer || !this._ground) return false;
+            var T = this._T, r = this._renderer.domElement.getBoundingClientRect();
+            var rc = new T.Raycaster();
+            rc.setFromCamera(new T.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height * 2 - 1)), this._camera);
+            this._scene.updateMatrixWorld(true);
+            return rc.intersectObject(this._spinner, true).length > 0;
+        }
+        // A blue wash over the model: `_hl` 1 says "this can be picked" (its scene is selected), 2 "this is picked". Colours put back when 0.
+        _tint() {
+            if (!this._spinner) return;
+            var level = this._hl || 0;
+            this._spinner.traverse(function (o) {
+                if (!o.isMesh) return;
+                [].concat(o.material).forEach(function (m) {
+                    if (!m || !m.emissive) return;
+                    if (!m.userData.wcE) m.userData.wcE = { c: m.emissive.clone(), i: m.emissiveIntensity };
+                    if (level) { m.emissive.set(0x2f4fdd); m.emissiveIntensity = level === 2 ? 0.32 : 0.14; } else { m.emissive.copy(m.userData.wcE.c); m.emissiveIntensity = m.userData.wcE.i; }
+                });
+            });
+            this._frame();
+        }
+        // The handles on a picked model: `_gmode` "move", "rotate" or "scale" (null: none). Dragging one changes the model's pivot live; when it
+        // is let go the result goes out as `wc-gizmo` (rotation, model-position or model-size) and the editor writes it as attributes.
+        _syncGizmo() {
+            var self = this, mode = this._gmode;
+            if (!this._renderer || !this._ground) return;
+            if (!mode) {
+                if (this._tc) { this._tc.detach(); this._tc.getHelper().visible = false; this._tc.enabled = false; }
+                return;
+            }
+            if (!this._tc) {
+                if (this._tcWait) return;
+                this._tcWait = true;
+                loadGizmo().then(function (TC) {
+                    if (!self._renderer || self._tc) return;
+                    var tc = new TC(self._camera, self._renderer.domElement);
+                    tc.setSize(2.2);
+                    self._scene.add(tc.getHelper());
+                    tc.addEventListener("change", function () { self._frame(); });
+                    tc.addEventListener("objectChange", function () {
+                        if (self._gmode === "scale") { // one size for the whole model: the axis dragged furthest sets it
+                            var s = self._pivot.scale, m = [s.x, s.y, s.z].reduce(function (a, v) { return Math.abs(v - 1) > Math.abs(a - 1) ? v : a; }, 1);
+                            s.set(m, m, m);
+                        }
+                    });
+                    tc.addEventListener("dragging-changed", function (e) {
+                        self._dragging = e.value;
+                        if (!e.value) self._commit();
+                    });
+                    self._tc = tc;
+                    self._syncGizmo();
+                });
+                return;
+            }
+            var tc = this._tc;
+            tc.setMode(mode === "move" ? "translate" : mode);
+            tc.attach(this._pivot);
+            tc.getHelper().visible = true;
+            tc.enabled = true;
+            this._frame();
+        }
+        // Over a handle of the gizmo right now (so a press goes to it, not to the editor's own selection)?
+        _gizmoAxis(cx, cy) {
+            if (!(this._tc && this._tc.enabled && this._gmode)) return false;
+            var r = this._renderer.domElement.getBoundingClientRect();
+            this._tc.pointerHover({ x: (cx - r.left) / r.width * 2 - 1, y: -((cy - r.top) / r.height * 2 - 1), button: -1 });
+            return Boolean(this._tc.axis);
+        }
+        _commit() {
+            var T = this._T, p = this._pivot, d = {}, D = 180 / Math.PI, r1 = function (v) { v = Math.round(v * 10) / 10; return v === 0 ? 0 : v; };
+            if (this._gmode === "rotate") {
+                var e = new T.Euler().setFromQuaternion(p.quaternion, "XYZ");
+                var rot = [r1(e.x * D), r1(e.y * D), r1(e.z * D)];
+                d.rotation = rot.every(function (v) { return v === 0; }) ? null : rot.join(" ");
+            } else if (this._gmode === "move") {
+                var r2 = function (v) { v = Math.round(v * 100) / 100; return v === 0 ? 0 : v; }, q = [r2(p.position.x), r2(p.position.y), r2(p.position.z)];
+                d["model-position"] = q.every(function (v) { return v === 0; }) ? null : q.join(" ");
+            } else if (this._gmode === "scale") {
+                var f = p.scale.x, size = Math.round(Math.min(8000, Math.max(20, this._sizeNow() * f)));
+                d["model-size"] = String(size);
+                p.scale.set(1, 1, 1);
+            }
+            this.dispatchEvent(new CustomEvent("wc-gizmo", { bubbles: true, composed: true, detail: d }));
+        }
+        // The model's size in px as `model-size` counts it (what it is now, fitted or set)
+        _sizeNow() { return num(this, "model-size", 0, 0, 8000) || 0.72 * Math.min(this.clientWidth || 1, this.clientHeight || 1); }
         // What the editor saves when someone has turned the model to a new view (see `_live`): the attributes that give that view, so what
         // was left on the canvas is what the page shows. The camera sits on the +z axis at `camera-angle`; turning around the model by an angle
         // is turning the model the other way about the vertical axis, so the turn goes into `rotation` (about the world's y, after its own
