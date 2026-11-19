@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MODEL_ATTRS, MODEL_MARK, MODEL_SCRIPT, THREE_VERSION, usesModel, hasModelScript, withModelScript, parseRotation, numberAttr, boolAttr, modelMarkup, isModelFile, hotspotMarkup, nextHotspot, SAMPLE_MODEL, SAMPLE_MODELS, sampleUrl, sampleThumb, sourceUrl, SAMPLE_KINDS, needsCredit, ACT_ATTR, ACT_KINDS, parseAct, writeAct, PLACE_ATTR, PLACES, placeClasses, FX_ATTR, EFFECTS, parseFx, writeFx, VIEW_ATTR, WORDS_ATTR, VIEW_KEYS, WORDS, parseView, poseWords, stepMarkup, storyMarkup, storyClasses } from "../model3d.js";
+import { MODEL_ATTRS, MODEL_MARK, MODEL_SCRIPT, THREE_VERSION, usesModel, hasModelScript, withModelScript, parseRotation, numberAttr, boolAttr, modelMarkup, isModelFile, hotspotMarkup, nextHotspot, SAMPLE_MODEL, SAMPLE_MODELS, sampleUrl, sampleThumb, sourceUrl, SAMPLE_KINDS, needsCredit, ACT_ATTR, ACT_KINDS, parseAct, writeAct, PLACE_ATTR, PLACES, placeClasses, FX_ATTR, EFFECTS, parseFx, writeFx, VIEW_ATTR, WORDS_ATTR, VIEW_KEYS, WORDS, parseView, poseWords, stepMarkup, storyMarkup } from "../model3d.js";
 import { exportComponent } from "../exporters.js";
 
 test("a design uses a model when it has the element", () => {
@@ -143,9 +143,4 @@ test("the Scroll story block: a pinned model and three steps that dim", () => {
     const step = stepMarkup("New <section>", "Words", "rotation:0 10 0", "");
     assert.ok(step.includes('data-wc-view="rotation:0 10 0"') && !step.includes(WORDS_ATTR) && step.includes("New &lt;section>"));
     assert.ok(MODEL_SCRIPT.includes("data-wc-view") && MODEL_SCRIPT.includes("data-wc-words") && MODEL_SCRIPT.includes("_showU"));
-});
-
-test("a model made the pinned model of a story keeps its look, not its old layout", () => {
-    assert.equal(storyClasses("absolute left-[285px] top-[1259px] -mt-[1205px] h-[2230px] w-[583px] rounded-lg bg-neutral-100"), "absolute right-0 top-0 -z-10 block h-screen max-h-full w-full md:w-1/2 rounded-lg bg-neutral-100");
-    assert.equal(storyClasses(""), "absolute right-0 top-0 -z-10 block h-screen max-h-full w-full md:w-1/2");
 });

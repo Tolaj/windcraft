@@ -169,13 +169,6 @@ export function placeClasses(cls, place) {
     return [...add, ...keep].join(" ");
 }
 
-/** The model's classes when it becomes the pinned model of a Scroll story made from the page around it: behind the sections, on the right half on wide
- *  screens (the words keep the left), the full width on phones. Its own layout classes give way; the rest stay. */
-export function storyClasses(cls) {
-    const keep = String(cls || "").split(/\s+/).filter((t) => t && !LAYOUT_TOKEN.test(t));
-    return ["absolute", "right-0", "top-0", "-z-10", "block", "h-screen", "max-h-full", "w-full", "md:w-1/2", ...keep].join(" ");
-}
-
 // Effects (data-wc-fx="spin-scroll:1 tilt-mouse:15 float:6"): each a name and an amount. Turntable is the model's own auto-rotate and rotate-speed.
 export const FX_ATTR = "data-wc-fx";
 /** The gallery: [name, label, default, min, max, step, unit, kind]. `attr`: an effect that is an attribute of its own (turntable). */
@@ -332,7 +325,7 @@ function modelRuntime() {
             this._io.observe(this);
             this._visible = true;
             // scroll-rotate follows the page's scroll; hotspots are the element's own children that have a data-position
-            this._onScroll = this._onScroll || function () { if (self.hasAttribute("data-wc-place")) self._pinTick(); if (num(self, "scroll-rotate", 0, -720, 720) || self._fxv("spin-scroll") || self._fxv("zoom-scroll") || self._steps().length) self._frame(); };
+            this._onScroll = this._onScroll || function () { if (self.hasAttribute("data-wc-place") || self.hasAttribute("data-wc-pin")) self._pinTick(); if (num(self, "scroll-rotate", 0, -720, 720) || self._fxv("spin-scroll") || self._fxv("zoom-scroll") || self._steps().length) self._frame(); };
             window.addEventListener("scroll", this._onScroll, { passive: true });
             window.addEventListener("resize", this._onScroll);
             // tilt to mouse: where the pointer is over the model's box, -1..1 each way
@@ -803,10 +796,14 @@ function modelRuntime() {
         _fxOn() { return !editingNow() || !!this._fxPreview; }
         _fxPct() { return editingNow() ? this._fxScrub || 0 : this._scrollPct(); }
         _pinTick() {
-            var on = this.hasAttribute("data-wc-place") && !editingNow(), cur = this._pinned || 0;
+            // data-wc-pin (a Scroll story's Keep on screen): the model stays in the middle of the screen from when it gets there until its story's last
+            // step has scrolled past; the page's layout is not touched (it is offset with `translate`). data-wc-place: it stays at the top of its section.
+            var pin = this.hasAttribute("data-wc-pin"), on = (pin || this.hasAttribute("data-wc-place")) && !editingNow(), cur = this._pinned || 0;
             if (!on) { if (cur) { this.style.removeProperty("translate"); this._pinned = 0; } return; }
-            var b = this.getBoundingClientRect(), nat = b.top - cur, a = this._area(), bottom = a === document.documentElement ? document.documentElement.scrollHeight - scrollY : a.getBoundingClientRect().bottom;
-            var s = Math.max(0, Math.min(-nat, bottom - nat - b.height));
+            var b = this.getBoundingClientRect(), nat = b.top - cur, a = this._area(), bottom, off = pin ? Math.max(0, (innerHeight - b.height) / 2) : 0;
+            if (pin) { var st = this._findSteps(); bottom = st.length ? Math.max.apply(null, st.map(function (e) { return e.getBoundingClientRect().bottom; })) : (this.parentElement || document.documentElement).getBoundingClientRect().bottom; }
+            else bottom = a === document.documentElement ? document.documentElement.scrollHeight - scrollY : a.getBoundingClientRect().bottom;
+            var s = Math.max(0, Math.min(off - nat, bottom - nat - b.height));
             s = Math.round(s * 10) / 10;
             if (s === cur) return;
             this._pinned = s;
