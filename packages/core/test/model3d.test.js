@@ -155,3 +155,13 @@ test("the element redraws when its effects change", () => {
     assert.ok(watched, "observedAttributes");
     for (const a of ["data-wc-fx", "data-wc-pin", "data-wc-place", "auto-rotate", "rotate-speed"]) assert.ok(watched[1].includes(`"${a}"`), a);
 });
+
+test("every free model has a picture for the models dialog", async () => {
+    const { THUMBS } = await import("../../editor/design/editor/model-thumbs.js");
+    for (const m of SAMPLE_MODELS) {
+        const t = THUMBS[m.id];
+        assert.ok(typeof t === "string" && t.startsWith("data:image/webp;base64,"), `${m.id} has a picture`);
+        assert.ok(t.length < 30000, `${m.id}'s picture is small (${t.length} bytes)`);
+    }
+    assert.equal(Object.keys(THUMBS).length, SAMPLE_MODELS.length);
+});

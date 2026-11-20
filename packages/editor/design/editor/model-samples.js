@@ -2,7 +2,7 @@
 // the whole editor, with the same chips, tiles and Close button. A tile is a model: its picture, name, licence and size; below it who made it
 // and a link to its page (where the author and the licence are stated). A click on the tile sets it as the selected model's file.
 import { $, S, esc } from "./base.js";
-import { SAMPLE_MODELS, SAMPLE_KINDS, sampleUrl, sampleThumb, sourceUrl, needsCredit, isModelFile, MAX_EMBED_BYTES } from "../../../core/model3d.js";
+import { SAMPLE_MODELS, SAMPLE_KINDS, sampleUrl, sourceUrl, needsCredit, isModelFile, MAX_EMBED_BYTES } from "../../../core/model3d.js";
 
 let box = null;
 let onKey = null;
@@ -16,7 +16,7 @@ const size = (kb) => (kb >= 1000 ? `${(kb / 1000).toFixed(1)} MB` : `${kb} KB`);
 
 const tile = (m, current) => `<div class="group" data-sample="${esc(m.id)}" data-kind="${esc(m.kind)}">
     <button type="button" data-pick="${esc(m.id)}" title="${esc(m.about)}" class="block w-full text-left">
-        <span class="relative block aspect-[4/3] overflow-hidden rounded-lg border bg-neutral-100 transition group-hover:border-neutral-900 ${current === sampleUrl(m) ? "border-neutral-900 ring-1 ring-neutral-900" : "border-neutral-200"}"><img src="${esc(sampleThumb(m))}" alt="" loading="lazy" class="h-full w-full object-cover"></span>
+        <span class="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border bg-neutral-50 transition group-hover:border-neutral-900 group-hover:bg-white ${current === sampleUrl(m) ? "border-neutral-900 ring-1 ring-neutral-900" : "border-neutral-200"}"><img data-thumb="${esc(m.id)}" alt="" class="pointer-events-none h-full w-full object-contain p-1 opacity-0 transition-opacity duration-200"></span>
         <span class="mt-1.5 flex items-center justify-between gap-2 text-xs"><span class="truncate font-medium text-neutral-800">${esc(m.name)}</span>
             <span class="flex shrink-0 gap-1 text-[10.5px]">
                 <span class="rounded px-1.5 py-0.5 ${needsCredit(m) ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}" title="${needsCredit(m) ? "Needs a credit line on your page" : "No credit needed"}">${esc(m.license.split(" · ")[0])}</span>
@@ -27,7 +27,7 @@ const tile = (m, current) => `<div class="group" data-sample="${esc(m.id)}" data
 </div>`;
 
 /** Opens the dialog over the canvas. `current`: the file the model has now (its tile is outlined); `onPick(url)`: a tile was chosen. */
-export function openSamples({ current, onPick }) {
+export async function openSamples({ current, onPick }) {
     closeSamples();
     box = document.createElement("div");
     box.id = "modelSamples";
@@ -42,6 +42,11 @@ export function openSamples({ current, onPick }) {
         <div class="min-h-0 flex-1 overflow-y-auto border-t border-neutral-100 px-5 pb-5 pt-4"><div data-grid class="grid grid-cols-4 gap-x-3 gap-y-4">${SAMPLE_MODELS.map((m) => tile(m, current)).join("")}</div></div>
     </div>`;
     $("canvas").appendChild(box);
+    // the pictures: a module of their own (about 200 KB), fetched when the dialog first opens; each one fades in
+    import("./model-thumbs.js").then(({ THUMBS }) => {
+        if (!box) return;
+        box.querySelectorAll("[data-thumb]").forEach((img) => { const u = THUMBS[img.dataset.thumb]; if (u) { img.src = u; img.classList.remove("opacity-0"); } });
+    });
     // the canvas pans and zooms on wheel and starts a selection on a press: neither may reach it from the dialog (as in the wireframe dialog)
     ["wheel", "pointerdown"].forEach((type) => box.addEventListener(type, (e) => e.stopPropagation()));
     const paint = (k) => {
