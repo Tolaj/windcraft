@@ -46,6 +46,8 @@ export const SAMPLE_MODELS = Object.freeze([
 ]);
 const SAMPLE_BASE = "https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/";
 /** The .glb of a sample, its picture, and the page about it (the author, the licence and what it is). */
+/** The same sample whichever version of the repository a link names (pages made before the pin link to its main branch). */
+export const sameSample = (url, m) => new RegExp(`/glTF-Sample-Assets@[^/]+/Models/${m.id}/glTF-Binary/${m.id}\\.glb$`).test(String(url || ""));
 export const sampleUrl = (m) => `${SAMPLE_BASE}${m.id}/glTF-Binary/${m.id}.glb`;
 // (jsDelivr refuses a few of the pictures, `rawShot`: those come from GitHub's own file server)
 export const sampleThumb = (m) => `${m.rawShot ? "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/" : SAMPLE_BASE}${m.id}/screenshot/screenshot.${m.shot}`;
@@ -269,6 +271,10 @@ function modelRuntime() {
         return libs;
     }
     var GIZMO_REACH = 1.5; // how big the handles are against the model (an arrow then reaches most of the way to its edge)
+    // How a model is framed. FIT: what `model-size` counts from (the sphere's width is that many px). FRAME: how much of the model's bounding sphere the
+    // camera takes in when there is no `model-size`: about 1 shows all of it, which is what keeps the ends of a long model (a sneaker, a sofa) in view
+    // from every side; the old 0.72 cropped the sphere's edge. FIT_PX: what no `model-size` is worth in model-size px, so the two blend smoothly.
+    var FIT = 0.72, FRAME = 0.92, FIT_PX = FIT * FIT / FRAME;
     // The transform handles the editor shows on a picked model (move, turn, size): fetched only when one is asked for
     var gizmoLib = null;
     function loadGizmo() {
@@ -302,12 +308,14 @@ function modelRuntime() {
                 '.s[hidden]{display:none}' +
                 '.ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font:12px system-ui,sans-serif;color:#737373;text-align:center;padding:8px}.ph[hidden]{display:none}' +
                 '.ph svg{width:44px;height:44px;opacity:.7}.ph button{font:500 12px system-ui,sans-serif;background:#111;color:#fff;border:0;border-radius:999px;padding:6px 14px;cursor:pointer}.ph button:hover{background:#333}' +
+                '.pg{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;font:11px system-ui,sans-serif;color:#737373;pointer-events:none}.pg[hidden]{display:none}.pg i{display:block;width:88px;height:3px;border-radius:2px;background:rgba(0,0,0,.12);overflow:hidden}.pg b{display:block;height:100%;width:0;background:#737373;transition:width .15s}.pg.x b{width:40%;animation:wcpg 1s ease-in-out infinite alternate}@keyframes wcpg{to{transform:translateX(150%)}}' +
                 '.h{position:absolute;inset:0;overflow:hidden;pointer-events:none}.h>div{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform}</style>' +
-                '<slot class="s"></slot><div class="s" part="error" hidden></div><div class="h"></div>' +
+                '<slot class="s"></slot><div class="s" part="error" hidden></div><div class="pg" hidden><span>Loading the model…</span><i><b></b></i></div><div class="h"></div>' +
                 // an empty model, in the editor: a cube and a button that asks the editor to open its list of models
                 '<div class="ph" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></svg><span>No 3D model yet</span><button type="button" data-wc-choose>Choose a model</button></div>';
             this._slot = root.querySelector("slot");
             this._err = root.querySelector("[part=error]");
+            this._pg = root.querySelector(".pg");
             this._root = root;
             this._layer = root.querySelector(".h");
             this._ph = root.querySelector(".ph");
@@ -359,7 +367,20 @@ function modelRuntime() {
         }
         // The cube and "Choose a model" show only while there is no model and the page is being edited (the agent script is added after the page parses)
         _showPh() { if (this._ph) this._ph.hidden = Boolean(this.getAttribute("src")) || !document.querySelector("script[data-wc-agent]"); }
-        _fail(msg) { this._err.textContent = msg; this._err.hidden = false; this._slot.hidden = true; this.dispatchEvent(new CustomEvent("error", { detail: msg })); }
+        // fetch Three.js ahead of a model being chosen (the editor asks while its list of models is open), so picking one only waits for the file
+        _preload() { load().catch(function () { /* the build reports a failure itself */ }); }
+        // the "Loading the model…" note with a bar: a share of the file when the server says how big it is, else a moving bar
+        // It shows only when the wait is longer than a blink (0.6 s): a model from the cache appears with no note flashing first.
+        _progress(on, done, total) {
+            var p = this._pg, self = this; if (!p) return;
+            if (!on) { clearTimeout(this._pgT); this._pgT = 0; this._pgAt = 0; p.hidden = true; return; }
+            if (!this._pgAt) { this._pgAt = performance.now(); this._pgT = setTimeout(function () { if (self._pgAt) p.hidden = false; }, 600); }
+            var known = total > 0, pct = known ? Math.min(100, Math.round(done / total * 100)) : 0;
+            p.classList.toggle("x", !known);
+            p.querySelector("span").textContent = known ? "Loading the model… " + pct + "%" : "Loading the model…";
+            p.querySelector("b").style.width = known ? pct + "%" : "";
+        }
+        _fail(msg) { this._progress(false); this._err.textContent = msg; this._err.hidden = false; this._slot.hidden = true; this.dispatchEvent(new CustomEvent("error", { detail: msg })); }
         _dispose() {
             this._seq++;
             cancelAnimationFrame(this._raf); this._raf = 0;
@@ -384,7 +405,8 @@ function modelRuntime() {
             this._slot.hidden = false;
             this._layer.style.visibility = "hidden"; // hotspots wait for the model
             this._showPh();
-            if (!src) return;
+            if (!src) { this._progress(false); return; }
+            this._progress(true, 0, 0);
             load().then(function (L) {
                 if (seq !== self._seq || !self._on) return;
                 var T = L.THREE, scene = new T.Scene(), renderer;
@@ -407,7 +429,8 @@ function modelRuntime() {
                 var controls = new L.OrbitControls(camera, renderer.domElement);
                 controls.addEventListener("change", function () { if (self._live) self._moved = true; self._frame(); });
                 self._controls = controls;
-                new L.GLTFLoader().load(src, function (gltf) {
+                var gl = new L.GLTFLoader();
+                var onModel = function (gltf) {
                     if (seq !== self._seq || !self._on) return;
                     var obj = gltf.scene, box = new T.Box3().setFromObject(obj), size = box.getSize(new T.Vector3()), mid = box.getCenter(new T.Vector3());
                     // every model is scaled so its bounding sphere has radius 1 and centred on the pivot: it spins about its own middle, and a
@@ -433,10 +456,21 @@ function modelRuntime() {
                     pivot.add(ground);
                     self._ground = ground;
                     self._slot.hidden = true;
+                    self._progress(false);
                     self._layer.style.visibility = "";
                     self._apply();
                     self.dispatchEvent(new CustomEvent("load"));
-                }, undefined, function (e) { self._fail("Couldn't load the model" + (e && e.message ? ": " + e.message : "")); });
+                };
+                var onProg = function (e) { if (seq === self._seq) self._progress(true, e.loaded, e.lengthComputable ? e.total : 0); };
+                var onErr = function (e) { if (seq === self._seq) self._fail("Couldn't load the model" + (e && e.message ? ": " + e.message : "")); };
+                // In the editor the page sits in a sandboxed frame, which the browser gives no cache: every load of the canvas would download the
+                // file again. The editor offers its own fetch (window.__wcFetchModel), which does use the cache, and hands over the bytes.
+                if (typeof window.__wcFetchModel === "function" && /^https?:/i.test(src)) {
+                    window.__wcFetchModel(src, function (done, total) { onProg({ loaded: done, total: total, lengthComputable: total > 0 }); }).then(function (buf) {
+                        if (seq !== self._seq) return;
+                        gl.parse(buf, src.slice(0, src.lastIndexOf("/") + 1), onModel, onErr);
+                    }, function () { if (seq === self._seq) gl.load(src, onModel, onProg, onErr); }); // the editor couldn't: the usual way
+                } else gl.load(src, onModel, onProg, onErr);
             }, function () { self._fail("Couldn't load Three.js (offline?)"); });
         }
         // every attribute that is not the file: cheap, so it runs on each change
@@ -466,11 +500,11 @@ function modelRuntime() {
             var half = c.fov * Math.PI / 360, aspect = (this.clientWidth || 1) / (this.clientHeight || 1);
             half = Math.min(half, Math.atan(Math.tan(half) * aspect));
             var W = this.clientWidth || 1, H = this.clientHeight || 1;
-            // Without `model-size` the model fits the box (its sphere is about 0.72 of the box's shorter side). With it, the model is that many px
+            // Without `model-size` the model fits the box (all of its sphere, FRAME, in the box's shorter side). With it, the model is that many px
             // (the sphere's width) in any box: the camera keeps its distance (so the perspective does not change with the box) and zooms instead.
-            var fit = this._radius * 0.72 / Math.sin(half), ms = num(this, "model-size", 0, 0, 8000), cd = num(this, "camera-distance", 1, 0.3, 4);
-            var dist = (ms ? this._radius * 0.72 / Math.sin(c.fov * Math.PI / 360) : fit) * cd;
-            c.zoom = ms ? ms * cd / (0.72 * H) : 1; // in a set size `camera-distance` only changes the perspective, not the size
+            var fit = this._radius * FRAME / Math.sin(half), ms = num(this, "model-size", 0, 0, 8000), cd = num(this, "camera-distance", 1, 0.3, 4);
+            var dist = (ms ? this._radius * FIT / Math.sin(c.fov * Math.PI / 360) : fit) * cd;
+            c.zoom = ms ? ms * cd / (FIT * H) : 1; // in a set size `camera-distance` only changes the perspective, not the size
             this._zoom0 = c.zoom;
             c.zoom *= this._zf || 1; // zoom on scroll
             var el = num(this, "camera-angle", 10, -80, 80) * Math.PI / 180;
@@ -601,7 +635,7 @@ function modelRuntime() {
             this.dispatchEvent(new CustomEvent("wc-gizmo", { bubbles: true, composed: true, detail: d }));
         }
         // The model's size in px as `model-size` counts it (what it is now, fitted or set)
-        _sizeNow() { return num(this, "model-size", 0, 0, 8000) || 0.72 * Math.min(this.clientWidth || 1, this.clientHeight || 1); }
+        _sizeNow() { return num(this, "model-size", 0, 0, 8000) || FIT_PX * Math.min(this.clientWidth || 1, this.clientHeight || 1); }
         // What the editor saves when someone has turned the model to a new view (see `_live`): the attributes that give that view, so what
         // was left on the canvas is what the page shows. The camera sits on the +z axis at `camera-angle`; turning around the model by an angle
         // is turning the model the other way about the vertical axis, so the turn goes into `rotation` (about the world's y, after its own
@@ -727,7 +761,7 @@ function modelRuntime() {
         // a view as numbers: the model's own attributes, with what a view text ("rotation:0 90 0; model-size:420", a click action's) sets laid over them
         _pose(view) {
             var g = function (n) { return this.getAttribute(n); }.bind(this), three = function (v) { var q = turns(v); return [q[0], q[1], q[2]]; };
-            var fitPx = 0.72 * Math.min(this.clientWidth || 1, this.clientHeight || 1);
+            var fitPx = FIT_PX * Math.min(this.clientWidth || 1, this.clientHeight || 1);
             var own = function (n, d, lo, hi) { var v = g(n); if (v == null || String(v).trim() === "" || !isFinite(Number(v))) return d; return Math.min(hi, Math.max(lo, Number(v))); };
             var o = {
                 rotation: three(g("rotation")), "model-position": g("model-position") ? three(g("model-position")) : [0, 0, 0],

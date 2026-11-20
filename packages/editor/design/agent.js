@@ -3201,9 +3201,26 @@ export function agentMain() {
         },
     };
 
+    // A 3D model's file comes through the editor page, which has the browser's cache (this sandboxed frame has none): see model3d.js
+    const modelWaits = new Map();
+    let modelAsk = 0;
+    window.__wcFetchModel = (url, onProgress) => new Promise((resolve, reject) => {
+        const id = ++modelAsk;
+        const t = setTimeout(() => { if (modelWaits.delete(id)) reject(new Error("no answer")); }, 120000);
+        modelWaits.set(id, { resolve, reject, onProgress, t });
+        post({ type: "modelFetch", id, url });
+    });
     window.addEventListener("message", (e) => {
         if (e.source !== parent) return;
         const m = e.data || {};
+        if (m.cmd === "modelData") {
+            const w = modelWaits.get(m.id);
+            if (!w) return;
+            if (m.progress) { if (w.onProgress) w.onProgress(m.loaded || 0, m.total || 0); return; }
+            modelWaits.delete(m.id); clearTimeout(w.t);
+            if (m.buf) w.resolve(m.buf); else w.reject(new Error(m.error || "failed"));
+            return;
+        }
         if (m.cmd === "load") {
             editing = null;
             document.body.innerHTML = m.html;
@@ -3299,6 +3316,7 @@ export function agentMain() {
             if (steps[m.i]) { steps[m.i].removeAttribute("data-wc-view"); steps[m.i].removeAttribute("data-wc-words"); unlinkIfIdle(steps[m.i]); steps[m.i].style.removeProperty("opacity"); if (!steps[m.i].getAttribute("style")) steps[m.i].removeAttribute("style"); storyCur = -1; changed(); } // out of the story; the element stays on the page
             return;
         }
+        if (m.cmd === "modelWarm") { document.querySelectorAll("wc-model").forEach((md) => { if (md._preload) md._preload(); }); return; } // the list of models is open: Three.js loads now, so a pick only waits for its file
         if (m.cmd === "mpart") { const el = primary(); if (el && el.tagName === "WC-MODEL") setPart(part === el ? null : el, "move"); return; } // the 3D bar's model button: pick it (or let it go)
         if (m.cmd === "mmode") { const el = primary(); if (el && el.tagName === "WC-MODEL") setPart(el, m.mode); return; } // its tools: move, rotate, scale, view
         if (m.cmd === "view") { zoom = m.zoom || 1; lineWidths(); redraw(); return; }

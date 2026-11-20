@@ -2,7 +2,7 @@
 // the whole editor, with the same chips, tiles and Close button. A tile is a model: its picture, name, licence and size; below it who made it
 // and a link to its page (where the author and the licence are stated). A click on the tile sets it as the selected model's file.
 import { $, S, esc } from "./base.js";
-import { SAMPLE_MODELS, SAMPLE_KINDS, sampleUrl, sourceUrl, needsCredit, isModelFile, MAX_EMBED_BYTES } from "../../../core/model3d.js";
+import { SAMPLE_MODELS, SAMPLE_KINDS, sampleUrl, sameSample, sourceUrl, needsCredit, isModelFile, MAX_EMBED_BYTES } from "../../../core/model3d.js";
 
 let box = null;
 let onKey = null;
@@ -16,7 +16,7 @@ const size = (kb) => (kb >= 1000 ? `${(kb / 1000).toFixed(1)} MB` : `${kb} KB`);
 
 const tile = (m, current) => `<div class="group" data-sample="${esc(m.id)}" data-kind="${esc(m.kind)}">
     <button type="button" data-pick="${esc(m.id)}" title="${esc(m.about)}" class="block w-full text-left">
-        <span class="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border bg-neutral-50 transition group-hover:border-neutral-900 group-hover:bg-white ${current === sampleUrl(m) ? "border-neutral-900 ring-1 ring-neutral-900" : "border-neutral-200"}"><img data-thumb="${esc(m.id)}" alt="" class="pointer-events-none h-full w-full object-contain p-1 opacity-0 transition-opacity duration-200"></span>
+        <span class="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border bg-neutral-50 transition group-hover:border-neutral-900 group-hover:bg-white ${sameSample(current, m) ? "border-neutral-900 ring-1 ring-neutral-900" : "border-neutral-200"}"><img data-thumb="${esc(m.id)}" alt="" class="pointer-events-none h-full w-full object-contain p-1 opacity-0 transition-opacity duration-200"></span>
         <span class="mt-1.5 flex items-center justify-between gap-2 text-xs"><span class="truncate font-medium text-neutral-800">${esc(m.name)}</span>
             <span class="flex shrink-0 gap-1 text-[10.5px]">
                 <span class="rounded px-1.5 py-0.5 ${needsCredit(m) ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}" title="${needsCredit(m) ? "Needs a credit line on your page" : "No credit needed"}">${esc(m.license.split(" · ")[0])}</span>
@@ -80,5 +80,6 @@ export async function openSamples({ current, onPick }) {
 export function chooseModel(cmd) {
     if (!S.selected) return;
     const path = S.selected.path;
+    cmd({ cmd: "modelWarm" }); // Three.js loads while the list is open
     openSamples({ current: (S.selected.attrs || {}).src, onPick: (url) => cmd({ cmd: "setAttr", path, name: "src", value: url }) });
 }
