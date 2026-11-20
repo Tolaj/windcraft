@@ -143,15 +143,19 @@ export function init() {
 $("addMenu").innerHTML = BLOCKS.map(([name], i) => `<button type="button" data-block="${i}" class="block w-full rounded px-3 py-1.5 text-left text-xs hover:bg-neutral-100">${name}</button>`).join("");
     $("addBtn").addEventListener("click", (e) => { e.stopPropagation(); $("addMenu").classList.toggle("hidden"); });
     document.addEventListener("click", () => $("addMenu").classList.add("hidden"));
+    // puts a block on the page: the whole page when it is empty, else inside the selected container (or after the selected element)
+    const insertBlock = (html) => {
+        if (model.markup.trim() === "" || !S.selected) {
+            if (model.markup.trim() === "") { if (html.includes("data-wc-view")) S.storyNext = true; addToEmpty(html); return; } // a 3D scroll story: its Motion strip opens once the page is in
+            return cmd({ cmd: "insert", path: [], html, position: "inside" });
+        }
+        cmd({ cmd: "insert", path: S.selected.path, html, position: CONTAINERS.has(S.selected.tag) ? "inside" : "after" });
+    };
     $("addMenu").addEventListener("click", (e) => {
         const b = e.target.closest("[data-block]");
         if (!b) return;
         const html = BLOCKS[Number(b.dataset.block)][1];
-        if (model.markup.trim() === "" || !S.selected) {
-            if (model.markup.trim() === "") { if (html.includes("data-wc-view")) S.storyNext = true; addToEmpty(html); return; } // a Scroll story: its drawer opens once the page is in
-            return cmd({ cmd: "insert", path: [], html, position: "inside" });
-        }
-        cmd({ cmd: "insert", path: S.selected.path, html, position: CONTAINERS.has(S.selected.tag) ? "inside" : "after" });
+        insertBlock(html);
     });
 $("dCategory").innerHTML += (data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((i) => `<option value="${i.slug}">${esc(i.name)}</option>`).join("")}</optgroup>`).join("");
     $("dProject").addEventListener("change", async (e) => {

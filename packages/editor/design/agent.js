@@ -283,13 +283,12 @@ export function agentMain() {
         const el = sels.length === 1 ? sels[0] : null;
         const isModel = Boolean(el && el.tagName === "WC-MODEL");
         const kids = !el || el === document.body || tool !== "move" || editing || gesture || isModel ? [] : realKids(el).slice(0, 60).filter((k) => k !== hov);
-        const list = kids.map((k) => { const r = pageRect(k), m = k.tagName === "WC-MODEL", i = m ? Math.min(4 / (zoom || 1), r.w / 4, r.h / 4) : 0; // a model that fills its parent is drawn a little inside it, or its dashes would sit under the parent's own outline
-            return { x: r.x + i, y: r.y + i, w: r.w - 2 * i, h: r.h - 2 * i, model: m }; }).filter((r) => r.w >= 2 && r.h >= 2);
-        const key = zoom + ":" + list.map((r) => `${r.x},${r.y},${r.w},${r.h},${r.model ? 1 : 0}`).join("|"); // redrawn on every pointer move: only rebuilt when something changed (or the zoom)
+        const list = kids.map((k) => { const r = pageRect(k); return { x: r.x, y: r.y, w: r.w, h: r.h }; }).filter((r) => r.w >= 2 && r.h >= 2); // a 3D model is drawn like any other child
+        const key = zoom + ":" + list.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join("|"); // redrawn on every pointer move: only rebuilt when something changed (or the zoom)
         if (key === kidsKey) return;
         kidsKey = key;
         kidLayer.textContent = "";
-        list.forEach((r) => { const d = mk(`position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`); Object.assign(d.style, dashes("#fff", px(r.model ? 2 : 1))); if (r.model) d.title = "3D model: double-click to turn it"; kidLayer.appendChild(d); });
+        list.forEach((r) => { const d = mk(`position:absolute;left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;pointer-events:none;`); Object.assign(d.style, dashes("#fff", px(1))); kidLayer.appendChild(d); });
     }
 
     const clearGuides = () => { guideLayer.innerHTML = ""; insertLine.style.display = "none"; ghostBox.style.display = "none"; dropBox.style.display = "none"; dropHint.style.display = "none"; dropHint.style.transform = ""; };

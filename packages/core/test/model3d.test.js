@@ -165,3 +165,15 @@ test("every free model has a picture for the models dialog", async () => {
     }
     assert.equal(Object.keys(THUMBS).length, SAMPLE_MODELS.length);
 });
+
+test("3D templates: each is plain markup with a model, links and ids agree, and the models need no credit", async () => {
+    const { TEMPLATES_3D } = await import("../model3d-templates.js");
+    const { SAMPLE_MODELS, needsCredit } = await import("../model3d.js");
+    assert.ok(TEMPLATES_3D.length >= 5);
+    assert.equal(new Set(TEMPLATES_3D.map((t) => t.id)).size, TEMPLATES_3D.length);
+    for (const t of TEMPLATES_3D) {
+        assert.match(t.html, /<wc-model /, t.id);
+        for (const l of t.html.matchAll(/data-wc-for="([^"]+)"/g)) assert.ok(t.html.includes(`id="${l[1]}"`), `${t.id}: link to ${l[1]} has a model`);
+        for (const s of SAMPLE_MODELS.filter((x) => needsCredit(x))) assert.ok(!t.html.includes(`/${s.id}/glTF`) || t.id === "scroll-story", `${t.id} uses ${s.id}, which needs a credit`);
+    }
+});
