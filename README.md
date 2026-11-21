@@ -16,6 +16,8 @@
 
 [**Try it live**](https://windcraft.swapniljadhav.com/) · [Get started](#get-started) · [Wiki](https://github.com/Tolaj/windcraft/wiki) · [npm](#npm-windcraft-editor) · [MCP](#mcp-claude-claude-code-cursor) · [Contribute](#contributing)
 
+<sub>If Windcraft is useful to you, a ⭐ on the repo helps other people find it.</sub>
+
 <br>
 
 [![Windcraft: click anything, edit it visually, and the code changes with it](docs/media/windcraft-demo.gif)](docs/media/windcraft-launch.mp4)
