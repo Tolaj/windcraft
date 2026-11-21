@@ -391,7 +391,7 @@ function modelRuntime() {
                 ms.forEach(function (m) { for (var k in m) if (m[k] && m[k].isTexture) m[k].dispose(); m.dispose(); });
             });
             if (this._renderer) { this._renderer.dispose(); this._renderer.domElement.remove(); }
-            this._renderer = this._scene = this._camera = this._controls = this._pivot = this._spinner = this._mixer = this._ground = null;
+            this._renderer = this._scene = this._camera = this._controls = this._pivot = this._levelG = this._spinner = this._mixer = this._ground = null;
             this._ov = null; this._twm = {};
             this._clipOn = false;
             if (this._tc) { this._tc.dispose(); }
@@ -419,8 +419,10 @@ function modelRuntime() {
                 key.position.set(3, 5, 4);
                 var pmrem = new T.PMREMGenerator(renderer);
                 scene.add(key);
-                var pivot = new T.Group(), spinner = new T.Group();
-                pivot.add(spinner);
+                // pivot (where the model is: move, turn, size handles) > level (see _level) > spinner (its spin and effects) > the model
+                var pivot = new T.Group(), level = new T.Group(), spinner = new T.Group();
+                pivot.add(level); level.add(spinner);
+                self._levelG = level;
                 scene.add(pivot);
                 self._spinner = spinner;
                 self._renderer = renderer; self._scene = scene; self._camera = camera; self._pivot = pivot; self._key = key; self._T = T; self._L = L;
@@ -598,6 +600,20 @@ function modelRuntime() {
             tc.enabled = true;
             this._frame();
         }
+        // A model moved away from the middle of its box is seen from the side by the camera (which stays in the middle): a long one (a shoe)
+        // then looks turned, its toe or its heel toward you. Moving it should only slide it, so it is turned by that same viewing angle and looks
+        // the same wherever it is. The turn is its own (a group under the pivot): the pivot keeps what the handles and the attributes say.
+        _level() {
+            var g = this._levelG, c = this._camera, ctl = this._controls, T = this._T;
+            if (!g || !c || !T) return;
+            var at = new T.Vector3(); this._pivot.getWorldPosition(at);
+            var aim = ctl ? ctl.target : new T.Vector3();
+            if (at.distanceToSquared(aim) < 1e-8) { g.quaternion.identity(); return; }
+            var v0 = aim.clone().sub(c.position).normalize(), v1 = at.clone().sub(c.position).normalize();
+            var turn = new T.Quaternion().setFromUnitVectors(v0, v1); // the turn the eye makes to look at it there instead of in the middle
+            var pq = this._pivot.getWorldQuaternion(new T.Quaternion());
+            g.quaternion.copy(pq.clone().invert().multiply(turn).multiply(pq)); // the same turn, in the pivot's own axes
+        }
         // The handles at about the model's own size on screen (not a share of the box: a tall box made them huge), at least big enough to grab and at
         // most a share of the box's shorter side. TransformControls scales its handles by its own factor of the camera's distance; `size` sets the rest.
         _gizmoSize() {
@@ -741,7 +757,7 @@ function modelRuntime() {
             this._peek = this._blend(a, a, 0); this._hl = 0; this._tint(); if (helper) helper.visible = false;
             this._apply();
             try {
-                this._renderer.render(this._scene, this._camera);
+                this._level(); this._renderer.render(this._scene, this._camera);
                 var src = this._renderer.domElement, c = document.createElement("canvas"), s = Math.min(src.width, src.height);
                 c.width = c.height = px || 64;
                 c.getContext("2d").drawImage(src, (src.width - s) / 2, (src.height - s) / 2, s, s, 0, 0, c.width, c.height);
@@ -914,7 +930,7 @@ function modelRuntime() {
                 self._spinner.rotation.y = self._spin + turn + (fx["spin-scroll"] || 0) * p * 2 * Math.PI + self._ty;
                 self._spinner.rotation.x = self._tx;
                 self._spinner.position.y = fl ? Math.sin(performance.now() / 1000 * 1.6) * fl / 100 : 0;
-                if (self._visible) { self._renderer.render(self._scene, self._camera); self._place(); }
+                if (self._visible) { self._level(); self._renderer.render(self._scene, self._camera); self._place(); }
                 if (moving) self._frame();
             });
         }
