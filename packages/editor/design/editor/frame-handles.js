@@ -5,6 +5,9 @@ import { docs, setFrameSize, wraps } from "./designs.js";
 import { canvas, heightOfDoc, positions, view, widthOf } from "./plane.js";
 import { setDevice, setProp, setProps } from "./inspector.js";
 import { cmd } from "./frame-messages.js";
+import { chooseModel } from "./model-samples.js";
+import { openStory } from "./scroll-drawer.js";
+import { EFFECTS } from "../../../core/model3d.js";
 import { setPanel, setPanelTab } from "./color-ui.js";
 import { closeColorPicker, placeBeside, placeColorPicker } from "../color-picker.js";
 
@@ -22,6 +25,7 @@ function toolbarState() {
     if (!S.selected || S.selected.tag === "body" || !S.selected.rect) return null;
     const editing = Boolean(S.editingInfo && S.editingInfo.on);
     const text = editing || TEXT_TAGS.has(S.selected.tag) || (S.selected.leaf && String(S.selected.text || "").trim() !== "");
+    if (!editing && S.selected.tag === "wc-model") return { kind: "model", sel: S.selected, editing, picked: S.modelPart, mode: S.modelMode, menu: S.ftMenu, pop: S.ftPop, sides: S.ftSides };
     return { kind: text ? "text" : "shape", sel: S.selected, editing, fmt: editing ? S.editingInfo.fmt : null, menu: S.ftMenu, pop: S.ftPop, sides: S.ftSides };
 }
 
@@ -35,13 +39,17 @@ function anchorRect(st) {
     return { x: view.x + (p.x + r.x) * view.z, y: view.y + (p.y + r.y) * view.z, w: r.w * view.z, h: r.h * view.z, gap: 10 };
 }
 
+window.addEventListener("wc-strip", () => placeFloat()); // (the Motion strip opened or closed: see scroll-drawer.js)
 export function placeFloat() {
     if (ftb.classList.contains("hidden")) return;
     const st = toolbarState();
     const a = st && anchorRect(st);
     if (!a) return;
-    const cw = canvas.clientWidth, ch = canvas.clientHeight;
-    const w = ftb.offsetWidth, h = ftb.offsetHeight;
+    const cw = canvas.clientWidth, w = ftb.offsetWidth, h = ftb.offsetHeight;
+    // the bottom of the room the bar has: the canvas (the code panel is below it), or the top of the Motion strip when that is open over it
+    const strip = document.getElementById("scrollDrawer"), cr0 = canvas.getBoundingClientRect();
+    const stripTop = strip ? Math.min(...[strip, ...strip.children].map((e) => e.getBoundingClientRect().top)) : Infinity; // (its section card and notes above it too)
+    const ch = strip ? Math.min(canvas.clientHeight, stripTop - cr0.top) : canvas.clientHeight;
     const left = Math.min(Math.max(8, a.x), Math.max(8, cw - w - 8));
     let top = a.y - h - a.gap;
     if (top < 56) top = a.y + a.h + 10;
@@ -49,12 +57,15 @@ export function placeFloat() {
     ftb.classList.toggle("popdown", top < 270); // a panel opens upward, unless the bar is too close to the top of the canvas
     ftb.style.left = `${Math.round(left)}px`;
     ftb.style.top = `${Math.round(top)}px`;
-    // a panel of the bar (padding, margin, radius, border) opens beside the element, as the colour picker does, not over the design
+    // a panel of the bar (border, corners, spacing, effects) opens beside the element, as the colour picker does, not over the design. It keeps clear of
+    // the bar itself too, and of the editor's own bars along the top of the canvas (when nothing beside fits it goes to the top corner, under them).
     const pop = ftb.querySelector(".ftpop");
     if (pop && st.kind !== "frame") {
         const cr = canvas.getBoundingClientRect(), fr = ftb.getBoundingClientRect();
-        const near = { left: cr.left + a.x, top: cr.top + a.y, right: cr.left + a.x + a.w, bottom: cr.top + a.y + a.h };
-        const [x, y] = placeBeside(near, cr, null, pop.offsetWidth, pop.offsetHeight, top + h / 2 > a.y + a.h / 2); // the bar under the element: level with its bottom
+        const el = { left: cr.left + a.x, top: cr.top + a.y, right: cr.left + a.x + a.w, bottom: cr.top + a.y + a.h };
+        const near = { left: Math.min(el.left, fr.left), top: Math.min(el.top, fr.top), right: Math.max(el.right, fr.right), bottom: Math.max(el.bottom, fr.bottom) };
+        const room = { left: cr.left, right: cr.right, top: cr.top + 60, bottom: cr.top + ch }; // (60: the editor's top bars over the canvas, and a little room under them)
+        const [x, y] = placeBeside(near, room, null, pop.offsetWidth, pop.offsetHeight, top + h / 2 > a.y + a.h / 2); // the bar under the element: level with its bottom
         pop.style.left = `${Math.round(x - fr.left)}px`;
         pop.style.top = `${Math.round(y - fr.top)}px`;
         pop.style.bottom = "auto";
@@ -121,7 +132,17 @@ const SIDE_KEY = { top: "T", right: "R", bottom: "B", left: "L" };
 const CORNER_KEY = { tl: "radiusTL", tr: "radiusTR", bl: "radiusBL", br: "radiusBR" };
 const allSides = (f) => SIDES4.map(f);
 /** A value typed into one of the bar's panels (a border width, a corner, a padding or margin side), written where that value lives (setProps). */
+/** A 3D model's effect at an amount (0 takes it off): spin is its auto-rotate and rotate-speed, the others are entries of data-wc-fx. The frame works
+ *  it out on the model as it is right now (two quick changes in a row each build on the last), as one change in the history. */
+export function setEffect(name, amount) {
+    if (!S.selected) return;
+    const e = EFFECTS.find((x) => x.name === name);
+    cmd({ cmd: "fxSet", path: S.selected.path, name, amount: Number.isFinite(amount) ? amount : 0, min: e ? e.min : 5, max: e ? e.max : 180 }, `fx-${name}`);
+    const f = document.activeElement; // a typed amount is done: the menu shows the new state (it does not redraw under a field being typed in)
+    if (f && f.dataset && f.dataset.ftp && f.dataset.ftp.startsWith("fx-")) f.blur();
+}
 export function applyPanel(key, raw) {
+    if (key.startsWith("fx-")) return setEffect(key.slice(3), Number(raw)); // an amount typed in the Effects menu
     const colors = allSides((d) => `border-${d}-color`);
     if (key === "border-color-hex") { const h = raw.trim().replace(/^#?/, "#"); return /^#[0-9a-f]{6}$/i.test(h) ? setProps(colors, h, "borderColor") : renderFloat(true); }
     if (key === "border-color") return setProps(colors, raw, "borderColor");
@@ -188,6 +209,14 @@ export const FLOAT_ACTIONS = {
         setProps(SIDES4.map((d) => `border-${d}-style`), kind, "borderStyle", [], undefined, one);
         if (kind !== "none" && none) setProps(SIDES4.map((d) => `border-${d}-width`), 1, "borderWidth", ["borderT", "borderR", "borderB", "borderL"], undefined, one); // a line style on a borderless box: make it visible
     },
+    // the 3D model bar: a switch on the element (a bare attribute when on), turning the model on the canvas, and back to the starting view
+    mattr(name) { const on = S.selected.attrs && S.selected.attrs[name] != null && String(S.selected.attrs[name]).trim().toLowerCase() !== "false"; cmd({ cmd: "setAttr", path: S.selected.path, name, value: on ? null : true }); },
+    mpart() { send({ cmd: "mpart" }); },
+    mchoose() { chooseModel(cmd); },
+    mfxset(arg) { const i = String(arg).lastIndexOf(":"); setEffect(arg.slice(0, i), Number(arg.slice(i + 1))); }, // a strength in the Effects menu (0: off)
+    mstory() { openStory(S.selected.path); }, // the strip: scroll, click and hover, chosen from the page
+    mmode(mode) { send({ cmd: "mmode", mode }); },
+    mreset() { ["rotation", "camera-angle"].forEach((name) => cmd({ cmd: "setAttr", path: S.selected.path, name, value: null })); },
     dup() { S.ftMenu = false; cmd({ cmd: "duplicate", path: S.selected.path }); },
     del() { S.ftMenu = false; cmd({ cmd: "remove", path: S.selected.path }); },
     up() { S.ftMenu = false; cmd({ cmd: "move", path: S.selected.path, dir: -1 }); },

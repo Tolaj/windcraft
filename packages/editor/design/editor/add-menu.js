@@ -5,6 +5,7 @@ import { $, S, data, esc, model } from "./base.js";
 import { cmd } from "./frame-messages.js";
 import { assemble, commit, loadFrame, updateChrome } from "./docs.js";
 import { renderInspector } from "./inspector.js";
+import { modelMarkup, storyMarkup } from "../../../core/model3d.js";
 import { anyDirty, boardPayload, docs, extrasOf, pinBoard, remapKey, saveBoard } from "./designs.js";
 
 // ── Add menu: build from blocks ──────────────────────────────────────────────
@@ -16,6 +17,8 @@ const BLOCKS = [
     ["Text", '<p class="text-gray-600">Write something here.</p>'],
     ["Button", '<a href="#" class="inline-block rounded-md bg-black px-5 py-2.5 text-sm font-medium text-white">Button</a>'],
     ["Image", '<img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=60" alt="Image" class="rounded-lg">'],
+    ["3D model", modelMarkup({ controls: true, shadow: true }, "block h-80 w-full rounded-lg bg-neutral-100")], // no effect is on to begin with: they are chosen in its Effects menu
+    ["3D scroll story", storyMarkup()],
     ["Card", '<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"><h3 class="font-semibold">Card title</h3><p class="mt-1 text-sm text-gray-600">Card text.</p></div>'],
     ["Input", '<input type="text" placeholder="Type here" class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm">'],
 ];
@@ -140,15 +143,19 @@ export function init() {
 $("addMenu").innerHTML = BLOCKS.map(([name], i) => `<button type="button" data-block="${i}" class="block w-full rounded px-3 py-1.5 text-left text-xs hover:bg-neutral-100">${name}</button>`).join("");
     $("addBtn").addEventListener("click", (e) => { e.stopPropagation(); $("addMenu").classList.toggle("hidden"); });
     document.addEventListener("click", () => $("addMenu").classList.add("hidden"));
+    // puts a block on the page: the whole page when it is empty, else inside the selected container (or after the selected element)
+    const insertBlock = (html) => {
+        if (model.markup.trim() === "" || !S.selected) {
+            if (model.markup.trim() === "") { if (html.includes("data-wc-view")) S.storyNext = true; addToEmpty(html); return; } // a 3D scroll story: its Motion strip opens once the page is in
+            return cmd({ cmd: "insert", path: [], html, position: "inside" });
+        }
+        cmd({ cmd: "insert", path: S.selected.path, html, position: CONTAINERS.has(S.selected.tag) ? "inside" : "after" });
+    };
     $("addMenu").addEventListener("click", (e) => {
         const b = e.target.closest("[data-block]");
         if (!b) return;
         const html = BLOCKS[Number(b.dataset.block)][1];
-        if (model.markup.trim() === "" || !S.selected) {
-            if (model.markup.trim() === "") { addToEmpty(html); return; }
-            return cmd({ cmd: "insert", path: [], html, position: "inside" });
-        }
-        cmd({ cmd: "insert", path: S.selected.path, html, position: CONTAINERS.has(S.selected.tag) ? "inside" : "after" });
+        insertBlock(html);
     });
 $("dCategory").innerHTML += (data.categories || []).map((g) => `<optgroup label="${esc(g.group)}">${g.items.map((i) => `<option value="${i.slug}">${esc(i.name)}</option>`).join("")}</optgroup>`).join("");
     $("dProject").addEventListener("change", async (e) => {

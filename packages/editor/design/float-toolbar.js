@@ -1,6 +1,7 @@
 // The small toolbar that floats next to whatever is selected (text, a shape, or a whole frame).
 // It only renders markup; editor.js places it and turns its clicks into edits.
 import { rgbToHex } from "./css-props.js";
+import { parseFx } from "../../core/model3d.js";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const icon = (d) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -24,6 +25,22 @@ const ICONS = {
     dashed: icon('<path d="M3 12h4M10 12h4M17 12h4"/>'),
     dotted: icon('<path d="M4 12h.01M8 12h.01M12 12h.01M16 12h.01M20 12h.01" stroke-width="2.4"/>'),
     layouts: icon('<rect x="3.5" y="4" width="17" height="16" rx="2.5"/><path d="M9.5 4v16M9.5 10h11"/>'),
+    turn: icon('<path d="M12 3 4 7.5v9L12 21l8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/>'),
+    move: icon('<path d="M12 3v18M3 12h18M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/>'),
+    rotate: icon('<ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(-25 12 12)"/><path d="M12 3a9 9 0 0 1 0 18" stroke-dasharray="2.6 2.4"/>'),
+    scale: icon('<rect x="4" y="9" width="11" height="11" rx="1.5"/><path d="M13 11l7-7M14.5 4H20v5.5"/>'),
+    box: icon('<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><rect x="8" y="8" width="8" height="8" rx="1.5" stroke-dasharray="2 1.7"/>'),
+    // sparkles (what the model does on its own) and squares-plus (motion: scroll, click and hover from elements on the page), in the outline style of the rest
+    effects: icon('<path d="M9.8 15.9 9 18.75l-.8-2.85a4.5 4.5 0 0 0-3.1-3.1L2.25 12l2.85-.8a4.5 4.5 0 0 0 3.1-3.1L9 5.25l.8 2.85a4.5 4.5 0 0 0 3.1 3.1l2.85.8-2.85.8a4.5 4.5 0 0 0-3.1 3.1Z"/><path d="M18.26 8.72 18 9.75l-.26-1.03a3.4 3.4 0 0 0-2.45-2.46L14.25 6l1.04-.26a3.4 3.4 0 0 0 2.45-2.45L18 2.25l.26 1.04a3.4 3.4 0 0 0 2.46 2.45L21.75 6l-1.03.26a3.4 3.4 0 0 0-2.46 2.46Z"/><path d="M16.9 20.57 16.5 21.75l-.4-1.18a2.25 2.25 0 0 0-1.42-1.42L13.5 18.75l1.18-.4a2.25 2.25 0 0 0 1.42-1.42l.4-1.18.4 1.18a2.25 2.25 0 0 0 1.42 1.42l1.18.4-1.18.4a2.25 2.25 0 0 0-1.42 1.42Z"/>'),
+    tilt: icon('<path d="M4 15.5 12 20l8-4.5"/><path d="M4 11 12 15.5 20 11 12 6.5z"/><path d="M15.5 3.5 19 5l-1 3.6"/>'),
+    float: icon('<path d="M7 13.5a5 5 0 0 0 10 0 5 5 0 0 0-10 0z"/><path d="M8 21c1.3-.8 2.7-.8 4 0s2.7.8 4 0"/><path d="M12 3v3M10.5 4.5 12 3l1.5 1.5"/>'),
+    motion: icon('<rect x="3.75" y="3.75" width="6.75" height="6.75" rx="2.25"/><rect x="13.5" y="3.75" width="6.75" height="6.75" rx="2.25"/><rect x="3.75" y="13.5" width="6.75" height="6.75" rx="2.25"/><path d="M16.88 13.5v6.75M13.5 16.88h6.75"/>'),
+    swap: icon('<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.6"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.6"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.6"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.6"/>'),
+    look: icon('<circle cx="12" cy="12" r="3"/><path d="M12 4v2.5M12 17.5V20M4 12h2.5M17.5 12H20"/>'),
+    spin: icon('<ellipse cx="12" cy="17" rx="8" ry="3"/><path d="M4.5 11.5C5.3 9 8 7.2 12 7.2s6.7 1.8 7.5 4.3M19.5 11.5l-2.4-1.8M19.5 11.5l.5-3"/>'), // a turntable with an arrow going round it
+    play: icon('<path d="M8 5.5v13l10-6.5z"/>'),
+    shadow: icon('<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" fill-opacity=".4" stroke="none"/>'), // a ball shaded on one side
+    reset: icon('<path d="M4 12a8 8 0 1 0 2.5-5.8M4 4v4.5h4.5"/>'),
     more: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>',
 };
 
@@ -38,7 +55,7 @@ const familyOf = (css) => {
     return "sans";
 };
 
-const btn = (act, svg, title, on) => `<button type="button" class="tbtn ${on ? "on" : ""}" data-ft="${act}" title="${title}">${svg}</button>`;
+const btn = (act, svg, title, on, arg) => `<button type="button" class="tbtn ${on ? "on" : ""}" data-ft="${act}"${arg ? ` data-arg="${arg}"` : ""} title="${title}">${svg}</button>`;
 const swatch = (kind, value, title) => `<label class="swatch" title="${title}" style="background:${value || "#fff"}${value ? "" : ";background-image:linear-gradient(135deg,transparent 46%,#e5484d 46%,#e5484d 54%,transparent 54%)"}"><input type="color" data-ftcol="${kind}" value="${value || "#000000"}"></label>`;
 
 function moreMenu(st) {
@@ -55,7 +72,9 @@ function moreMenu(st) {
 }
 
 // Layouts and designs for the selected element: for any element but plain text (a button counts)
-const layoutsBtn = (st) => (st.sel && st.sel.tag !== "body" && !st.editing && (st.kind !== "text" || st.sel.tag === "button") ? btn("layouts", ICONS.layouts, "Layouts and designs for this element") : "");
+// (a 3D model has no layouts: that place has its list of models instead, where the wireframe button is for everything else)
+const layoutsBtn = (st) => (st.sel && st.sel.tag === "wc-model" && !st.editing ? btn("mchoose", ICONS.swap, st.sel.attrs && st.sel.attrs.src ? "Change the model: free models or your own file" : "Choose a model: free models or your own file")
+    : st.sel && st.sel.tag !== "body" && !st.editing && (st.kind !== "text" || st.sel.tag === "button") ? btn("layouts", ICONS.layouts, "Layouts and designs for this element") : "");
 const more = (st) => `<span class="sep"></span>${layoutsBtn(st)}<div class="relative">${btn("more", ICONS.more, "More", st.menu)}${st.menu ? moreMenu(st) : ""}</div>`;
 
 function textBar(st) {
@@ -79,10 +98,27 @@ function textBar(st) {
 const popBtn = (st, key, svg, title) => `<button type="button" class="tbtn ${st.pop === key ? "on" : ""}" data-ft="pop" data-arg="${key}" title="${title}">${svg}</button>`;
 const boxButtons = (st) => `<span class="sep"></span>${popBtn(st, "border", ICONS.border, "Border")}${popBtn(st, "radius", ICONS.radius, "Corner radius")}${popBtn(st, "spacing", ICONS.spacing, "Padding and margin")}`;
 
+// A 3D model: what it does (turn, spin, orbit, play, shadow) and the box buttons; the rest is in the panel's 3D sections
+function modelBar(st) {
+    const at = (st.sel && st.sel.attrs) || {}, cs = (st.sel && st.sel.computed) || {};
+    const on = (n) => at[n] != null && String(at[n]).trim().toLowerCase() !== "false";
+    const sw = (n, svg, title) => btn("mattr", svg, title, on(n), n);
+    const fx = parseFx(at["data-wc-fx"]), nOn = [on("auto-rotate"), fx["tilt-mouse"] != null, fx.float != null].filter(Boolean).length; // how many effects are on (shown on the Effects button)
+    const fill = rgbToHex(cs["background-color"] || "");
+    const view = at.rotation != null || at["camera-angle"] != null;
+    // the model button picks the model inside the scene (as a double-click on it does); its tools appear to the left of it while it is picked
+    const tool = (m, svg, title) => btn("mmode", svg, title, st.picked && st.mode === m, m);
+    const empty = !at.src; // no model yet: only "Choose a model" and the box's own buttons make sense
+    const tools = st.picked && !empty ? `${tool("move", ICONS.move, "Move: drag an arrow")}${tool("rotate", ICONS.rotate, "Turn: drag a ring")}${tool("scale", ICONS.scale, "Size: drag a cube")}${tool("view", ICONS.look, "Look around it: drag to set the starting view")}<span class="sep"></span>` : "";
+    return `${tools}${empty ? "" : btn("mpart", ICONS.turn, st.picked ? "The model is picked: its tools are on the left. Click to let go" : "Pick the model inside the scene (or double-click it)", st.picked)}${view && !empty ? btn("mreset", ICONS.reset, "Back to the default view") : ""}
+        ${empty ? "" : '<span class="sep"></span>'}${empty ? "" : btn("mstory", ICONS.motion, "Motion: make the model react to scroll, clicks and hover, using elements already on the page")}${popBtn(st, "effects", ICONS.effects, `Effects: what the model does on its own${nOn ? ` (${nOn} on)` : ""}`)}${sw("animate", ICONS.play, "Play the model's animation")}${sw("shadow", ICONS.shadow, "Ground shadow")}
+        <span class="sep"></span>${swatch("fill", fill, "Fill color")}<span class="sep"></span>${popBtn(st, "box", ICONS.box, "Box: border, corners and spacing")}${more(st)}`;
+}
+
 function shapeBar(st) {
     const cs = (st.sel && st.sel.computed) || {};
     const fill = rgbToHex(cs["background-color"] || "");
-    const hasText = st.sel && st.sel.leaf === false ? false : true;
+    const hasText = st.sel && (st.sel.leaf === false || st.sel.tag === "wc-model") ? false : true; // a box with boxes in it, or a 3D model, has no text colour
     return `<span class="lbl2">Fill</span>${swatch("fill", fill, "Fill color")}${hasText ? `<span class="lbl2">Text</span>${swatch("text", rgbToHex(cs.color || "") || "#000000", "Text color")}` : ""}
         ${boxButtons(st)}${more(st)}`;
 }
@@ -133,11 +169,35 @@ function spacingPanel(st, cs) {
     return `${group("padding", "Padding", "padding", 0)}${group("margin", "Margin", "margin", null)}`;
 }
 
+// A 3D model's effects (what it does on its own), in the same look as the Box menu: per effect a title, a row of strengths (Off first) and the exact
+// amount once it is on. A new effect is one more entry in FX_MENU.
+const FX_MENU = [
+    ["spin", "Spin", "°/s", [[15, "Slow"], [30, "Medium"], [60, "Fast"]], 5, 180],
+    ["tilt-mouse", "Tilt to pointer", "°", [[8, "Soft"], [15, "Medium"], [30, "Strong"]], 1, 45],
+    ["float", "Float", "", [[3, "Small"], [6, "Medium"], [12, "Large"]], 1, 30],
+];
+function effectsPanel(st) {
+    const at = (st.sel && st.sel.attrs) || {}, fx = parseFx(at["data-wc-fx"]);
+    const spinOn = at["auto-rotate"] != null && String(at["auto-rotate"]).trim().toLowerCase() !== "false";
+    const now = (k) => (k === "spin" ? (spinOn ? Number(at["rotate-speed"]) || 30 : 0) : fx[k] || 0);
+    return FX_MENU.map(([k, title, unit, steps, min, max], i) => {
+        const v = now(k);
+        const seg = [[0, ICONS.none, "Off"], ...steps.map(([n, l]) => [n, l, l])].map(([n, label, tip]) => `<button type="button" data-ft="mfxset" data-arg="${k}:${n}" title="${tip}" class="${v === n ? "on" : ""}">${label}</button>`).join("");
+        const amount = v ? `<div class="frow"><label class="ffield"><span class="fl">${ICONS[k === "spin" ? "spin" : k === "float" ? "float" : "tilt"]}</span><input type="number" min="${min}" max="${max}" step="1" data-ftp="fx-${k}" value="${v}"><span class="fu">${unit}</span></label></div>` : "";
+        return `${i ? '<div class="fsep"></div>' : ""}<div class="fttl">${title}</div><div class="fseg fxseg">${seg}</div>${amount}`;
+    }).join("");
+}
+
+// A 3D model's box in one menu: its border, its corners and its spacing (the same controls as the shapes' three menus, one under the other)
+function boxPanel(st, cs) {
+    return `<div class="fttl">Border</div>${borderPanel(st, cs)}<div class="fsep"></div><div class="fttl">Corners</div>${radiusPanel(st, cs)}<div class="fsep"></div>${spacingPanel(st, cs)}`;
+}
+
 /** The open panel, if any; placed by CSS above the bar (or below it when the bar is near the top). */
 function popHtml(st) {
     if (!st.pop || !st.sel) return "";
     const cs = st.sel.computed || {};
-    const body = st.pop === "border" ? borderPanel(st, cs) : st.pop === "radius" ? radiusPanel(st, cs) : spacingPanel(st, cs);
+    const body = st.pop === "effects" ? effectsPanel(st) : st.pop === "box" ? boxPanel(st, cs) : st.pop === "border" ? borderPanel(st, cs) : st.pop === "radius" ? radiusPanel(st, cs) : spacingPanel(st, cs);
     return `<div class="ftpop">${body}</div>`;
 }
 
@@ -156,7 +216,7 @@ function frameBar(st) {
 
 export function toolbarHtml(st) {
     if (st.kind === "frame") return frameBar(st);
-    return (st.kind === "text" ? textBar(st) : shapeBar(st)) + popHtml(st);
+    return (st.kind === "text" ? textBar(st) : st.kind === "model" ? modelBar(st) : shapeBar(st)) + popHtml(st);
 }
 
 export const FAMILY_STACKS = {

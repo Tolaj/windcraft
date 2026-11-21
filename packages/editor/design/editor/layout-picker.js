@@ -5,6 +5,7 @@ import { addToEmpty, addSource } from "./add-menu.js";
 import { cmd } from "./frame-messages.js";
 import { stillDocument } from "./docs.js";
 import { curWidth } from "./plane.js";
+import { templateCards, templateHtml } from "./model-templates.js";
 import { screenHeightFor, parseComponentSource, buildPreviewDocument } from "../../playground/component-source.js";
 import { fillClasses, isSlot } from "../../../core/slot-fill.js";
 import { ROLES, KINDS_FOR_ROLE, roleOfElement } from "../../../core/roles.js";
@@ -147,17 +148,19 @@ function browse(o) {
     box.innerHTML = `<style>@keyframes wcShow{to{opacity:1}}</style><div data-card style="min-height:min(34rem,100%)" class="pointer-events-auto relative flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_12px_48px_rgba(0,0,0,.18)]">
         <div class="flex items-center justify-between gap-4 px-5 pt-5"><h2 class="truncate text-[15px] font-semibold text-neutral-900">${esc(o.title)}</h2>
             <button type="button" data-skip class="shrink-0 rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900">${esc(o.closeLabel || "Close")}</button></div>
-        ${o.gallery || into ? `<div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-3">
-            ${o.gallery ? `<div data-sources role="tablist" class="inline-flex rounded-lg border border-neutral-200 p-0.5 text-xs">
+        <div class="flex flex-wrap items-center justify-between gap-2 px-5 pt-3">
+            ${true ? `<div data-sources role="tablist" class="inline-flex rounded-lg border border-neutral-200 p-0.5 text-xs">
                 <button type="button" role="tab" data-source="wire" class="rounded-md px-3 py-1 font-medium">Layouts</button>
-                <button type="button" role="tab" data-source="gallery" class="rounded-md px-3 py-1 font-medium">Designs</button></div>` : "<span></span>"}
+                ${o.gallery ? `<button type="button" role="tab" data-source="gallery" class="rounded-md px-3 py-1 font-medium">Designs</button>` : ""}
+                <button type="button" role="tab" data-source="3d" class="rounded-md px-3 py-1 font-medium">3D</button></div>` : "<span></span>"}
             ${into ? `<div data-puts role="radiogroup" aria-label="Where it goes" class="inline-flex items-center gap-1.5 text-xs text-neutral-500"><span>Put it</span>
                 <span class="inline-flex rounded-lg border border-neutral-200 p-0.5">${[["replace", "Replace selected"], ["inside", "Add inside"], ["after", "Add after"]].map(([m, l]) => `<button type="button" role="radio" data-put="${m}" class="rounded-md px-2.5 py-1 font-medium">${l}</button>`).join("")}</span></div>` : ""}
-        </div>` : ""}
+        </div>
         <div data-suited class="hidden flex-wrap items-center gap-1.5 px-5 pt-3"></div>
         <div data-chips class="flex flex-wrap gap-1.5 px-5 pb-3 pt-3">${chips.map(([k, l]) => `<button type="button" data-kind="${k}" class="rounded-full border px-3 py-1 text-xs">${esc(l)}</button>`).join("")}</div>
         <div data-scroll class="min-h-0 flex-1 overflow-y-auto border-t border-neutral-100 px-5 pb-5 pt-4"><div data-grid class="grid grid-cols-4 gap-3"></div>
             <p data-more class="py-6 text-center text-xs text-neutral-400">Loading more…</p></div>
+        <div data-tscroll class="hidden min-h-0 flex-1 overflow-y-auto border-t border-neutral-100 px-5 pb-5 pt-4"><p class="mb-3 text-xs leading-snug text-neutral-500">Ready-made sections with a 3D model in them. They use free models that need no credit line, and everything in them is ordinary elements you can edit.</p><div class="grid grid-cols-2 gap-x-4 gap-y-6 md:grid-cols-3">${templateCards()}</div></div>
         <div data-gctl class="hidden flex-wrap items-center gap-2 px-5 pb-3 pt-3">
             <input data-gq type="search" placeholder="Search designs" aria-label="Search designs" class="h-8 w-48 rounded-md border border-neutral-200 px-2.5 text-xs focus:border-neutral-900 focus:outline-none">
             <span data-gkinds class="inline-flex gap-1.5">${[["component", "Components"], ["page", "Pages"], ["all", "All"]].map(([k, l]) => `<button type="button" data-gkind="${k}" class="rounded-full border px-3 py-1 text-xs">${l}</button>`).join("")}</span>
@@ -314,9 +317,11 @@ function browse(o) {
     function setSource(next) {
         source = next;
         box.querySelectorAll("[data-source]").forEach((b) => { const on = b.dataset.source === source; b.setAttribute("aria-selected", String(on)); b.className = `rounded-md px-3 py-1 font-medium ${on ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100"}`; });
-        const g = source === "gallery";
-        box.querySelector("[data-chips]").classList.toggle("hidden", g);
-        scroller.classList.toggle("hidden", g);
+        const g = source === "gallery", d3 = source === "3d";
+        box.querySelector("[data-chips]").classList.toggle("hidden", g || d3);
+        box.querySelector("[data-suited]").style.display = d3 ? "none" : "";
+        box.querySelector("[data-tscroll]").classList.toggle("hidden", !d3);
+        scroller.classList.toggle("hidden", g || d3);
         gctl.classList.toggle("hidden", !g); gctl.classList.toggle("flex", g);
         gscroll.classList.toggle("hidden", !g);
         if (g) { paintG(); if (gneeds || (!gitems.size && !gbusy && !gdone)) { gneeds = false; gload(true); } requestAnimationFrame(refit); }
@@ -483,6 +488,8 @@ function browse(o) {
         if (chip) return show(chip.dataset.kind);
         const g = e.target.closest("[data-gid]");
         if (g) return choose(g.dataset.gid, true);
+        const t3 = e.target.closest("[data-template]");
+        if (t3) { const html = templateHtml(t3.dataset.template); if (html) { hide(); return o.onPick(html, { mode }); } return; }
         const t = e.target.closest("[data-layout]");
         if (t) return choose(t.dataset.layout, false);
     });
@@ -637,7 +644,7 @@ const slotWith = (into, html) => {
 function place(html, how, into, again = false) {
     const mode = into ? how.mode || "inside" : "inside";
     if (!into) {
-        if (model.markup.trim() === "") addToEmpty(html);
+        if (model.markup.trim() === "") { if (html.includes("data-wc-view")) S.storyNext = true; addToEmpty(html); } // (a 3D scroll story: its Motion strip opens once it is in)
         else cmd({ cmd: "insert", path: [], html, position: "inside" });
     } else if (mode === "replace") {
         cmd({ cmd: "fill", path: into.path, html: isSlot(into) ? fitToSlot(html, into) : html });

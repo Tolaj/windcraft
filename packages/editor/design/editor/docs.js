@@ -8,6 +8,7 @@ import { renderInspector } from "./inspector.js";
 import { curWidth } from "./plane.js";
 import { anyDirty, docs, refreshLabels, renderDesigns } from "./designs.js";
 import { codeFocused, syncCode } from "./code-panel.js";
+import { MODEL_SCRIPT, withModelScript } from "../../../core/model3d.js";
 
 // ── Documents ────────────────────────────────────────────────────────────────
 const scriptTag = (s) =>
@@ -28,7 +29,9 @@ function canvasParts() {
 
 function editDocument() {
     const { head, attrs } = canvasParts();
-    return `<!DOCTYPE html><html><head>${head}</head><body${attrs}>${model.markup}<script data-wc-agent>window.__wcLoad=${S.loadSeq};(${agentMain.toString()})()<\/script></body></html>`;
+    // 3D models: the canvas leaves the design's own scripts out, but the model's element has to be known, in case one is added (it loads Three.js only once a model has a file)
+    const modelEl = scriptTag({ src: "", type: "", defer: false, text: MODEL_SCRIPT });
+    return `<!DOCTYPE html><html><head>${head}${modelEl}</head><body${attrs}>${model.markup}<script data-wc-agent>window.__wcLoad=${S.loadSeq};(${agentMain.toString()})()<\/script></body></html>`;
 }
 
 /**
@@ -41,9 +44,9 @@ export function stillDocument() {
 }
 
 /** Rebuilds the component source: original head assets and scripts around the edited markup. */
-export function assembleDoc(p, markup) {
+export function assembleDoc(p, markup, { runtime = true } = {}) {
     const css = [...p.links, ...p.styles.map(styleTag)].join("\n");
-    const js = p.scripts.map(scriptTag).join("\n");
+    const js = (runtime ? withModelScript(p.scripts, markup) : p.scripts).map(scriptTag).join("\n"); // runtime false: the code panel's HTML tab, which leaves the editor's scripts out
     const bodyAttrs = Object.entries(p.bodyAttrs).map(([k, v]) => ` ${k}="${esc(v)}"`).join("");
     if (bodyAttrs) return `<!DOCTYPE html>\n<html>\n<head>\n${css}\n</head>\n<body${bodyAttrs}>\n${markup}\n${js}\n</body>\n</html>\n`;
     return [css, markup, js].filter(Boolean).join("\n") + "\n";

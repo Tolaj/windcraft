@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cssText, jsText, withCss, withJs, withoutOwn, withOwnFrom, isOwnScript } from "../code-parts.js";
+import { cssText, jsText, ownJsText, withCss, withJs, withoutOwn, withOwnFrom, isOwnScript, isManagedScript, REGION_START, REGION_END } from "../code-parts.js";
 
 const page = () => ({
     markup: "<p>hi</p>", links: [], bodyAttrs: {},
@@ -36,4 +36,46 @@ test("the HTML tab's edit gets the page's own CSS and JS back", () => {
     assert.equal(cssText(back), cssText(page()));
     assert.equal(jsText(back), jsText(page()));
     assert.equal(back.scripts.length, 4);
+});
+
+test("the JS tab shows all the page's JavaScript: its own code, then the editor's region", () => {
+    const managed = { src: "", type: "", defer: false, text: "/*wc-motion*/(function(){ run(); })();" };
+    const p = { ...page(), scripts: [...page().scripts, managed] };
+    assert.equal(isManagedScript(managed), true);
+    assert.equal(isManagedScript({ src: "", type: "", text: "console.log(1)" }), false);
+    assert.equal(ownJsText(p), "console.log(1)");
+    const text = jsText(p);
+    assert.ok(text.startsWith("console.log(1)\n\n" + REGION_START), "the page's own code comes first");
+    assert.ok(text.includes("/*wc-motion*/(function(){ run(); })();") && text.endsWith(REGION_END), "then the editor's scripts, inside the markers");
+    assert.equal(jsText(page()), "console.log(1)", "no region on a page without any");
+    // a page with a 3D model gets its runtime there, though the model script is not among its scripts
+    const withModel = jsText({ ...page(), markup: '<wc-model src="a.glb"></wc-model>' });
+    assert.ok(withModel.includes("/*wc-model*/") && withModel.includes(REGION_START));
+    assert.equal(jsText({ ...page(), markup: "<p>hi</p>" }).includes("/*wc-model*/"), false);
+});
+
+test("editing the JS tab changes the page's own code and never the editor's region", () => {
+    const managed = { src: "", type: "", defer: false, text: "/*wc-motion*/(function(){ run(); })();" };
+    const p = { ...page(), scripts: [...page().scripts, managed] };
+    // the whole text, edited above the region
+    const edited = jsText(p).replace("console.log(1)", "console.log(2); mine();");
+    const q = withJs(p, edited);
+    assert.equal(ownJsText(q), "console.log(2); mine();");
+    assert.equal(q.scripts.filter(isManagedScript).length, 1, "the editor's script is kept");
+    // changes inside the region are dropped: the editor's version stands
+    const tampered = jsText(p).replace("run();", "evil();");
+    assert.equal(withJs(p, tampered).scripts.find(isManagedScript).text.includes("evil"), false);
+    assert.equal(ownJsText(withJs(p, tampered)), "console.log(1)");
+    // the region deleted: nothing is lost
+    assert.equal(withJs(p, "console.log(1)").scripts.filter(isManagedScript).length, 1);
+    // typed from nothing
+    assert.equal(ownJsText(withJs({ ...page(), scripts: [] }, "x()")), "x()");
+});
+
+test("the HTML tab leaves the editor's scripts out, and gets them back with the page", () => {
+    const managed = { src: "", type: "", defer: false, text: "/*wc-motion*/(function(){})();" };
+    const p = { ...page(), scripts: [...page().scripts, managed] };
+    assert.equal(withoutOwn(p).scripts.some(isManagedScript), false);
+    assert.equal(withoutOwn(p, true).scripts.some(isManagedScript), true);
+    assert.equal(withOwnFrom(withoutOwn(p), p).scripts.filter(isManagedScript).length, 1);
 });

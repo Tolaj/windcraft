@@ -13,6 +13,8 @@ import { updateCodeHighlight } from "./code-panel.js";
 import { suggestLayout } from "./layout-chip.js";
 import { syncLayoutPicker } from "./layout-picker.js";
 import { setCanvasOnly } from "./canvas-mode.js";
+import { chooseModel } from "./model-samples.js";
+import { storyDrawer } from "./scroll-drawer.js";
 
 let pendingKey = "";
 
@@ -67,6 +69,48 @@ function viewportLoop(h) {
     return last.length >= 4 && last.every((g, i) => i === 0 || g.d >= last[i - 1].d - 1);
 }
 
+// ── 3D model files for the canvas ────────────────────────────────────────────
+// The canvas is a sandboxed frame: the browser keeps no cache for it, so a model would download again on every load of the canvas (seconds for a
+// large one). Its page asks here instead (model3d.js, agent.js): this page has the cache, and keeps the last few files in memory as well.
+const modelFiles = new Map(); // url -> Promise<ArrayBuffer>, most recent last
+const MODEL_KEEP = 6;
+function loadModelFile(url, onProgress) {
+    if (modelFiles.has(url)) { const p = modelFiles.get(url); modelFiles.delete(url); modelFiles.set(url, p); return p; }
+    const p = (async () => {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        // (the length the server gives can be that of the compressed file, while the reader hands over the plain bytes: it only drives the bar)
+        const total = Number(r.headers.get("content-length")) || 0;
+        if (!r.body) return r.arrayBuffer();
+        const parts = [], rd = r.body.getReader();
+        let at = 0, last = 0;
+        for (;;) {
+            const { done, value } = await rd.read();
+            if (done) break;
+            parts.push(value); at += value.length;
+            if (onProgress && performance.now() - last > 100) { last = performance.now(); onProgress(at, Math.max(total, at)); }
+        }
+        const out = new Uint8Array(at);
+        let o = 0;
+        for (const v of parts) { out.set(v, o); o += v.length; }
+        return out.buffer;
+    })();
+    modelFiles.set(url, p);
+    p.catch(() => modelFiles.delete(url));
+    while (modelFiles.size > MODEL_KEEP) modelFiles.delete(modelFiles.keys().next().value);
+    return p;
+}
+async function fetchModel(win, id, url) {
+    if (!/^https?:/i.test(url)) return win.postMessage({ cmd: "modelData", id, error: "not a web address" }, "*");
+    try {
+        const buf = await loadModelFile(url, (loaded, total) => win.postMessage({ cmd: "modelData", id, progress: true, loaded, total }, "*"));
+        const copy = buf.slice(0); // the frame gets its own copy (moved, not copied again); this page keeps the original
+        win.postMessage({ cmd: "modelData", id, buf: copy }, "*", [copy]);
+    } catch (err) {
+        win.postMessage({ cmd: "modelData", id, error: String(err && err.message || err) }, "*");
+    }
+}
+
 export function init() {
     const boot = document.getElementById("boot");
     if (boot && (data.htmlCode || data.id)) { boot.classList.remove("hidden"); boot.classList.add("flex"); setTimeout(hideBoot, 15000); }
@@ -80,6 +124,7 @@ export function init() {
             }
             return;
         }
+        if (m.type === "modelFetch" && e.source && typeof m.url === "string") return fetchModel(e.source, m.id, m.url);
         if (e.source !== frame.contentWindow) return;
         // a document that was replaced (switching designs reloads the frame) can still have messages in flight
         if (m.load !== undefined && m.load !== S.loadSeq) return;
@@ -104,6 +149,8 @@ export function init() {
             return handleWheel({ dx: m.dx, dy: m.dy, zoomKey: m.zoom, cx: view.x + (pos.x + m.x) * view.z, cy: view.y + (pos.y + m.y) * view.z });
         }
         if (m.type === "ready") {
+            storyDrawer(null); // a fresh page: no story is open in the drawer
+            if (S.storyNext) { S.storyNext = false; send({ cmd: "storyOpen" }); } // unless a Scroll story was just added: the frame opens its first one
             if (S.switching) {
                 S.switching = false;
                 // the frame moves over now (layout below) but shows a moment later, once Tailwind has styled the new design; the
@@ -169,6 +216,14 @@ export function init() {
         } else if (m.type === "overlay") {
             S.selData = m;
             renderSel();
+        } else if (m.type === "chooseModel") {
+            chooseModel(cmd);
+        } else if (m.type === "story") { // the Scroll story open in the drawer (null: closed)
+            storyDrawer(m.info);
+        } else if (m.type === "model") {
+            S.modelPart = m.part;
+            S.modelMode = m.mode;
+            renderFloat(true);
         } else if (m.type === "editing") {
             S.editingInfo = m;
             renderFloat();

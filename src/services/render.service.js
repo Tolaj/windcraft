@@ -43,7 +43,8 @@ async function launch() {
     const { chromium } = playwright;
     if (process.env.RENDER_BROWSER_WS) return chromium.connectOverCDP(process.env.RENDER_BROWSER_WS);
     let executablePath = LOCAL.find((p) => existsSync(p));
-    let args = [];
+    // software WebGL (SwiftShader), so a design with a 3D model (<wc-model>) draws on a server that has no graphics card
+    let args = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"];
     if (!executablePath) {
         try {
             // @sparticuz/chromium unpacks the system libraries the browser needs (libnss3 and the rest) only when it recognises an AWS Lambda
@@ -147,6 +148,8 @@ async function draw(page, { width = 1280, fullPage = true, maxHeight = 3000, dar
             const last = window.__wcLast; window.__wcLast = now;
             return /tailwindcss v\d/.test(css) && now > 0 && last === now;
         }, null, { timeout: 12_000, polling: 200 }).catch(() => {});
+        // 3D models (<wc-model>) fetch Three.js and the file after the page has loaded: wait until each has drawn (or failed), but not for long
+        await tab.waitForFunction(() => [...document.querySelectorAll("wc-model")].every((m) => !m.getAttribute("src") || m._ground || (m._err && !m._err.hidden)), null, { timeout: 8_000, polling: 150 }).catch(() => {});
         await tab.waitForTimeout(250);
         const full = await tab.evaluate(() => Math.ceil(document.documentElement.scrollHeight));
         const height = fullPage ? Math.min(full, cap) : 800;

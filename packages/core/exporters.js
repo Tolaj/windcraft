@@ -1,6 +1,7 @@
 import { parseDocument } from "./split-sections.js";
 import { tailwindTag, toTailwindConfig } from "./config-file.js";
 import { themeHead, normalizeTheme, tailwindConfig } from "./theme.js";
+import { MODEL_MARK, MODEL_SCRIPT, usesModel } from "./model3d.js";
 
 const VOID_TAGS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"]);
 
@@ -61,7 +62,8 @@ function tagToJsx(tag) {
         const value = a[2] ?? a[3] ?? a[4];
         const lower = raw.toLowerCase();
         if (EVENT_RE.test(lower)) continue;
-        const key = ATTR_MAP[lower] || (raw.startsWith("data-") || raw.startsWith("aria-") ? raw : raw);
+        // a custom element (<wc-model>) keeps the HTML names: React 18 passes them to it as they are, and `className` would not be a class
+        const key = name.includes("-") ? raw : ATTR_MAP[lower] || raw;
         if (value === undefined) attrs.push(key);
         else if (lower === "style") attrs.push(`style=${styleToObject(value)}`);
         else attrs.push(`${key}="${value.replace(/"/g, "&quot;")}"`);
@@ -151,6 +153,8 @@ export const FORMATS = ["html", "standalone", "react", "vue", "svelte", "config"
 export function exportComponent(code, format = "html", name = "Component", opts = {}) {
     const safeName = String(name).replace(/[^a-zA-Z0-9]+(.)?/g, (_, c) => (c ? c.toUpperCase() : "")).replace(/^[^a-zA-Z]+/, "") || "Component";
     const cap = safeName[0].toUpperCase() + safeName.slice(1);
+    // a design with a 3D model carries the script that draws it (the editor saves it in the page; code written elsewhere may not have it yet)
+    if (format !== "config" && usesModel(code) && !String(code).includes(MODEL_MARK)) code = `${code}\n<script>${MODEL_SCRIPT}</script>`;
     switch (format) {
         case "react": return toReact(code, cap);
         case "vue": return toVue(code);
