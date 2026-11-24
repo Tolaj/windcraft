@@ -9,6 +9,7 @@ import { cmd } from "./frame-messages.js";
 import { WORDS } from "../../../core/model3d.js";
 
 let box = null, info = null, playing = 0, scrubU = 1, dragEnd = 0;
+let cardShut = -1; // the picked section whose card was closed with ×: it stays picked (and selected), only its card is put away
 
 const stop = () => { if (playing) { cancelAnimationFrame(playing); playing = 0; } };
 
@@ -94,8 +95,8 @@ function onClick(e) {
     if (a === "close") { stop(); send({ cmd: "storyClose" }); return; }
     if (a === "pickmode") { stop(); if (!info.picking) send({ cmd: "storyPickMode", on: true }); else flash("Click an element on the page to add it, or Done when you're finished."); return; } // + always asks for an element
     if (a === "pickdone") { send({ cmd: "storyPickMode", on: false }); return; }
-    if (a === "unpick") { send({ cmd: "storyPick", i: -1 }); return; }
-    if (a === "pick") { stop(); send({ cmd: "storyPick", i: info.cur === i ? -1 : i }); return; }
+    if (a === "unpick") { cardShut = info.cur; paint(); return; } // × puts the card away: the section stays picked and the selection stays as it is
+    if (a === "pick") { stop(); if (info.cur === i && cardShut === i) { cardShut = -1; paint(); return; } send({ cmd: "storyPick", i: info.cur === i ? -1 : i }); return; } // (a click on the picked section brings its card back)
     if (a === "pin") { cmd({ cmd: "storyPin", on: !info.pin }); return; }
     if (a === "remove") { stop(); cmd({ cmd: "storyRemove", i }); return; }
     if (a === "play") {
@@ -122,7 +123,8 @@ function paint() {
         class="flex h-10 min-w-0 flex-1 items-center gap-1.5 rounded-lg border px-1 text-left ${i === cur ? "border-blue-600 bg-blue-50 text-blue-800" : "border-neutral-200 bg-neutral-50 hover:border-neutral-400"}">
         <span class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-white">${s.snap ? `<img src="${s.snap}" alt="" class="h-full w-full object-cover">` : `<span class="text-[9px] text-neutral-400">${esc(s.pose.split(",")[0])}</span>`}</span>
         <span class="min-w-0 flex-1 truncate"><b class="font-medium">${i + 1}</b> ${esc(s.name)}</span>${s.color ? `<span class="mr-1 h-3 w-3 shrink-0 rounded-full border border-black/10" style="background:${esc(s.color)}" title="Paints the model ${esc(s.color)}"></span>` : ""}</button>`;
-    const sel = cur >= 0 ? info.steps[cur] : null;
+    if (cardShut !== cur) cardShut = -1; // another section (or none) picked since: its card shows again
+    const sel = cur >= 0 && cardShut !== cur ? info.steps[cur] : null;
     const tabs = `<div class="flex shrink-0 rounded-lg bg-neutral-100 p-0.5">${[["scroll", "Scroll"], ["click", "Click"], ["hover", "Hover"]].map(([k, l]) => `<button type="button" data-kind="${k}" title="${k === "scroll" ? "The model moves as the page scrolls" : k === "click" ? "The model changes when something is clicked" : "The model changes while something is hovered"}" class="rounded-md px-2 py-1 ${k === kind ? "bg-white font-medium text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-900"}">${l}${info.counts && info.counts[k] ? `<span class="ml-1 text-neutral-400">${info.counts[k]}</span>` : ""}</button>`).join("")}</div>`;
     // the picked section's own settings, over its segment
     const pop = sel ? `<div class="absolute bottom-[60px] z-10 w-60 rounded-xl border border-neutral-200 bg-white p-2.5 shadow-[0_8px_24px_rgba(0,0,0,.12)]" style="left:clamp(0px, calc(${((cur + 0.5) / n) * 100}% - 120px), calc(100% - 240px))">
