@@ -1,7 +1,7 @@
 import { closeColorPicker } from "../color-picker.js";
 import { CSS_PROP_LIST } from "../css-props.js";
 import { panelStore } from "../panel-state.js";
-import { S, data, frame, model, send } from "./base.js";
+import { $, S, data, frame, model, send } from "./base.js";
 import { activate, docs, scheduleLayout, selectFrame, wraps } from "./designs.js";
 import { pathKey, renderLayers } from "./layers.js";
 import { FLOAT_ACTIONS, ftb, renderFloat, renderSel } from "./frame-handles.js";
@@ -112,6 +112,10 @@ async function fetchModel(win, id, url) {
 }
 
 export function init() {
+    // The canvas is moved by panning (view), never by scrolling: a scrollIntoView inside the page frame can still scroll it, which shifts the strip,
+    // the toolbars and every overlay away from the design. Any such scroll is put back at once.
+    const cv = $("canvas");
+    cv.addEventListener("scroll", () => { if (cv.scrollTop || cv.scrollLeft) { cv.scrollTop = 0; cv.scrollLeft = 0; } });
     const boot = document.getElementById("boot");
     if (boot && (data.htmlCode || data.id)) { boot.classList.remove("hidden"); boot.classList.add("flex"); setTimeout(hideBoot, 15000); }
 
@@ -142,6 +146,12 @@ export function init() {
         if (m.type === "tw-names") { panelStore.set({ animations: Array.isArray(m.animations) ? m.animations.filter((n) => /^[a-z][a-z0-9-]*$/.test(n)) : [] }); return; }
         if (m.type === "wcGoto") { // an interaction's "Go to page" while Interact runs the page: open that page here and carry on in Interact
             if (S.mode === "preview" && m.load === S.loadSeq && docs.has(m.key)) activate(m.key);
+            return;
+        }
+        if (m.type === "reveal") { // a part of the page to bring into view (a section picked in the Motion strip): the canvas pans to its top
+            const pos = positions()[S.curKey] || { x: 0, y: 0 }, H = $("canvas").clientHeight;
+            const top = view.y + (pos.y + m.y) * view.z;
+            if (top < 60 || top > H * 0.45) { view.y += 90 - top; applyView(); }
             return;
         }
         if (m.type === "wheel") {

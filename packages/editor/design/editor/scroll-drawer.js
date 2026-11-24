@@ -61,8 +61,15 @@ function mount() {
         e.preventDefault();
         stop();
         h.setPointerCapture(e.pointerId);
-        const move = (ev) => scrubTo(ev.clientX);
-        const up = () => { dragEnd = performance.now(); ["pointermove", "pointerup", "pointercancel", "lostpointercapture"].forEach((t, i) => h.removeEventListener(t, i ? up : move)); };
+        const x0 = e.clientX, y0 = e.clientY;
+        let moved = false;
+        const move = (ev) => { if (!moved && Math.abs(ev.clientX - x0) < 3) return; moved = true; scrubTo(ev.clientX); };
+        const up = (ev) => {
+            ["pointermove", "pointerup", "pointercancel", "lostpointercapture"].forEach((t, i) => h.removeEventListener(t, i ? up : move));
+            if (moved) { dragEnd = performance.now(); return; }
+            // a click on the playhead (no drag) is a click on the section under it: the playhead sits over the middle of one
+            if (ev && ev.type === "pointerup") { const seg = document.elementsFromPoint(x0, y0).map((el) => el.closest && el.closest('[data-act="pick"]')).find(Boolean); if (seg) seg.click(); }
+        };
         h.addEventListener("pointermove", move);
         ["pointerup", "pointercancel", "lostpointercapture"].forEach((t) => h.addEventListener(t, up));
     });

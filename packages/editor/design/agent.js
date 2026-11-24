@@ -799,7 +799,7 @@ export function agentMain() {
     // whether their words dim or fade when away (data-wc-words). `storyModel`: the story open in the drawer; `storyCur`: the section picked in it (its
     // pose shows on the model, and turning, moving or sizing the model is saved into it), -1 for none. Chips on the canvas name each section's pose.
     const VIEW_KEYS = ["rotation", "model-position", "model-size", "camera-angle", "camera-distance"];
-    let storyModel = null, storyCur = -1, storyPicking = false, storyKind = "scroll"; // scroll | click | hover: what the strip sets up (the same strip, three tabs)
+    let storyModel = null, storyCur = -1, storyPicking = false, storyKind = "scroll", storyBefore = null; // storyBefore: what was selected before a section was picked (the pick selects the model; closing the section gives it back) // scroll | click | hover: what the strip sets up (the same strip, three tabs)
     // Scroll: the sections hold the pose in data-wc-view. Click and hover: the elements that act on the model hold it in data-wc-act / data-wc-hover, as
     // actions ("view rotation:0 90 0 | color #e11d48"): the model itself can be one of them. The pose and the colour are the parts the strip edits.
     const KIND_ATTR = { scroll: "data-wc-view", click: "data-wc-act", hover: "data-wc-hover" };
@@ -979,9 +979,16 @@ export function agentMain() {
 
     function storyPick(i) {
         const steps = storyStepsOf(storyModel);
+        const wasModel = sels.length === 1 && sels[0] === storyModel;
+        if (i >= 0 && i < steps.length && storyCur < 0) storyBefore = wasModel ? null : sels.slice(); // (only the first pick: switching sections keeps it)
         storyCur = i >= 0 && i < steps.length ? i : -1;
         storyShow();
-        if (storyCur >= 0) { setSelection([storyModel], true); steps[storyCur].scrollIntoView({ block: "center" }); post({ type: "selected", info: describe(storyModel) }); }
+        if (storyCur < 0) { // the section's card was closed: the selection goes back to what it was before the pick (if it is still the model the pick chose)
+            const back = storyBefore && storyBefore.filter(alive);
+            storyBefore = null;
+            if (wasModel && back && back.length) { setSelection(back); if (primary()) post({ type: "selected", info: describe(primary()) }); }
+        }
+        if (storyCur >= 0) { setSelection([storyModel], true); { const r = steps[storyCur].getBoundingClientRect(); post({ type: "reveal", y: r.top + scrollY, h: r.height }); } /* the editor pans its canvas to it (scrollIntoView would scroll the editor itself, outside this frame) */ post({ type: "selected", info: describe(storyModel) }); }
         redraw();
         postStory();
     }
@@ -1022,6 +1029,8 @@ export function agentMain() {
     }
     function setSelection(list, quiet) {
         sels = list.filter(Boolean);
+        // something else selected while a section is picked (a click on the page): the section's card closes; it opens again only when asked for
+        if (storyCur >= 0 && storyModel && !(sels.length === 1 && sels[0] === storyModel)) { storyCur = -1; storyBefore = null; storyShow(); postStory(); }
         if (part && !(sels.length === 1 && sels[0] === part && alive(part))) setPart(null);
         // a selected 3D model plays its effects on the canvas (the scroll at the panel's preview point); the others rest
         document.querySelectorAll("wc-model").forEach((md) => {
