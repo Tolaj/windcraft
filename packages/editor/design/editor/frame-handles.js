@@ -48,12 +48,16 @@ export function placeFloat() {
     const cw = canvas.clientWidth, w = ftb.offsetWidth, h = ftb.offsetHeight;
     // the bottom of the room the bar has: the canvas (the code panel is below it), or the top of the Motion strip when that is open over it
     const strip = document.getElementById("scrollDrawer"), cr0 = canvas.getBoundingClientRect();
-    const stripTop = strip ? Math.min(...[strip, ...strip.children].map((e) => e.getBoundingClientRect().top)) : Infinity; // (its section card and notes above it too)
-    const ch = strip ? Math.min(canvas.clientHeight, stripTop - cr0.top) : canvas.clientHeight;
-    const left = Math.min(Math.max(8, a.x), Math.max(8, cw - w - 8));
+    const ch = strip ? Math.min(canvas.clientHeight, strip.getBoundingClientRect().top - cr0.top) : canvas.clientHeight; // (the strip's bar: its section card goes beside, below)
+    let left = Math.min(Math.max(8, a.x), Math.max(8, cw - w - 8));
     let top = a.y - h - a.gap;
     if (top < 56) top = a.y + a.h + 10;
     top = Math.min(Math.max(56, top), Math.max(56, ch - h - 8));
+    // the strip's section card (and its notes) rise above the bar: the toolbar keeps its height and moves to the side of the card, not above it
+    if (strip) [...strip.children].map((e) => e.getBoundingClientRect()).filter((r) => r.width && r.top < strip.getBoundingClientRect().top - 2).forEach((r) => {
+        const c = { left: r.left - cr0.left, right: r.right - cr0.left, top: r.top - cr0.top, bottom: r.bottom - cr0.top };
+        if (left < c.right + 8 && left + w > c.left - 8 && top < c.bottom && top + h > c.top) left = c.right + 8 + w <= cw - 8 ? c.right + 8 : Math.max(8, c.left - w - 8);
+    });
     ftb.classList.toggle("popdown", top < 270); // a panel opens upward, unless the bar is too close to the top of the canvas
     ftb.style.left = `${Math.round(left)}px`;
     ftb.style.top = `${Math.round(top)}px`;
