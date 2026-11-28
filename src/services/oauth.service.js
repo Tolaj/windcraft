@@ -7,6 +7,10 @@ export const SCOPE = "library";
 export const ACCESS_TTL_S = 60 * 60;
 export const REFRESH_TTL_S = 60 * 60 * 24 * 30;
 export const CODE_TTL_S = 60 * 10;
+// How long a refresh token stays usable after it was exchanged. Several copies of one client (two Claude Code
+// windows sharing the saved sign-in) refresh at about the same time, and a reply can be lost on the way back
+// (a timeout, a cold start). Strict single use turned either case into "disconnected"; this grace keeps them working.
+export const REFRESH_REUSE_S = 60 * 60 * 24;
 
 export const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 export const randomToken = (prefix) => `${prefix}_${crypto.randomBytes(32).toString("base64url")}`;
@@ -54,6 +58,22 @@ export async function issueTokenPair({ clientId, userId, resource, familyId }) {
         { type: "refresh", tokenHash: sha256(refresh), clientId, userId, resource, familyId: family, scope: SCOPE, expiresAt: inSeconds(REFRESH_TTL_S) },
     ]);
     return { access_token: access, token_type: "Bearer", expires_in: ACCESS_TTL_S, refresh_token: refresh, scope: SCOPE };
+}
+
+/**
+ * Exchanges a refresh token for a new pair. The old refresh token is marked rotated, not deleted: it keeps working for
+ * REFRESH_REUSE_S, then expires. Access tokens already handed out are left alone (they expire within ACCESS_TTL_S), so
+ * one copy of a client refreshing never signs out another copy. Returns null when the token is unknown or expired.
+ */
+export async function refreshTokenPair({ refreshToken, clientId }) {
+    const now = new Date();
+    const row = await OAuthToken.findOne({ type: "refresh", tokenHash: sha256(String(refreshToken)), clientId: String(clientId), expiresAt: { $gt: now } }).lean();
+    if (!row) return null;
+    if (!row.rotatedAt) {
+        const graceEnd = inSeconds(REFRESH_REUSE_S);
+        await OAuthToken.updateOne({ _id: row._id, rotatedAt: null }, { rotatedAt: now, expiresAt: row.expiresAt < graceEnd ? row.expiresAt : graceEnd });
+    }
+    return issueTokenPair({ clientId: row.clientId, userId: row.userId, resource: row.resource, familyId: row.familyId });
 }
 
 export function verifyPkce(verifier, challenge) {
