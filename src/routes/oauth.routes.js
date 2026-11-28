@@ -4,7 +4,7 @@ import OAuthToken from "../models/oauthToken.model.js";
 import { publicBase } from "../utils/publicUrl.js";
 import {
     SCOPE, sha256, isValidRedirectUri, registerClient, findClient,
-    createAuthCode, issueTokenPair, verifyPkce,
+    createAuthCode, issueTokenPair, refreshTokenPair, verifyPkce,
 } from "../services/oauth.service.js";
 
 const router = express.Router();
@@ -191,12 +191,11 @@ router.post("/oauth/token", openCors, express.urlencoded({ extended: false }), e
 
         if (b.grant_type === "refresh_token") {
             if (!b.refresh_token || !b.client_id) return tokenError(res, 400, "invalid_request", "refresh_token and client_id are required");
-            const row = await OAuthToken.findOneAndDelete({ type: "refresh", tokenHash: sha256(String(b.refresh_token)), clientId: String(b.client_id), expiresAt: { $gt: new Date() } }).lean();
-            if (!row) return tokenError(res, 400, "invalid_grant", "Invalid or expired refresh token");
-            await OAuthToken.deleteMany({ type: "access", familyId: row.familyId });
+            const pair = await refreshTokenPair({ refreshToken: b.refresh_token, clientId: b.client_id });
+            if (!pair) return tokenError(res, 400, "invalid_grant", "Invalid or expired refresh token");
 
             noStore(res);
-            return res.json(await issueTokenPair({ clientId: row.clientId, userId: row.userId, resource: row.resource, familyId: row.familyId }));
+            return res.json(pair);
         }
 
         return tokenError(res, 400, "unsupported_grant_type", "Use authorization_code or refresh_token");

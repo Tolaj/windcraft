@@ -12,6 +12,8 @@ const oauthTokenSchema = new mongoose.Schema({
     codeChallenge: { type: String, default: "" },
     familyId: { type: String, default: "" },
     used: { type: Boolean, default: false },
+    // Set when a refresh token has been exchanged once. It keeps working for REFRESH_REUSE_S after that (see oauth.service.js).
+    rotatedAt: { type: Date, default: null },
     expiresAt: { type: Date, required: true, index: { expireAfterSeconds: 0 } },
     createdAt: { type: Date, default: Date.now },
 });
